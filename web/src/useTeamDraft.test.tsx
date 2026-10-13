@@ -35,6 +35,25 @@ beforeEach(() => {
 });
 
 describe('useTeamDraft', () => {
+  it('re-checks a missing computer until it connects, then stops asking', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const computer = { element: { kind: 'team', id: 't' }, severity: 'error', code: 'computer-not-connected', message: 'Connect your computer', detail: null, spec_path: null } as TeamRecord['issues'][number];
+      const { result } = await loaded(teamRecord({ issues: [computer] }));
+      expect(result.current.issues.map((i) => i.code)).toEqual(['computer-not-connected']);
+      vi.mocked(api.getTeam).mockResolvedValue(teamRecord({ issues: [] }));
+      const before = vi.mocked(api.getTeam).mock.calls.length;
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+      await waitFor(() => expect(result.current.issues).toEqual([]));
+      const after = vi.mocked(api.getTeam).mock.calls.length;
+      expect(after).toBeGreaterThan(before);
+      await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+      expect(vi.mocked(api.getTeam).mock.calls.length).toBe(after);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('autosaves after the last edit with the revision and a fresh request id each time', async () => {
     const { result } = await loaded();
     act(() => void result.current.edit((d) => renameAgent(d, 'builder', 'B'), 'name'));

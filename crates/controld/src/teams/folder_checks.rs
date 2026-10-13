@@ -3,6 +3,32 @@ use crate::folders::{self, Home};
 use crate::state::AppState;
 use model::{AgentKind, DraftAgent, DraftIssue, ElementKind, ElementRef, IssueSeverity, TeamDraft};
 
+/// Hosted: a team's folders and agents are on the user's computer, so without that computer connected
+/// it can't start. Local `serve` runs everything on this machine and never asks.
+pub(crate) fn computer_issue(st: &AppState, d: &TeamDraft) -> Option<DraftIssue> {
+    if !matches!(st.auth, crate::auth::AuthPolicy::Gateway { .. }) {
+        return None;
+    }
+    let host = crate::launch::team_host(st, &d.id);
+    if st.hosts.is_connected(&host) {
+        return None;
+    }
+    let chosen = st.store.lock().unwrap().team_settings(&d.id).ok().and_then(|t| t.host).filter(|h| !h.is_empty());
+    let message = match (chosen, st.hosts.connected().len()) {
+        (Some(h), _) => format!("{h} is not connected. Open Computers to reconnect it, or choose another computer for this team."),
+        (None, 0) => "Connect your computer: your folders and agents run there, not on the server. Open Computers and choose Connect a computer.".to_string(),
+        (None, _) => "Choose which connected computer runs this team (Run on).".to_string(),
+    };
+    Some(DraftIssue {
+        element: ElementRef { kind: ElementKind::Team, id: d.id.clone() },
+        severity: IssueSeverity::Error,
+        code: "computer-not-connected".to_string(),
+        message,
+        detail: None,
+        spec_path: None,
+    })
+}
+
 /// Checks that need the filesystem, so they live here and not in `rigspec`. An agent's
 /// folder must sit inside the home folder, checked with the folder picker's own rule
 /// (`folders::resolve_inside`): a place outside home gets the same words whether or not

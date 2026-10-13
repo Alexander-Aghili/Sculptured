@@ -106,3 +106,27 @@ async fn with_several_computers_and_no_choice_start_asks_which_one() {
     assert_eq!(body["error"]["code"], "needs_computer", "{body}");
     assert!(body["error"]["message"].as_str().unwrap().contains("Choose which computer"), "{body}");
 }
+
+/// In the hosted beta, folders and agents are on the user's computer: without one connected, the
+/// board says so in Things to fix (the team needs setup), naming where to connect it.
+#[tokio::test]
+async fn a_hosted_team_without_a_connected_computer_needs_setup() {
+    let r = hosted();
+    let rec = json_of(r.clone().oneshot(signed_json("POST", "/api/teams", serde_json::json!({"request_id": "c1", "template": "solo", "practice": true}))).await.unwrap()).await;
+    let issue = rec["issues"].as_array().unwrap().iter().find(|i| i["code"] == "computer-not-connected").cloned();
+    let issue = issue.unwrap_or_else(|| panic!("no computer issue in {}", rec["issues"]));
+    assert_eq!(issue["element"]["kind"], "team");
+    assert_eq!(issue["severity"], "error");
+    assert!(issue["message"].as_str().unwrap().contains("Computers"), "{issue}");
+}
+
+/// Running Sculptured on your own computer needs no connected computer.
+#[tokio::test]
+async fn a_local_team_never_asks_for_a_computer() {
+    let st = AppState::new(Store::open_in_memory().unwrap(), "t".into(), vec!["127.0.0.1:1".into()]);
+    let r = app(st, None);
+    let req = Request::builder().method("POST").uri("/api/teams").header("host", "127.0.0.1:1").header("content-type", "application/json")
+        .body(Body::from(serde_json::json!({"request_id": "l1", "template": "solo", "practice": true}).to_string())).unwrap();
+    let rec = json_of(r.oneshot(req).await.unwrap()).await;
+    assert!(rec["issues"].as_array().unwrap().iter().all(|i| i["code"] != "computer-not-connected"), "{}", rec["issues"]);
+}

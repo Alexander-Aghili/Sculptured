@@ -6,6 +6,9 @@ import type { DraftIssue } from './generated/DraftIssue';
 import type { TeamDraft } from './generated/TeamDraft';
 import type { TeamRecord } from './generated/TeamRecord';
 
+/** How often a team waiting for its computer re-checks whether it connected. */
+const COMPUTER_RECHECK_MS = 5_000;
+
 export type SaveState = 'saved' | 'unsaved' | 'saving' | 'conflict' | 'error';
 
 export const SAVE_DELAY_MS = 500;
@@ -145,6 +148,22 @@ export function useTeamDraft(teamId: string, saveDelayMs = saveTiming.delayMs) {
       if (histRef.current && histRef.current.present !== sent.current && !blocked.current) void runSaves();
     };
   }, [teamId, commit, adoptRead, runSaves]);
+
+  // Hosted: while the team waits for the user's computer, re-read its issues every few seconds so
+  // "Connect your computer" clears by itself once the computer connects. Only the issues are taken,
+  // and only when every edit is saved (a save brings its own issues). Nothing polls otherwise.
+  const needsComputer = issues.some((i) => i.code === 'computer-not-connected');
+  useEffect(() => {
+    if (!needsComputer) return;
+    const mine = session.current;
+    const timer = window.setInterval(() => {
+      if (histRef.current?.present !== sent.current || inflight.current) return;
+      api.getTeam(teamId).then((rec) => {
+        if (alive.current && session.current === mine && histRef.current?.present === sent.current) setIssues(rec.issues);
+      }, () => {});
+    }, COMPUTER_RECHECK_MS);
+    return () => window.clearInterval(timer);
+  }, [needsComputer, teamId]);
 
   // The page is going away (closed, reloaded, another site): a normal request would be
   // cancelled, so the unsaved draft goes with keepalive. If the page stays after all (the
