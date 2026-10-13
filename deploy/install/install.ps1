@@ -31,7 +31,11 @@ try {
   # (A cmdlet, not schtasks.exe: Windows PowerShell 5.1 turns a native program's error output into a
   # terminating error under ErrorActionPreference Stop.)
   $task = Get-ScheduledTask -TaskName 'Sculptured runner' -ErrorAction SilentlyContinue
-  if ($task) { $task | Stop-ScheduledTask -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 }
+  if ($task) { $task | Stop-ScheduledTask -ErrorAction SilentlyContinue }
+  # Ending the task can leave the runner itself running (Windows then refuses to replace its files):
+  # stop the old runner, only the copies installed in this folder.
+  $old = Get-Process -Name 'sculptured', 'sculptured-background' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($bin, [StringComparison]::OrdinalIgnoreCase) }
+  if ($old) { Write-Host "Stopping the running Sculptured runner to update it..."; $old | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1 }
   Copy-Item "$tmp\sculptured.exe", "$tmp\sculptured-background.exe" -Destination $bin -Force
   Write-Host "Installed $bin\sculptured.exe"
   $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
