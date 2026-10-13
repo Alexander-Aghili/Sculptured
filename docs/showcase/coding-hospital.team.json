@@ -1,4 +1,5 @@
 {
+  "$schema": "https://docs.usesculptured.com/schema/team-v1.json",
   "format": "sculptured.team/v1",
   "team": {
     "id": "coding-hospital",

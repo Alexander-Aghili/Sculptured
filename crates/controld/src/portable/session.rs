@@ -184,6 +184,7 @@ pub fn import_run(st: &AppState, text: &str) -> Result<(model::TeamDraft, histor
         }
     });
     let file = team.unwrap_or_else(|| super::team::TeamFile {
+            schema: None,
             format: super::team::TEAM_FORMAT.into(),
             team: model::TeamDraft { schedules: vec![], decision_log: false,
                 workflow: None,

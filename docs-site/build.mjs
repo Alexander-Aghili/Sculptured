@@ -124,6 +124,8 @@ export async function build(out = path.join(here, 'dist')) {
   const first = config.navigation.groups[0].pages[0];
   fs.copyFileSync(path.join(out, `${first}.html`), path.join(out, 'index.html'));
   fs.cpSync(path.join(here, 'images'), path.join(out, 'images'), { recursive: true });
+  // The portable formats' JSON Schemas, at the address exported team files name in "$schema".
+  fs.cpSync(path.join(here, '../web/public/schema'), path.join(out, 'schema'), { recursive: true });
   return [...pages.keys()];
 }
 

@@ -3,6 +3,13 @@
   "title": "sculptured.team/v1",
   "type": "object",
   "properties": {
+    "$schema": {
+      "description": "The file's JSON Schema, for editors that validate and complete it. Written on export; any value is\naccepted on import.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "format": {
       "description": "Always \"sculptured.team/v1\".",
       "type": "string",

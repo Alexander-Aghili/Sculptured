@@ -23,6 +23,7 @@ fn errors(v: &jsonschema::Validator, x: &serde_json::Value) -> Vec<String> {
 fn a_team_file_and_session_lines_validate_against_their_schemas() {
     let schemas: std::collections::HashMap<_, _> = portable::schemas().into_iter().collect();
     let team = serde_json::to_value(portable::team::TeamFile {
+        schema: Some(portable::team::TEAM_SCHEMA_URL.into()),
         format: portable::team::TEAM_FORMAT.into(),
         team: serde_json::from_value(serde_json::json!({"id":"t","name":"T","groups":[],"agents":[{"id":"a","group_id":null,"name":"A","kind":"practice","folder":null,"x":0,"y":0}],"connections":[],"revision":0})).unwrap(),
         settings: Default::default(),

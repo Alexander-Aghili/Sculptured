@@ -12,11 +12,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub const TEAM_FORMAT: &str = "sculptured.team/v1";
+/// Where the team file's JSON Schema is published (every Sculptured also serves it at `/schema/team-v1.json`).
+pub const TEAM_SCHEMA_URL: &str = "https://docs.usesculptured.com/schema/team-v1.json";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(title = "sculptured.team/v1")]
 pub struct TeamFile {
+    /// The file's JSON Schema, for editors that validate and complete it. Written on export; any value is
+    /// accepted on import.
+    #[serde(rename = "$schema", default, skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
     /// Always "sculptured.team/v1".
     #[schemars(regex(pattern = r"^sculptured\.team/v1$"))]
     pub format: String,
@@ -49,7 +55,7 @@ pub fn to_file(mut team: TeamDraft, s: &TeamSettings, include_folders: bool) -> 
         }
     }
     let settings = PortableSettings { posture: s.posture, own_copies: s.own_copies, question_timeout_min: s.question_timeout_min };
-    TeamFile { format: TEAM_FORMAT.into(), team, settings }
+    TeamFile { schema: Some(TEAM_SCHEMA_URL.into()), format: TEAM_FORMAT.into(), team, settings }
 }
 
 pub fn export_team(st: &AppState, id: &str, include_folders: bool) -> Result<TeamFile, ApiError> {

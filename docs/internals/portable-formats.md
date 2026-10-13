@@ -19,7 +19,8 @@ Sources:
 
 Both formats are Rust types: `TeamFile`, `SessionHeader` and `SessionLine`. The JSON Schemas are generated from those same types with `schemars`, so the schema cannot drift from what the server reads and writes.
 
-- **Published at:** `/schema/team-v1.json` and `/schema/session-v1.json`. The files live in `web/public/schema/`, so every place that serves the web app serves them.
+- **Published at:** `/schema/team-v1.json` and `/schema/session-v1.json`. The files live in `web/public/schema/`, so every place that serves the web app serves them: a local Sculptured, the hosted app and Community. The public docs site serves them too, at `https://docs.usesculptured.com/schema/`.
+- **Named in the file:** an exported team file starts with `"$schema": "https://docs.usesculptured.com/schema/team-v1.json"`, so editors such as VS Code validate and complete it. Import accepts any `$schema` value (or none).
 - **Kept current by:** `crates/controld/tests/portable_schema.rs`. It fails when a file is stale; `UPDATE_SCHEMAS=1 cargo test -p controld --test portable_schema` rewrites them.
 - **Session schema:** it describes one *line*: `oneOf [SessionHeader, SessionLine]`. Line 1 is the header; every later line is an event.
 - **Format strings:** `format` is pinned with a pattern, so a `…/v2` file fails validation.

@@ -27,6 +27,9 @@ try {
   assert.match(quick, /<ol class="steps">/, 'steps are an ordered list');
   assert.equal(fs.readFileSync(path.join(out, 'index.html'), 'utf8'), intro, 'the home page is the introduction');
   assert.ok(fs.existsSync(path.join(out, 'images/sculptured-coastal-emblem.png')), 'images are copied');
+  for (const f of ['team-v1.json', 'session-v1.json']) {
+    assert.ok(JSON.parse(fs.readFileSync(path.join(out, 'schema', f), 'utf8')).$schema, `the ${f} schema is published`);
+  }
   console.log(`build.test: ok (${pages.length} pages)`);
 } finally {
   fs.rmSync(out, { recursive: true, force: true });

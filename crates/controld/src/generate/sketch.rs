@@ -203,7 +203,7 @@ pub fn to_team_file(s: &Sketch, kinds: Kinds, folder: Option<&str>) -> Converted
         models: ModelDefaults::default(),
         revision: 0,
     };
-    Converted { file: TeamFile { format: TEAM_FORMAT.into(), team, settings: PortableSettings::default() }, dropped }
+    Converted { file: TeamFile { schema: None, format: TEAM_FORMAT.into(), team, settings: PortableSettings::default() }, dropped }
 }
 
 /// Columns follow "hands work to": an agent sits one column right of the furthest agent that hands

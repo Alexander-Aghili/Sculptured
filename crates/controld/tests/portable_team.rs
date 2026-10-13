@@ -39,6 +39,7 @@ async fn a_team_exports_without_folders_and_imports_as_an_identical_new_team() {
     let (status, file) = get(&s.router, &format!("/api/teams/{id}/file")).await;
     assert_eq!(status, StatusCode::OK, "{file}");
     assert_eq!(file["format"], "sculptured.team/v1");
+    assert_eq!(file["$schema"], "https://docs.usesculptured.com/schema/team-v1.json", "editors can validate and complete the file");
     assert!(!file.to_string().contains(&folder), "no machine folder in the file: {file}");
     assert_eq!((file["settings"]["own_copies"].clone(), file["settings"]["posture"].clone()), (json!(true), json!("restricted")));
 
