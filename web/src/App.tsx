@@ -14,6 +14,7 @@ import { AdminPage } from './hosted/AdminPage';
 import { ConnectPage } from './hosted/ConnectPage';
 import { ComputersPage } from './hosted/ComputersPage';
 import { AccountPage } from './account/AccountPage';
+import { OpsPage } from './hosted/OpsPage';
 import { WhatWeRecord } from './hosted/WhatWeRecord';
 
 /** Hosted beta admin page; anyone else goes home. */
@@ -58,6 +59,7 @@ export function AppRoutes({ openStream }: { openStream?: OpenStream }) {
       <Route path="/admin" element={<AdminGuard />} />
       <Route path="/connect" element={<ConnectPage />} />
       <Route path="/computers" element={<ComputersPage />} />
+      <Route path="/ops" element={<OpsPage />} />
       <Route path="/account" element={<AccountPage />} />
       <Route path="/what-we-record" element={<WhatWeRecord />} />
       <Route path="/community/*" element={<ReleasePage><Community/></ReleasePage>}/>

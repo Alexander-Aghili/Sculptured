@@ -155,7 +155,7 @@ impl RunnerPolicy {
     /// `localops`, which says so.
     pub fn whole_repo(&self, folder: String) -> Result<String, localops::LocalError> {
         let Ok(root) = localops::copies::project_root(Path::new(&folder)) else { return Ok(folder) };
-        let root = root.canonicalize().unwrap_or(root);
+        let root = root.canonicalize().map(localops::folders::plain).unwrap_or(root);
         if self.root_of(&root).is_none() {
             return Err(localops::LocalError::forbidden("not_allowed_here", format!(
                 "{folder} is inside the git repository {}, which reaches outside the folders this computer allows. Agents' own copies cover the whole repository: allow it with `sculptured allow {}`, or switch off own copies.",
@@ -184,7 +184,8 @@ impl RunnerPolicy {
         let first = self.allowed_folders.first().ok_or("No folders are allowed on this computer yet. Run `sculptured allow <folder>` on it.")?;
         let asked = Path::new(&p.cwd);
         let joined = if asked.is_absolute() { asked.to_path_buf() } else { first.join(asked) };
-        let real = joined.canonicalize().map_err(|_| format!("{} does not exist on this computer", joined.display()))?;
+        // Plain form (`C:\…`, not `\\?\C:\…`) on Windows, as the allowed folders are kept.
+        let real = localops::folders::plain(joined.canonicalize().map_err(|_| format!("{} does not exist on this computer", joined.display()))?);
         if self.allowed_folders.iter().any(|root| real.starts_with(root)) { Ok(real) } else {
             Err(format!("{} is not in a folder this computer allows. Allowed: {}. Add one with `sculptured allow <folder>`.", real.display(),
                 self.allowed_folders.iter().map(|f| f.display().to_string()).collect::<Vec<_>>().join(", ")))

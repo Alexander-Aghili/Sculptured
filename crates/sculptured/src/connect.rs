@@ -100,7 +100,6 @@ pub fn service_args(exe: &Path, origin: &str, data_dir: &Path, claude: Option<&P
     a
 }
 
-pub use hostd::platform::find_on_path;
 
 fn xml(s: &str) -> String { s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;") }
 fn systemd_quote(s: &str) -> String { format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"").replace('%', "%%")) }
@@ -292,8 +291,10 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
     };
     if a.install_service {
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let claude = a.claude_program.clone().or_else(|| find_on_path("claude"));
-        let codex = a.codex_program.clone().or_else(|| find_on_path("codex"));
+        // Full paths, found on PATH or where their installers put them: the login service's PATH may lack them.
+        let found = |name: &str| Some(hostd::platform::program(name)).filter(|p| p.is_absolute());
+        let claude = a.claude_program.clone().or_else(|| found("claude"));
+        let codex = a.codex_program.clone().or_else(|| found("codex"));
         let args = service_args(&exe, &origin, &dir, claude.as_deref(), codex.as_deref());
         let path_env = std::env::var("PATH").unwrap_or_else(|_| "/usr/local/bin:/usr/bin:/bin".into());
         let (file, text) = service_unit(&args, &path_env);

@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { loadSession, type HostedSession } from './session';
 import { routeTemplate, startAnalytics } from './analytics';
+import { remember, takeRemembered } from './afterLogin';
 
 const Ctx = createContext<HostedSession>({ kind: 'local' });
 export const useHosted = () => useContext(Ctx);
@@ -12,10 +13,18 @@ export function HostedGate({ children }: { children: ReactNode }) {
   const [down, setDown] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const loc = useLocation();
+  const navigate = useNavigate();
   useEffect(() => { loadSession().then((x) => { setDown(false); setS(x); }, () => setDown(true)); }, [attempt]);
   // Hosted beta analytics, while signed in (local mode never starts it). See /what-we-record.
   const csrf = s?.kind === 'signed-in' ? s.csrf : null;
   useEffect(() => (csrf ? startAnalytics(csrf, () => routeTemplate(window.location.pathname)) : undefined), [csrf]);
+  // Signed in and on the home page: go back to the page that sent this visitor to sign in, if any.
+  const signedIn = s?.kind === 'signed-in';
+  useEffect(() => {
+    if (!signedIn || loc.pathname !== '/') return;
+    const back = takeRemembered();
+    if (back) navigate(back, { replace: true });
+  }, [signedIn, loc.pathname, navigate]);
   if (down) return (
     <main className="hosted-page" role="alert">
       <h1>Sculptured is not answering</h1>
@@ -24,6 +33,10 @@ export function HostedGate({ children }: { children: ReactNode }) {
     </main>
   );
   if (!s) return null;
-  if (s.kind === 'signed-out' && !OPEN.some((r) => r.test(loc.pathname))) return <Navigate replace to="/login" />;
+  if (s.kind === 'signed-out' && !OPEN.some((r) => r.test(loc.pathname))) {
+    remember(loc.pathname + loc.search);
+    return <Navigate replace to="/login" />;
+  }
+
   return <Ctx.Provider value={s}>{children}</Ctx.Provider>;
 }
