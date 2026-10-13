@@ -21,13 +21,17 @@ try {
   $want = ((Get-Content "$tmp\$asset.sha256" -Raw).Trim() -split '\s+')[0].ToLower()
   $got = (Get-FileHash -Algorithm SHA256 "$tmp\$asset").Hash.ToLower()
   if ($want -ne $got) { Fail "checksum mismatch for $asset (expected $want, got $got). Nothing was installed." }
+  $ErrorActionPreference = 'Continue'
   tar -xzf "$tmp\$asset" -C $tmp
+  $ErrorActionPreference = 'Stop'
   if ($LASTEXITCODE -ne 0) { Fail "could not unpack $asset. Nothing was installed." }
   $bin = Join-Path $env:LOCALAPPDATA 'Programs\Sculptured'
   New-Item -ItemType Directory -Force -Path $bin | Out-Null
-  # A running runner holds the old files: stop its logon task first (nothing happens if there is none).
-  schtasks /End /TN "Sculptured runner" 2>$null | Out-Null
-  Start-Sleep -Milliseconds 500
+  # A running runner holds the old files: stop its logon task first. On a first install there is none.
+  # (A cmdlet, not schtasks.exe: Windows PowerShell 5.1 turns a native program's error output into a
+  # terminating error under ErrorActionPreference Stop.)
+  $task = Get-ScheduledTask -TaskName 'Sculptured runner' -ErrorAction SilentlyContinue
+  if ($task) { $task | Stop-ScheduledTask -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 }
   Copy-Item "$tmp\sculptured.exe", "$tmp\sculptured-background.exe" -Destination $bin -Force
   Write-Host "Installed $bin\sculptured.exe"
   $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -38,6 +42,8 @@ try {
 } finally {
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
+# From here on, programs may write progress to their error output; that is not a failure.
+$ErrorActionPreference = 'Continue'
 Write-Host "Connecting this computer to $Origin..."
 $connect = @('connect', $Origin, '--install-service')
 if ($env:SCULPTURED_KEY) { $connect += @('--key', $env:SCULPTURED_KEY) }
