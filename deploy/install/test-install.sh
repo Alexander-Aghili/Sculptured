@@ -30,7 +30,7 @@ render
 # 1. Installs and connects.
 HOME="$work/h1" sh "$work/install.sh" --allow X > "$work/out1" 2>&1 || { cat "$work/out1"; fail "install failed"; }
 [ -x "$work/h1/.local/bin/sculptured" ] || fail "not installed"
-[ "$(cat "$work/h1/ran.txt")" = "ran: connect https://app.test --allow X" ] || fail "connect not run as expected: $(cat "$work/h1/ran.txt")"
+[ "$(cat "$work/h1/ran.txt")" = "ran: connect https://app.test --install-service --allow X" ] || fail "connect (as a background service) not run as expected: $(cat "$work/h1/ran.txt")"
 
 # 2. A changed checksum stops everything.
 cp "$work/rel/sculptured-$target.tar.gz.sha256" "$work/good.sha256"

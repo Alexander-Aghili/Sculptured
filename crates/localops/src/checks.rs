@@ -27,10 +27,24 @@ pub async fn execute_within(cmd: &str, cwd: &str, limit: Duration) -> CheckOutco
     CheckOutcome { passed, exit_code, timed_out, output }
 }
 
+/// The check as a shell command line: `sh -c` on Unix, `cmd /C` on Windows (no console window).
+fn shell(cmd: &str) -> tokio::process::Command {
+    #[cfg(windows)]
+    {
+        let mut c = tokio::process::Command::new("cmd");
+        c.arg("/C").raw_arg(cmd).creation_flags(0x0800_0000);
+        c
+    }
+    #[cfg(not(windows))]
+    {
+        let mut c = tokio::process::Command::new("sh");
+        c.arg("-c").arg(cmd);
+        c
+    }
+}
+
 async fn run(cmd: &str, cwd: &str, limit: Duration) -> (bool, Option<i32>, bool, String) {
-    let child = tokio::process::Command::new("sh")
-        .arg("-c")
-        .arg(cmd)
+    let child = shell(cmd)
         .current_dir(cwd)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())

@@ -64,3 +64,15 @@
 .admin-computers { margin: 4px 0; padding-left: 18px; }
 .admin-computers li { margin: 4px 0; }
 .admin-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+.connect-computer { display: grid; gap: 12px; max-width: 720px; }
+.connect-tabs { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--line-2); border-radius: 9px; background: var(--bg); justify-self: start; }
+.connect-tabs button { border: 0; background: transparent; color: var(--muted); padding: 6px 14px; border-radius: 7px; cursor: pointer; font: inherit; }
+.connect-tabs button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); font-weight: 600; }
+.connect-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.connect-panel { padding: 16px 18px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); box-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 22px rgb(0 0 0 / 0.14); }
+.connect-steps { margin: 0; padding-left: 20px; display: grid; gap: 10px; line-height: 1.5; }
+.connect-steps li:first-child { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.connect-steps .btn { display: inline-flex; align-items: center; gap: 6px; }
+.connect-copied { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+.connect-copied p { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

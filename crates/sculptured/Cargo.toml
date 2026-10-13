@@ -4,6 +4,15 @@ edition.workspace = true
 version.workspace = true
 publish.workspace = true
 
+[[bin]]
+name = "sculptured"
+path = "src/main.rs"
+
+# Windows: runs `sculptured` with no console window (the logon task starts this).
+[[bin]]
+name = "sculptured-background"
+path = "src/background.rs"
+
 [dependencies]
 controld.workspace = true
 hostd.workspace = true

@@ -1,6 +1,7 @@
 //! Process plumbing shared by the CLI drivers: the child in its own process group, its stderr
 //! tail, the stdout pump that honours a kill signal, reaping, and stop with a grace period.
 use crate::{DriverError, DriverEvent, LaunchSpec};
+#[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{ExitStatus, Stdio};
@@ -27,16 +28,48 @@ pub(crate) fn command(program: &Path, spec: &LaunchSpec, args: impl IntoIterator
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .process_group(0);
+        .kill_on_drop(true);
+    own_group(&mut cmd);
     cmd
 }
+
+/// Unix: the child leads a process group of its own, so a stop reaches everything it started.
+#[cfg(unix)]
+fn own_group(cmd: &mut Command) {
+    cmd.process_group(0);
+}
+
+/// Windows: no console window, and a process group of its own (Ctrl+C in a terminal does not reach it).
+#[cfg(windows)]
+fn own_group(cmd: &mut Command) {
+    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
+}
+
+#[cfg(windows)]
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 pub(crate) fn spawn(cmd: &mut Command, program: &Path) -> Result<Child, DriverError> {
     cmd.spawn().map_err(|source| DriverError::Spawn { program: program.display().to_string(), source })
 }
 
+/// Windows: ends the child and every process it started (`taskkill /T` walks the tree from the child).
+#[cfg(windows)]
+pub(crate) fn kill_group(child: &Child) {
+    if let Some(pid) = child.id() {
+        use std::os::windows::process::CommandExt;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/T", "/F", "/PID", &pid.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
+    }
+}
+
 /// Signals the process group this driver created (the child is its leader).
+#[cfg(unix)]
 pub(crate) fn kill_group(child: &Child) {
     if let Some(pid) = child.id() {
         // SAFETY: signalling the process group this driver created. The leader is not reaped yet
@@ -86,12 +119,23 @@ async fn collect_stderr(stderr: ChildStderr, buf: Arc<Mutex<Vec<u8>>>) {
     }
 }
 
+#[cfg(unix)]
+fn signal_of(s: ExitStatus) -> Option<i32> {
+    s.signal()
+}
+
+/// Windows has no signals: a process ends with an exit code.
+#[cfg(windows)]
+fn signal_of(_: ExitStatus) -> Option<i32> {
+    None
+}
+
 /// The session's last event: how the process ended and the tail of its stderr.
 pub(crate) fn exited(status: Option<ExitStatus>, stderr: &[u8]) -> DriverEvent {
     let start = stderr.len().saturating_sub(TAIL_BYTES);
     DriverEvent::Exited {
         exit_code: status.and_then(|s| s.code()),
-        signal: status.and_then(|s| s.signal()),
+        signal: status.and_then(signal_of),
         stderr_tail: String::from_utf8_lossy(&stderr[start..]).into_owned(),
     }
 }

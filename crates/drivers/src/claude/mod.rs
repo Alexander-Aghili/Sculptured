@@ -224,7 +224,14 @@ impl Session for ClaudeSession {
     }
 }
 
+/// Windows: files under the user's profile are readable by that user only (its default access rules).
+#[cfg(windows)]
+fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
+    std::fs::write(path, text)
+}
+
 /// Writes `text` to `path`, readable by this user only (0600), replacing what was there.
+#[cfg(unix)]
 fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
     use std::io::Write;
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};

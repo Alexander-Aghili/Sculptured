@@ -6,14 +6,15 @@ use host_proto::seat_tools::{ToolReply, ToolRequest};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::future::Future;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::{AsyncWriteExt, BufReader};
-use tokio::net::unix::OwnedReadHalf;
-use tokio::net::{UnixListener, UnixStream};
+#[cfg(unix)]
+use tokio::net::{unix::OwnedReadHalf, UnixListener, UnixStream as Stream};
+#[cfg(windows)]
+use tokio::net::{tcp::OwnedReadHalf, TcpListener, TcpStream as Stream};
 use tokio::sync::Semaphore;
 
 /// Bounds on the seat-tools socket, so one agent (or a stray process of this user) cannot stop the
@@ -57,8 +58,7 @@ pub async fn serve_socket(sup: Supervisor, path: PathBuf) -> std::io::Result<()>
 pub async fn serve_socket_with(sup: Supervisor, path: PathBuf, limits: SocketLimits) -> std::io::Result<()> {
     // A socket left by a hostd that died: nobody listens on it any more (the data dir lock is ours).
     let _ = std::fs::remove_file(&path);
-    let listener = Arc::new(UnixListener::bind(&path)?);
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    let listener = Arc::new(listen(&path).await?);
     let accept = move || -> AcceptFuture {
         let l = listener.clone();
         Box::pin(async move { l.accept().await.map(|(s, _)| s) })
@@ -67,7 +67,25 @@ pub async fn serve_socket_with(sup: Supervisor, path: PathBuf, limits: SocketLim
     Ok(())
 }
 
-type AcceptFuture = Pin<Box<dyn Future<Output = std::io::Result<UnixStream>> + Send>>;
+/// Unix: the socket at `path`, this user's only (0600).
+#[cfg(unix)]
+async fn listen(path: &std::path::Path) -> std::io::Result<UnixListener> {
+    use std::os::unix::fs::PermissionsExt;
+    let listener = UnixListener::bind(path)?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    Ok(listener)
+}
+
+/// Windows: a loopback port, its address written to `path` for the shim (`host_proto::seat_tools::call`).
+/// Every call must carry a live agent's token, so another local process reaching the port gets nowhere.
+#[cfg(windows)]
+async fn listen(path: &std::path::Path) -> std::io::Result<TcpListener> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    crate::private::write_file(path, listener.local_addr()?.to_string().as_bytes())?;
+    Ok(listener)
+}
+
+type AcceptFuture = Pin<Box<dyn Future<Output = std::io::Result<Stream>> + Send>>;
 
 /// The accept loop: each connection is served while there is room, refused in plain words otherwise.
 async fn serve_accepted(sup: Supervisor, mut accept: impl FnMut() -> AcceptFuture, limits: SocketLimits) {
@@ -112,7 +130,7 @@ impl Backoff {
 }
 
 /// Reads (and discards) the request, so the caller is not cut off mid-write, then refuses it.
-async fn refuse(stream: UnixStream, read_timeout: Duration, why: &'static str) {
+async fn refuse(stream: Stream, read_timeout: Duration, why: &'static str) {
     let (r, mut w) = stream.into_split();
     let _ = tokio::time::timeout(read_timeout, discard_line(BufReader::new(r))).await;
     write_reply(&mut w, &failed(why.into())).await;
@@ -159,7 +177,7 @@ async fn write_reply(w: &mut (impl AsyncWriteExt + Unpin), reply: &ToolReply) {
     let _ = w.write_all(format!("{}\n", serde_json::to_string(reply).expect("reply serializes")).as_bytes()).await;
 }
 
-async fn serve_conn(sup: Supervisor, stream: UnixStream, limits: SocketLimits, per_agent: PerAgent) {
+async fn serve_conn(sup: Supervisor, stream: Stream, limits: SocketLimits, per_agent: PerAgent) {
     let (r, mut w) = stream.into_split();
     let reply = match read_call(&sup, r, limits).await {
         Ok(Some((req, seat))) => relay(&sup, req, seat, limits, &per_agent).await,
@@ -211,9 +229,10 @@ async fn relay(sup: &Supervisor, req: ToolRequest, seat: String, limits: SocketL
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    use tokio::net::UnixStream;
     use crate::journal::Journal;
     use tokio::io::AsyncBufReadExt;
 

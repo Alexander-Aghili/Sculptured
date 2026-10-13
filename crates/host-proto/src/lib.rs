@@ -227,6 +227,7 @@ pub mod seat_tools {
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use std::io::{BufRead, BufReader, Write};
+    #[cfg(unix)]
     use std::os::unix::net::UnixStream;
     use std::path::Path;
 
@@ -257,10 +258,24 @@ pub mod seat_tools {
         env
     }
 
+    /// Unix: the socket itself.
+    #[cfg(unix)]
+    fn connect(socket: &Path) -> std::io::Result<UnixStream> {
+        UnixStream::connect(socket)
+    }
+
+    /// Windows: `socket` is a file holding the loopback address hostd listens on (each call still
+    /// carries the agent's own token).
+    #[cfg(windows)]
+    fn connect(socket: &Path) -> std::io::Result<std::net::TcpStream> {
+        let addr = std::fs::read_to_string(socket)?;
+        std::net::TcpStream::connect(addr.trim())
+    }
+
     /// Calls one tool and waits for its reply. Blocking: call it from a blocking thread.
     pub fn call(socket: &Path, token: &str, tool: &str, args: Value) -> Result<Value, String> {
         let unreachable = |e: std::io::Error| format!("cannot reach Sculptured's agent runner: {e}");
-        let mut s = UnixStream::connect(socket).map_err(unreachable)?;
+        let mut s = connect(socket).map_err(unreachable)?;
         let req = serde_json::to_string(&ToolRequest { token: token.into(), tool: tool.into(), args }).expect("request serializes");
         s.write_all(format!("{req}\n").as_bytes()).map_err(unreachable)?;
         let mut line = String::new();

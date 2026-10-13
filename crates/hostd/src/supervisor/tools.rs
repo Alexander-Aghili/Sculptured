@@ -132,10 +132,9 @@ fn tools_dir(host: &SeatToolsHost) -> PathBuf {
 
 /// `seat-tools/` next to the socket, created owner-only (0700): the agents' config files name tokens.
 fn private_dir(host: &SeatToolsHost) -> std::io::Result<PathBuf> {
-    use std::os::unix::fs::PermissionsExt;
     let dir = tools_dir(host);
     std::fs::create_dir_all(&dir)?;
-    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
+    crate::private::narrow_dir(&dir)?;
     Ok(dir)
 }
 

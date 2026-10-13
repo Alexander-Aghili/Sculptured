@@ -69,16 +69,13 @@ impl RunnerPolicy {
     }
 
     pub fn save(&self, path: &Path) -> Result<(), String> {
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
         let tmp = path.with_extension("json.tmp");
-        let mut f = std::fs::OpenOptions::new().create(true).write(true).truncate(true).mode(0o600).open(&tmp).map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
-        f.write_all(serde_json::to_string_pretty(self).expect("serializes").as_bytes()).map_err(|e| e.to_string())?;
+        crate::private::write_file(&tmp, serde_json::to_string_pretty(self).expect("serializes").as_bytes()).map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
         std::fs::rename(&tmp, path).map_err(|e| format!("cannot write {}: {e}", path.display()))
     }
 
     pub fn allow(&mut self, folder: &Path) -> Result<PathBuf, String> {
-        let c = folder.canonicalize().map_err(|e| format!("{} can't be used: {e}", folder.display()))?;
+        let c = localops::folders::plain(folder.canonicalize().map_err(|e| format!("{} can't be used: {e}", folder.display()))?);
         if !c.is_dir() { return Err(format!("{} is not a folder", c.display())) }
         if !self.allowed_folders.contains(&c) { self.allowed_folders.push(c.clone()) }
         Ok(c)

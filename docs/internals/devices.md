@@ -152,11 +152,23 @@ flowchart TD
 - **`GET /api/hosts`** lists connected computers with their drivers and reported policy.
 - **Web:** *Computers* lists the user's computers: connected, last seen, Disconnect. *Run on* in the Design project panel sets `TeamSettings.host` ("Automatic" = the only connected computer). In hosted mode the project folder is a path on that computer: type it, or *Browse…* the computer's allowed folders. *Computers* also shows each connected computer's folders, access, capabilities and Claude Code / Codex sign-in, with *Sign in* run on that computer.
 
-**Installing:** most people run `curl -fsSL https://app.<domain>/install.sh | sh -s -- --allow ~/projects`, which installs `sculptured` and runs `connect` ([Desktop and installers](desktop-and-installers.md)).
+**Installing:** the Computers page detects the visitor's system and copies one command with a one-time connect key (`POST /gw/api/device/connect-key`: single use, 30 minutes, needs CSRF). The runner trades it for its own device key at `POST /gw/api/device/redeem`, so there is no code to approve. The page offers only systems the gateway has a build for (`GET /gw/api/releases`).
+- **macOS / Linux:** `curl -fsSL https://app.<domain>/install.sh | sh -s -- --key <key>`.
+- **Windows (PowerShell):** `$env:SCULPTURED_KEY="<key>"; irm https://app.<domain>/install.ps1 | iex`. It installs to `%LOCALAPPDATA%\Programs\Sculptured`.
+
+Both run `sculptured connect <origin> --install-service`. A computer with no folders allowed lets agents work in its home folder. ([Desktop and installers](desktop-and-installers.md))
 
 ## 6. Runs on login
 
-`sculptured connect <origin> --install-service` writes a service that runs `sculptured connect <origin> --data-dir <dir> --claude-program <path> --codex-program <path>` at login and restarts it if it stops. It never pairs again, because `device.json` already holds the key.
+`sculptured connect <origin> --install-service` writes a service that runs `sculptured connect <origin> --data-dir <dir> --claude-program <path> --codex-program <path>` at login and restarts it if it stops. It never pairs again, because `device.json` already holds the key. Running it again restarts the service, so a new runner takes over.
+- **Linux:** a systemd user service.
+- **macOS:** a LaunchAgent.
+- **Windows:** a Scheduled Task, "Sculptured runner", run at logon as the user (no admin rights). It starts `sculptured-background.exe`, which runs `sculptured.exe` without a console window.
+
+Only the runner runs on Windows (hostd, the drivers, local operations, `connect`). `sculptured serve` and every server never do. Windows differences:
+- the agents' tool channel is a loopback TCP port, whose address is written to the socket path (calls still need each agent's token);
+- stop uses `taskkill /T`;
+- checks run through `cmd /C`.
 
 Login services start with a minimal PATH, so the CLIs' full paths are found at install time (`--claude-program` / `--codex-program`, else PATH), and the current PATH is written into the service. Arguments are quoted for systemd and XML-escaped for launchd.
 

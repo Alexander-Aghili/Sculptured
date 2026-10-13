@@ -16,11 +16,8 @@ impl Credentials {
         }
     }
     pub fn save(&self, dir: &Path) -> Result<(), String> {
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
         let tmp = dir.join("device.json.tmp");
-        let mut f = std::fs::OpenOptions::new().create(true).write(true).truncate(true).mode(0o600).open(&tmp).map_err(|e| e.to_string())?;
-        f.write_all(serde_json::to_string_pretty(self).unwrap().as_bytes()).map_err(|e| e.to_string())?;
+        hostd::private::write_file(&tmp, serde_json::to_string_pretty(self).unwrap().as_bytes()).map_err(|e| e.to_string())?;
         std::fs::rename(&tmp, dir.join("device.json")).map_err(|e| e.to_string())
     }
 }
@@ -70,6 +67,30 @@ pub async fn pair(origin: &str, name: &str, platform: &str, on_code: impl Fn(&st
     }
 }
 
+/// Trades a one-time connect key (from the Computers page's copied command) for this computer's own key.
+pub async fn redeem(origin: &str, key: &str, name: &str, platform: &str) -> Result<Credentials, String> {
+    let origin = origin.trim_end_matches('/');
+    let r = http().post(format!("{origin}/gw/api/device/redeem")).header("origin", origin)
+        .json(&serde_json::json!({"key": key, "name": name, "platform": platform}))
+        .send().await.map_err(|e| format!("cannot reach {origin}: {e}"))?;
+    if !r.status().is_success() {
+        let v: serde_json::Value = r.json().await.unwrap_or_default();
+        return Err(v["error"]["message"].as_str().unwrap_or("This connect command did not work. Copy a new one from the Computers page.").to_string());
+    }
+    #[derive(Deserialize)] struct Got { device_id: String, device_key: String }
+    let g: Got = r.json().await.map_err(|e| e.to_string())?;
+    Ok(Credentials { origin: origin.to_string(), device_id: g.device_id, key: g.device_key })
+}
+
+/// A computer with no folders allowed yet lets agents work anywhere in its home folder. True when it did.
+pub fn default_to_home(policy: &mut hostd::policy::RunnerPolicy, home: &Path) -> Result<bool, String> {
+    if !policy.allowed_folders.is_empty() {
+        return Ok(false);
+    }
+    policy.allow(home)?;
+    Ok(true)
+}
+
 /// What the login service runs: `connect` for this origin, with the CLIs' full paths, because a login
 /// service starts with a minimal PATH that usually lacks `~/.local/bin`, nvm or Homebrew.
 pub fn service_args(exe: &Path, origin: &str, data_dir: &Path, claude: Option<&Path>, codex: Option<&Path>) -> Vec<String> {
@@ -79,17 +100,73 @@ pub fn service_args(exe: &Path, origin: &str, data_dir: &Path, claude: Option<&P
     a
 }
 
-/// `name` on PATH, as a full path.
-pub fn find_on_path(name: &str) -> Option<PathBuf> {
-    std::env::var_os("PATH").and_then(|p| std::env::split_paths(&p).map(|d| d.join(name)).find(|f| f.is_file()))
-}
+pub use hostd::platform::find_on_path;
 
 fn xml(s: &str) -> String { s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;") }
 fn systemd_quote(s: &str) -> String { format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"").replace('%', "%%")) }
 
+/// Windows: the Scheduled Task (XML) that runs the runner at logon as this user, without a window
+/// (`sculptured-background.exe` starts `sculptured.exe` hidden), never stopped for running long, and
+/// restarted if it ends.
+pub fn windows_task(args: &[String], user: &str) -> String {
+    // Split by hand: `\\` is a separator only on Windows, and this is also checked on Unix.
+    let exe = &args[0];
+    let launcher = format!("{}sculptured-background.exe", &exe[..exe.rfind(['\\', '/']).map_or(0, |i| i + 1)]);
+    let rest: Vec<String> = args[1..].iter().map(|a| win_quote(a)).collect();
+    format!(r#"<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+<RegistrationInfo><Description>Keeps this computer connected to Sculptured so agents can run here.</Description></RegistrationInfo>
+<Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{user}</UserId></LogonTrigger></Triggers>
+<Principals><Principal id="Author"><UserId>{user}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><RestartOnFailure><Interval>PT1M</Interval><Count>999</Count></RestartOnFailure><StartWhenAvailable>true</StartWhenAvailable></Settings>
+<Actions Context="Author"><Exec><Command>{}</Command><Arguments>{}</Arguments></Exec></Actions>
+</Task>
+"#, xml(&launcher), xml(&rest.join(" ")), user = xml(user))
+}
+
+/// One argument on a Windows command line: quoted when it holds a space, tab or quote.
+fn win_quote(a: &str) -> String {
+    if !a.is_empty() && !a.contains([' ', '\t', '"']) {
+        return a.to_string();
+    }
+    let mut out = String::from("\"");
+    let mut slashes = 0;
+    for c in a.chars() {
+        match c {
+            '\\' => slashes += 1,
+            '"' => { out.push_str(&"\\".repeat(2 * slashes + 1)); slashes = 0; }
+            _ => slashes = 0,
+        }
+        out.push(c);
+    }
+    out.push_str(&"\\".repeat(slashes));
+    out.push('"');
+    out
+}
+
+/// The commands that (re)start the login service from `file`. Running them again restarts it, so a
+/// newly installed runner takes over from the old one.
+pub fn service_commands(file: &Path) -> Vec<Vec<String>> {
+    let f = file.display().to_string();
+    let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    if cfg!(target_os = "macos") {
+        vec![v(&["launchctl", "unload", &f]), v(&["launchctl", "load", "-w", &f])]
+    } else if cfg!(windows) {
+        vec![v(&["schtasks", "/End", "/TN", WINDOWS_TASK]), v(&["schtasks", "/Create", "/TN", WINDOWS_TASK, "/XML", &f, "/F"]), v(&["schtasks", "/Run", "/TN", WINDOWS_TASK])]
+    } else {
+        vec![v(&["systemctl", "--user", "daemon-reload"]), v(&["systemctl", "--user", "enable", "sculptured-runner"]), v(&["systemctl", "--user", "restart", "sculptured-runner"])]
+    }
+}
+
+const WINDOWS_TASK: &str = "Sculptured runner";
+
 /// The login service that keeps this computer connected: (file to write, contents).
 pub fn service_unit(args: &[String], path_env: &str) -> (PathBuf, String) {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    let home = hostd::platform::home().unwrap_or_default();
+    if cfg!(windows) {
+        let user = format!("{}\\{}", std::env::var("USERDOMAIN").unwrap_or_default(), std::env::var("USERNAME").unwrap_or_default());
+        return (home.join(".sculptured").join("runner").join("sculptured-runner.xml"), windows_task(args, user.trim_start_matches('\\')));
+    }
     if cfg!(target_os = "macos") {
         let file = home.join("Library/LaunchAgents/dev.sculptured.runner.plist");
         let argv: String = args.iter().map(|a| format!("<string>{}</string>", xml(a))).collect();
@@ -126,6 +203,19 @@ pub struct ConnectArgs {
     pub access: Option<hostd::policy::Access>,
     /// Capabilities to turn on (true) or off (false), by name.
     pub caps: Vec<(String, bool)>,
+    /// A one-time connect key from the Computers page: connects with no code to approve.
+    pub key: Option<String>,
+}
+
+/// Writes the service definition. Windows reads task XML as UTF-16 (with its byte-order mark).
+fn write_service_file(file: &Path, text: &str) -> Result<(), String> {
+    if let Some(parent) = file.parent() { std::fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+    let bytes: Vec<u8> = if cfg!(windows) {
+        [0xFF, 0xFE].into_iter().chain(text.encode_utf16().flat_map(u16::to_le_bytes)).collect()
+    } else {
+        text.as_bytes().to_vec()
+    };
+    std::fs::write(file, bytes).map_err(|e| format!("cannot write {}: {e}", file.display()))
 }
 
 /// Applies `--enable` / `--disable` to the policy's capabilities.
@@ -150,7 +240,7 @@ pub fn set_caps(policy: &mut hostd::policy::RunnerPolicy, changes: &[(String, bo
 fn runner_dir(given: Option<PathBuf>) -> Result<PathBuf, String> {
     let dir = match given {
         Some(d) => d,
-        None => PathBuf::from(std::env::var_os("HOME").ok_or("HOME is not set; pass --data-dir")?).join(".sculptured/runner"),
+        None => hostd::platform::home().ok_or("your home folder is unknown; pass --data-dir")?.join(".sculptured").join("runner"),
     };
     hostd::run::private_data_dir(&dir)?;
     Ok(dir)
@@ -159,6 +249,7 @@ fn runner_dir(given: Option<PathBuf>) -> Result<PathBuf, String> {
 fn this_computer() -> String {
     std::fs::read_to_string("/etc/hostname").ok().map(|h| h.trim().to_string()).filter(|h| !h.is_empty())
         .or_else(|| std::env::var("HOSTNAME").ok())
+        .or_else(|| std::env::var("COMPUTERNAME").ok())
         .or_else(|| std::process::Command::new("hostname").output().ok().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).filter(|h| !h.is_empty()))
         .unwrap_or_else(|| "This computer".into())
 }
@@ -171,11 +262,20 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
     let policy_file = dir.join("runner.json");
     let mut policy = hostd::policy::RunnerPolicy::load(&policy_file)?;
     for f in &a.allow { policy.allow(f)?; }
+    if let Some(home) = hostd::platform::home() {
+        default_to_home(&mut policy, &home)?;
+    }
     if let Some(access) = a.access { policy.access = access; }
     set_caps(&mut policy, &a.caps)?;
     policy.save(&policy_file)?;
     let creds = match Credentials::load(&dir)? {
         Some(c) if c.origin == origin => c,
+        _ if a.key.is_some() => {
+            let name = a.name.clone().unwrap_or_else(this_computer);
+            let c = redeem(&origin, a.key.as_deref().unwrap_or_default(), &name, std::env::consts::OS).await?;
+            c.save(&dir)?;
+            c
+        }
         _ => {
             let name = a.name.clone().unwrap_or_else(this_computer);
             let c = pair(&origin, &name, std::env::consts::OS, |code, link| {
@@ -197,19 +297,18 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
         let args = service_args(&exe, &origin, &dir, claude.as_deref(), codex.as_deref());
         let path_env = std::env::var("PATH").unwrap_or_else(|_| "/usr/local/bin:/usr/bin:/bin".into());
         let (file, text) = service_unit(&args, &path_env);
-        if let Some(parent) = file.parent() { std::fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
-        std::fs::write(&file, text).map_err(|e| format!("cannot write {}: {e}", file.display()))?;
-        let ok = if cfg!(target_os = "macos") {
-            std::process::Command::new("launchctl").args(["load", "-w"]).arg(&file).status().is_ok_and(|s| s.success())
+        write_service_file(&file, &text)?;
+        // The first command (reload, or stop the old one) may fail when nothing was installed yet; the rest must work.
+        let run = |c: &Vec<String>| std::process::Command::new(&c[0]).args(&c[1..]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success());
+        let cmds = service_commands(&file);
+        let ok = cmds.iter().enumerate().fold(true, |ok, (i, c)| run(c) || i == 0 && ok);
+        if ok {
+            println!("Connected to {origin}. Sculptured now runs in the background and starts again whenever you log in.");
+            println!("Agents may work in: {}", policy.allowed_folders.iter().map(|f| f.display().to_string()).collect::<Vec<_>>().join(", "));
         } else {
-            std::process::Command::new("systemctl").args(["--user", "daemon-reload"]).status().is_ok_and(|s| s.success())
-                && std::process::Command::new("systemctl").args(["--user", "enable", "--now", "sculptured-runner"]).status().is_ok_and(|s| s.success())
-        };
-        println!("{} {}", if ok { "Installed and started" } else { "Wrote (start it yourself)" }, file.display());
+            println!("Wrote {}, but could not start it. Start it yourself, or run `sculptured connect {origin}` to stay connected while it runs.", file.display());
+        }
         return Ok(());
-    }
-    if policy.allowed_folders.is_empty() {
-        println!("No folders allowed yet: agents can't start here until you run `sculptured allow <folder>`.");
     }
     println!("Connected to {origin}. Agents start here, in: {}", policy.allowed_folders.iter().map(|f| f.display().to_string()).collect::<Vec<_>>().join(", "));
     println!("{}", match policy.access {
@@ -282,6 +381,64 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(std::fs::metadata(dir.path().join("device.json")).unwrap().permissions().mode() & 0o777, 0o600);
         assert_eq!(Credentials::load(dir.path()).unwrap(), Some(creds));
+    }
+
+    #[tokio::test]
+    async fn a_connect_key_is_traded_for_this_computers_own_key_once() {
+        let app = Router::new().route("/gw/api/device/redeem", post(|Json(b): Json<Value>| async move {
+            assert_eq!((b["name"].as_str(), b["platform"].as_str()), (Some("Laptop"), Some(std::env::consts::OS)));
+            if b["key"] == "k".repeat(64) {
+                (axum::http::StatusCode::OK, Json(json!({"device_id":"11111111-1111-1111-1111-111111111111","device_key":"d".repeat(64)})))
+            } else {
+                (axum::http::StatusCode::GONE, Json(json!({"error":{"code":"key_used","message":"This connect command was already used or has expired. Copy a new one from the Computers page."}})))
+            }
+        }));
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", l.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        let creds = redeem(&origin, &"k".repeat(64), "Laptop", std::env::consts::OS).await.unwrap();
+        assert_eq!((creds.origin.as_str(), creds.key.len()), (origin.as_str(), 64));
+        let err = redeem(&origin, &"x".repeat(64), "Laptop", std::env::consts::OS).await.unwrap_err();
+        assert!(err.contains("already used or has expired"), "{err}");
+    }
+
+    #[test]
+    fn a_new_computer_lets_agents_work_in_its_home_folder() {
+        let home = tempfile::tempdir().unwrap();
+        let mut fresh = hostd::policy::RunnerPolicy::default();
+        assert!(default_to_home(&mut fresh, home.path()).unwrap(), "nothing allowed yet: home is");
+        assert_eq!(fresh.allowed_folders, [home.path().canonicalize().unwrap()]);
+        let mut chosen = hostd::policy::RunnerPolicy::default();
+        let projects = home.path().join("projects");
+        std::fs::create_dir(&projects).unwrap();
+        chosen.allow(&projects).unwrap();
+        assert!(!default_to_home(&mut chosen, home.path()).unwrap(), "folders already chosen are kept as they are");
+        assert_eq!(chosen.allowed_folders.len(), 1);
+    }
+
+    #[test]
+    fn installing_again_restarts_the_service_so_the_new_runner_takes_over() {
+        let cmds = service_commands(Path::new("/home/a/.config/systemd/user/sculptured-runner.service"));
+        if cfg!(target_os = "linux") {
+            assert_eq!(cmds.last().unwrap(), &["systemctl", "--user", "restart", "sculptured-runner"]);
+            assert!(cmds.iter().any(|c| c[..] == ["systemctl", "--user", "enable", "sculptured-runner"]));
+        }
+        if cfg!(target_os = "macos") {
+            assert_eq!(cmds[0][..2], ["launchctl", "unload"]);
+            assert_eq!(cmds[1][..3], ["launchctl", "load", "-w"]);
+        }
+    }
+
+    #[test]
+    fn on_windows_a_logon_task_runs_the_runner_without_a_window_and_restarts_it() {
+        let args = vec![r"C:\Users\Ana\AppData\Local\Programs\Sculptured\sculptured.exe".to_string(), "connect".into(), "https://app.x".into(), "--data-dir".into(), r"C:\Users\Ana\.sculptured\runner".into()];
+        let xml = windows_task(&args, r"PC\Ana");
+        assert!(xml.contains(r"<Command>C:\Users\Ana\AppData\Local\Programs\Sculptured\sculptured-background.exe</Command>"), "{xml}");
+        assert!(xml.contains(r#"<Arguments>connect https://app.x --data-dir "C:\Users\Ana\.sculptured\runner"</Arguments>"#) || xml.contains(r"<Arguments>connect https://app.x --data-dir C:\Users\Ana\.sculptured\runner</Arguments>"), "{xml}");
+        assert!(xml.contains(r"<LogonTrigger><Enabled>true</Enabled><UserId>PC\Ana</UserId></LogonTrigger>"), "{xml}");
+        assert!(xml.contains("<RestartOnFailure><Interval>PT1M</Interval><Count>999</Count></RestartOnFailure>"));
+        assert!(xml.contains("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>"), "never stopped for running long");
+        assert!(xml.contains("<LogonType>InteractiveToken</LogonType>") && xml.contains("<RunLevel>LeastPrivilege</RunLevel>"), "as this user, no admin");
     }
 
     #[test]

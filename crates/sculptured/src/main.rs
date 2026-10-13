@@ -4,8 +4,6 @@ mod connect;
 use axum::Router;
 use clap::{Parser, Subcommand};
 use controld::{app, hosts::{HostRegistry, LOCAL_HOST}, store::Store, AppState};
-use std::io::Write;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
@@ -92,6 +90,9 @@ enum Cmd {
         /// Turn off something the account may do here (repeatable).
         #[arg(long, value_name = "CAPABILITY")]
         disable: Vec<String>,
+        /// A one-time connect key from the Computers page (connects with no code to approve).
+        #[arg(long)]
+        key: Option<String>,
     },
     /// Let agents from your account work in a folder on this computer.
     Allow {
@@ -140,10 +141,10 @@ async fn run(cli: Cli) -> ExitCode {
         }
         // Logging goes to stderr, so stdout carries only the MCP protocol.
         Cmd::SeatTools => tokio::task::spawn_blocking(hostd::seat_tools::run_shim).await.map_err(|e| e.to_string()).and_then(|r| r),
-        Cmd::Connect { origin, name, allow, data_dir, claude_program, codex_program, install_service, no_browser, sandboxed, full_access, enable, disable } => {
+        Cmd::Connect { origin, name, allow, data_dir, claude_program, codex_program, install_service, no_browser, sandboxed, full_access, enable, disable, key } => {
             let access = if sandboxed { Some(hostd::policy::Access::Sandboxed) } else if full_access { Some(hostd::policy::Access::Full) } else { None };
             let caps = enable.into_iter().map(|c| (c, true)).chain(disable.into_iter().map(|c| (c, false))).collect();
-            connect::run_connect(connect::ConnectArgs { origin, name, allow, data_dir, claude_program, codex_program, install_service, no_browser, access, caps }).await
+            connect::run_connect(connect::ConnectArgs { origin, name, allow, data_dir, claude_program, codex_program, install_service, no_browser, access, caps, key }).await
         }
         Cmd::Allow { folder, data_dir } => connect::run_allow(&folder, data_dir),
     };
@@ -167,17 +168,14 @@ fn host_token(data_dir: &Path) -> Result<String, String> {
     if let Ok(t) = std::fs::read_to_string(&path)
         && !t.trim().is_empty()
     {
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
-            .map_err(|e| format!("cannot chmod {}: {e}", path.display()))?;
+        hostd::private::write_file(&path, t.trim().as_bytes()).map_err(|e| format!("cannot narrow {}: {e}", path.display()))?;
         return Ok(t.trim().to_string());
     }
     let token = format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple());
     // Write a private temp file, then rename, so the token is never readable by others.
     let tmp = data_dir.join(format!("host-token.tmp-{}", std::process::id()));
     let write = || -> std::io::Result<()> {
-        let mut f = std::fs::OpenOptions::new().create(true).write(true).truncate(true).mode(0o600).open(&tmp)?;
-        f.write_all(token.as_bytes())?;
-        f.sync_all()?;
+        hostd::private::write_file(&tmp, token.as_bytes())?;
         std::fs::rename(&tmp, &path)
     };
     write().map_err(|e| format!("cannot write {}: {e}", path.display()))?;
@@ -187,14 +185,28 @@ fn host_token(data_dir: &Path) -> Result<String, String> {
 /// Creates `dir` (and missing parents) with mode 0700, and tightens it to 0700 if it
 /// already exists: it holds the host token, the event store and agent transcripts.
 fn private_dir(dir: &Path) -> Result<(), String> {
-    use std::os::unix::fs::DirBuilderExt;
-    std::fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(dir)
-        .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-    std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
-        .map_err(|e| format!("cannot chmod {}: {e}", dir.display()))
+    hostd::private::create_dir(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    hostd::private::narrow_dir(dir).map_err(|e| format!("cannot chmod {}: {e}", dir.display()))
+}
+
+/// Detaches the hostd child from serve's terminal, so Ctrl-C or SIGHUP aimed at serve cannot kill
+/// the agents (spec 3.1). `serve` runs on Unix only; this keeps the binary building for Windows.
+#[cfg(unix)]
+fn detach(cmd: &mut tokio::process::Command) {
+    // SAFETY: setsid is async-signal-safe. A new session detaches hostd from serve's process group
+    // and controlling terminal. process_group(0) alone would still leave hostd attached to the
+    // terminal's session and exposed to SIGHUP.
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
+}
+
+#[cfg(windows)]
+fn detach(cmd: &mut tokio::process::Command) {
+    cmd.creation_flags(0x0000_0200 | 0x0800_0000);
 }
 
 async fn serve(
@@ -299,16 +311,7 @@ async fn supervise_hostd(
         if let Some(p) = &codex_program {
             cmd.arg("--codex-program").arg(p);
         }
-        // SAFETY: setsid is async-signal-safe. A new session detaches hostd from serve's
-        // process group and controlling terminal, so Ctrl-C or SIGHUP aimed at serve
-        // cannot kill the agents (spec 3.1). process_group(0) alone would still leave
-        // hostd attached to the terminal's session and exposed to SIGHUP.
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
+        detach(&mut cmd);
         let started = tokio::time::Instant::now();
         match cmd.spawn() {
             Ok(mut child) => {

@@ -8,9 +8,12 @@
 //! descriptor-based walk (`openat` with `O_NOFOLLOW` on every component) is deferred.
 use crate::LocalError;
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
 use std::collections::VecDeque;
+#[cfg(unix)]
 use std::ffi::{OsStr, OsString};
 use std::io::ErrorKind;
+#[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use ts_rs::TS;
@@ -50,7 +53,7 @@ pub struct Home {
 impl Home {
     /// The home folder from HOME as configured; `home_unknown` when it can't be resolved.
     pub fn of(given: &Path) -> Result<Home, LocalError> {
-        let real = given.canonicalize().map_err(|e| LocalError::failed("home_unknown", format!("Your home folder can't be read: {e}")))?;
+        let real = plain(given.canonicalize().map_err(|e| LocalError::failed("home_unknown", format!("Your home folder can't be read: {e}")))?);
         Ok(Home { real, given: given.to_path_buf() })
     }
 }
@@ -67,11 +70,13 @@ fn unreadable() -> LocalError {
     LocalError::forbidden("folder_unreadable", "Sculptured can't read that folder")
 }
 
+#[cfg(unix)]
 /// Splits on `/` without the normalisation `Path::components` applies (which drops `.`).
 fn segments(p: &Path) -> impl Iterator<Item = &[u8]> {
     p.as_os_str().as_bytes().split(|b| *b == b'/')
 }
 
+#[cfg(unix)]
 /// Refuses any path with a `.` or `..` component, before the filesystem is asked anything.
 /// `realpath` must find each folder before it can apply a following `..`, so resolving such
 /// a path would reveal whether places outside home exist. The picker only sends real paths.
@@ -97,9 +102,11 @@ fn refuse_dot_segments(home: &Home, requested: &Path) -> Result<(), LocalError> 
     Err(bad_path("Use a folder path without . or .."))
 }
 
+#[cfg(unix)]
 /// Most symlinks followed while resolving one path, like the kernel's own limit.
 const MAX_LINKS: usize = 40;
 
+#[cfg(unix)]
 /// True for places the walk may look up: inside home, or on the way to it (an ancestor
 /// of home, or of HOME as configured, or HOME itself). Decided from the text alone,
 /// before anything is looked up. HOME's own spelling is the user's configured path, so
@@ -127,6 +134,7 @@ fn lookup_error(e: &std::io::Error) -> LocalError {
 /// rule. So a missing, existing or unreadable place outside home, a dangling link to
 /// one, and a link that passes through one and comes back with `..`, all get the same
 /// answer, and only places inside home can be reported as missing, unreadable or files.
+#[cfg(unix)]
 pub fn resolve_inside(home: &Home, requested: &Path) -> Result<PathBuf, LocalError> {
     if !requested.is_absolute() {
         return Err(LocalError::bad("path_not_absolute", "Folder paths must be full paths"));
@@ -143,11 +151,46 @@ pub fn resolve_inside(home: &Home, requested: &Path) -> Result<PathBuf, LocalErr
     Ok(cur)
 }
 
+/// Windows: resolves `requested` with the system's canonical path (links followed) and refuses
+/// anything outside `home`. Unlike the Unix walk this asks Windows about the requested place before
+/// checking it, so a place outside home may be told apart as missing or not; nothing about it is shown.
+#[cfg(windows)]
+pub fn resolve_inside(home: &Home, requested: &Path) -> Result<PathBuf, LocalError> {
+    use std::path::Component;
+    if !requested.is_absolute() {
+        return Err(LocalError::bad("path_not_absolute", "Folder paths must be full paths"));
+    }
+    if requested.components().any(|c| matches!(c, Component::CurDir | Component::ParentDir)) {
+        return Err(bad_path("Use a folder path without . or .."));
+    }
+    let inside = requested.starts_with(&home.real) || requested.starts_with(&home.given);
+    let cur = plain(requested.canonicalize().map_err(|e| if inside { lookup_error(&e) } else { outside_home() })?);
+    if !cur.starts_with(&home.real) {
+        return Err(outside_home());
+    }
+    let meta = std::fs::metadata(&cur).map_err(|e| lookup_error(&e))?;
+    if !meta.is_dir() {
+        return Err(LocalError::bad("not_a_folder", "That is a file, not a folder"));
+    }
+    Ok(cur)
+}
+
+/// `\\?\C:\Users\a` → `C:\Users\a`: Windows' canonical form, as people and tools write it. Other
+/// verbatim paths (network shares) and every Unix path are kept as they are.
+pub fn plain(p: PathBuf) -> PathBuf {
+    match p.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
+        _ => p,
+    }
+}
+
+#[cfg(unix)]
 /// The path's non-empty parts.
 fn parts(p: &Path) -> impl Iterator<Item = OsString> + '_ {
     segments(p).filter(|s| !s.is_empty()).map(|s| OsStr::from_bytes(s).to_owned())
 }
 
+#[cfg(unix)]
 /// `realpath`, one part at a time, never asking about a place outside home (see `resolve_inside`).
 fn walk(home: &Home, requested: &Path) -> Result<PathBuf, LocalError> {
     let mut cur = PathBuf::from("/");
@@ -183,6 +226,7 @@ fn walk(home: &Home, requested: &Path) -> Result<PathBuf, LocalError> {
     Ok(cur)
 }
 
+#[cfg(unix)]
 /// Whether `next` is a link. A place outside home (and its ancestors) is refused before it is looked up.
 fn is_link(home: &Home, next: &Path) -> Result<bool, LocalError> {
     if !may_look_up(home, next) {

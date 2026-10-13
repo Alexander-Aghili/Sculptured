@@ -4,6 +4,7 @@ import { api } from '../api';
 import type { HostPolicyInfo } from '../generated/HostPolicyInfo';
 import type { CliStatus } from '../generated/CliStatus';
 import { gw } from './session';
+import { ConnectComputer } from './ConnectComputer';
 import './hosted.css';
 
 export type Computer = { id: string; name: string; platform: string; created_at: string; last_seen: string | null; connected: boolean };
@@ -17,7 +18,6 @@ export function ComputersPage() {
     api.hosts().then((hs) => setPolicies(Object.fromEntries(hs.map((h) => [h.id, h.policy]))), () => {});
   }, []);
   usePolling(load, 10000);
-  const origin = window.location.origin;
   return (
     <main className="hosted-page hosted-admin">
       <h1>Computers</h1>
@@ -36,9 +36,8 @@ export function ComputersPage() {
       {list && list.length === 0 && <p>No computers yet.</p>}
       <section aria-label="Connect a computer">
         <h2>Connect a computer</h2>
-        <p>On the computer (Linux, or a Mac with Apple silicon), run this in a terminal. It installs Sculptured for you (no admin rights), checks the download, and connects:</p>
-        <pre className="hosted-cmd">{`curl -fsSL ${origin}/install.sh | sh -s -- --allow ~/projects`}</pre>
-        <p className="muted">Already installed? Run <code>{`sculptured connect ${origin} --allow ~/projects`}</code>. Add <code>--install-service</code> to reconnect automatically when you log in. Allow more folders later with <code>sculptured allow &lt;folder&gt;</code>. Windows is coming later.</p>
+        <p className="muted">Your agents run on your own computer, with its Claude Code and Codex sign-ins.</p>
+        <ConnectComputer />
       </section>
     </main>
   );

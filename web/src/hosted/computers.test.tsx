@@ -33,7 +33,7 @@ it('lists computers with their state and disconnects one', async () => {
   render(<MemoryRouter><ComputersPage /></MemoryRouter>);
   expect(await screen.findByText('Laptop')).toBeInTheDocument();
   expect(screen.getByText('Connected')).toBeInTheDocument();
-  expect(screen.getByText(`curl -fsSL ${window.location.origin}/install.sh | sh -s -- --allow ~/projects`)).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Connect a computer' })).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Disconnect Laptop' }));
   await waitFor(() => expect(screen.queryByText('Laptop')).toBeNull());
 });

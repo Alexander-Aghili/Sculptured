@@ -61,7 +61,14 @@ pub fn copy_dir(copies_root: &Path, team: &str, seat: &str) -> PathBuf {
     copies_root.join(short(team, team)).join(short(team, seat))
 }
 
+/// Windows: files have no Unix modes to keep.
+#[cfg(windows)]
+fn keeps_modes(_dir: &Path) -> bool {
+    false
+}
+
 /// True when files made in `dir` keep the mode they are given (not exFAT/FAT/NTFS mounts).
+#[cfg(unix)]
 fn keeps_modes(dir: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     let probe = dir.join(".sculptured-mode-probe");
