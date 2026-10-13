@@ -48,3 +48,8 @@
 @media (max-width: 600px) { .an-bars li { grid-template-columns: 1fr; } }
 .an-chart svg { height: 120px; display: block; }
 .an-ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+.admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.admin-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-computers { margin: 4px 0; padding-left: 18px; }
+.admin-computers li { margin: 4px 0; }
+.admin-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }

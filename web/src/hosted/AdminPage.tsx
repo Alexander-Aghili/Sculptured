@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { gw } from './session';
 import { AdminAnalytics } from './AdminAnalytics';
+import { AdminAudit } from './AdminAudit';
+import { AdminRunning } from './AdminRunning';
+import { AdminUsers, type User } from './AdminUsers';
 import './hosted.css';
 
 type Invite = { id: string; kind: string; role: string; name: string; email: string | null; note: string | null; created_at: string; expires_at: string; used_at: string | null; revoked_at: string | null };
-type User = { id: string; name: string; email: string; role: string; created_at: string; disabled_at: string | null; last_seen: string | null; providers: string[] };
+
+type View = 'people' | 'running' | 'audit' | 'analytics';
+const VIEWS: [View, string][] = [['people', 'People & invites'], ['running', 'Running now'], ['audit', 'Audit log'], ['analytics', 'Analytics']];
 
 const state = (i: Invite) => i.revoked_at ? 'revoked' : i.used_at ? `used ${new Date(i.used_at).toLocaleDateString()}` : new Date(i.expires_at) < new Date() ? 'expired' : `open until ${new Date(i.expires_at).toLocaleDateString()}`;
 
@@ -14,7 +19,7 @@ export function AdminPage(_: { csrf?: string }) {
   const [form, setForm] = useState({ name: '', email: '', note: '', days: 14, admin: false });
   const [made, setMade] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [view, setView] = useState<'people' | 'analytics'>('people');
+  const [view, setView] = useState<View>('people');
   const load = useCallback(() => {
     gw<Invite[]>('GET', '/admin/invites').then(setInvites, (e) => setError(e.message));
     gw<User[]>('GET', '/admin/users').then(setUsers, (e) => setError(e.message));
@@ -30,12 +35,15 @@ export function AdminPage(_: { csrf?: string }) {
   };
   return (
     <main className="hosted-page hosted-admin">
-      <h1>Beta admin</h1>
-      <div role="tablist" aria-label="Admin" className="an-tabs">
-        <button role="tab" aria-selected={view === 'people'} className={`btn${view === 'people' ? ' is-on' : ''}`} onClick={() => setView('people')}>People &amp; invites</button>
-        <button role="tab" aria-selected={view === 'analytics'} className={`btn${view === 'analytics' ? ' is-on' : ''}`} onClick={() => setView('analytics')}>Analytics</button>
+      <div className="admin-head">
+        <h1>Beta admin</h1>
+        {/* The ops site signs admins in with a one-time ticket from here (opens in a new tab). */}
+        <a className="btn" href="/gw/api/admin/ops-ticket?next=%2F" target="_blank" rel="noopener">Ops tools: databases and logs ↗</a>
       </div>
-      {view === 'analytics' ? <AdminAnalytics /> : <>
+      <div role="tablist" aria-label="Admin" className="an-tabs">
+        {VIEWS.map(([v, label]) => <button key={v} role="tab" aria-selected={view === v} className={`btn${view === v ? ' is-on' : ''}`} onClick={() => setView(v)}>{label}</button>)}
+      </div>
+      {view === 'analytics' ? <AdminAnalytics /> : view === 'running' ? <AdminRunning /> : view === 'audit' ? <AdminAudit /> : <>
       {error && <p className="tone-red" role="alert">{error}</p>}
       <section aria-label="New invite">
         <h2>Invite someone</h2>
@@ -56,15 +64,7 @@ export function AdminPage(_: { csrf?: string }) {
             <td>{!i.used_at && !i.revoked_at && <button className="btn" onClick={act(() => gw('POST', `/admin/invites/${i.id}/revoke`))}>Revoke</button>}</td></tr>)}
         </tbody></table>
       </section>
-      <section aria-label="Users">
-        <h2>Users</h2>
-        <table><thead><tr><th>Name</th><th>Email</th><th>Signs in with</th><th>Joined</th><th>Last seen</th><th /></tr></thead><tbody>
-          {users.map((u) => <tr key={u.id}><td>{u.name}{u.role === 'admin' ? ' · admin' : ''}{u.disabled_at ? ' · disabled' : ''}</td><td>{u.email}</td><td>{u.providers.join(', ')}</td>
-            <td>{new Date(u.created_at).toLocaleDateString()}</td><td>{u.last_seen ? new Date(u.last_seen).toLocaleString() : '—'}</td>
-            <td><button className="btn" onClick={act(async () => { const r = await gw<{ link: string }>('POST', `/admin/users/${u.id}/reset-link`); setMade(r.link); })}>Reset link</button>{' '}
-              <button className="btn" onClick={act(() => gw('POST', `/admin/users/${u.id}/disable`, { disabled: !u.disabled_at }))}>{u.disabled_at ? 'Enable' : 'Disable'}</button></td></tr>)}
-        </tbody></table>
-      </section>
+      <AdminUsers users={users} act={act} onLink={setMade} />
       </>}
     </main>
   );
