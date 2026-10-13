@@ -103,11 +103,16 @@ button, input, textarea, select { font-family:var(--font-ui); }
 }
 .structure { position:relative; }
 .workspace-stage > .structure > .panel-bar { padding-right:120px; }
-.structure-status { position:absolute; top:5px; right:42px; z-index:25; }
+.structure-status { position:relative; z-index:25; flex:none; }
+.structure-status > summary { border:1px solid var(--line-2); padding:4px 9px !important; white-space:nowrap; }
+.structure-status > summary::-webkit-details-marker { display:none; }
+.structure-status > summary.st-setup { color:var(--amber, #e0a63a); border-color:color-mix(in srgb, var(--amber, #e0a63a) 45%, transparent); background:color-mix(in srgb, var(--amber, #e0a63a) 10%, transparent); }
+.structure-status > summary.st-ready { color:var(--green, #3fb970); border-color:color-mix(in srgb, var(--green, #3fb970) 40%, transparent); }
+.structure-status > summary.st-running { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 40%, transparent); }
 .structure-status > summary, .sb-tools-disclosure > summary { color:var(--muted); padding:2px 6px; cursor:pointer; list-style:none; border-radius:5px; }
 .structure-status > summary::after, .sb-tools-disclosure > summary::after { content:' ⌄'; }
 .structure-status > summary:hover, .sb-tools-disclosure > summary:hover { background:var(--hover); color:var(--text); }
-.structure-status > .sb-status { position:absolute; right:0; top:30px; width:min(500px,calc(100vw - 54px)); min-height:0; padding:10px; background:var(--panel); border:1px solid var(--line-2); border-radius:8px; box-shadow:var(--shadow-pop); }
+.structure-status > .sb-status { position:absolute; right:0; top:calc(100% + 6px); width:min(500px,calc(100vw - 54px)); min-height:0; padding:10px; background:var(--panel); border:1px solid var(--line-2); border-radius:8px; box-shadow:var(--shadow-pop); }
 .sb-canvas { position:relative; }
 .sb-tools-disclosure { position:absolute; top:8px; left:8px; z-index:10; max-width:calc(100% - 16px); }
 .sb-tools-disclosure > summary { display:inline-block; padding:4px 8px; background:var(--panel); border:1px solid var(--line); }

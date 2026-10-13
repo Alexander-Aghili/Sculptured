@@ -405,6 +405,48 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
         <span className="panel-tools">
           {draft.workflow && <Btn onClick={() => setWorkflowTarget('list')}>Workflow list</Btn>}
           <SaveStatus state={t.saveState} error={t.saveError} onRetry={() => void t.retry()} onReload={() => void t.reload()} onKeepMine={() => void t.keepMine()} />
+          <details className="structure-status" open={statusOpen} onToggle={e=>setStatusOpen(e.currentTarget.open)} onKeyDown={e=>{if(e.key==='Escape')setStatusOpen(false);}}>
+            <summary className={locked ? 'st-running' : reason ? 'st-setup' : 'st-ready'}>{locked ? 'Running' : reason ? 'Needs setup' : 'Ready'}</summary>
+          <div className="sb-status"><header className="setup-notice-head"><strong>{errors.length?`${errors.length} things to fix`:locked?'Project running':'Project status'}</strong><button className="btn" aria-label="Dismiss setup notice" onClick={()=>setStatusOpen(false)}>×</button></header>
+            {locked ? (
+              <p id={`${ids}-why`} className="run-banner tone-amber" role="status">
+                <span aria-hidden="true">◑ </span>This team is running. You can rename agents, edit their jobs and move cards. To add, remove or reconnect
+                agents, stop the team first{started ? ' on the ' : '.'}
+                {started && <Link to={teamPath(teamId)}>Live board</Link>}
+                {started ? '.' : ''}
+              </p>
+            ) : null}
+            {reason && !locked && (
+              <div className={`start-why ${errors.length ? 'tone-red' : 'muted'}`}>
+                <span id={`${ids}-why`} className="sr-only">Start team: {reason}</span>
+                {errors.length?<ul>{errors.map((issue,i)=><li key={i}>{issue.message}</li>)}</ul>:<p>{reason}</p>}
+              </div>
+            )}
+            {!reason && !locked && (
+              <p className="start-why tone-green">
+                <span aria-hidden="true">✓ </span>{draft.workflow ? 'Ready to start. The dispatcher reads Input first; workers wait for assignments.' : 'Ready to start. Each agent gets its job as its first message.'}
+              </p>
+            )}
+            {t.notice && (
+              <p className="tone-amber notice" role="status">
+                {t.notice}
+              </p>
+            )}
+            {startError && (
+              <DismissibleError className="tone-red notice">
+                Could not start: {startError}
+                {planHeld && (
+                  <>
+                    {' '}
+                    <button type="button" className="btn btn-sm" onClick={() => void start(true)}>
+                      Start anyway
+                    </button>
+                  </>
+                )}
+              </DismissibleError>
+            )}
+          </div>
+          </details>
           <Btn
             variant="primary"
             icon="play"
@@ -417,48 +459,6 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
             </span>
           </Btn>
         </span>
-      <details className="structure-status" open={statusOpen} onToggle={e=>setStatusOpen(e.currentTarget.open)} onKeyDown={e=>{if(e.key==='Escape')setStatusOpen(false);}}>
-        <summary>{locked ? 'Running' : reason ? 'Needs setup' : 'Ready'}</summary>
-      <div className="sb-status"><header className="setup-notice-head"><strong>{errors.length?`${errors.length} things to fix`:locked?'Project running':'Project status'}</strong><button className="btn" aria-label="Dismiss setup notice" onClick={()=>setStatusOpen(false)}>×</button></header>
-        {locked ? (
-          <p id={`${ids}-why`} className="run-banner tone-amber" role="status">
-            <span aria-hidden="true">◑ </span>This team is running. You can rename agents, edit their jobs and move cards. To add, remove or reconnect
-            agents, stop the team first{started ? ' on the ' : '.'}
-            {started && <Link to={teamPath(teamId)}>Live board</Link>}
-            {started ? '.' : ''}
-          </p>
-        ) : null}
-        {reason && !locked && (
-          <div className={`start-why ${errors.length ? 'tone-red' : 'muted'}`}>
-            <span id={`${ids}-why`} className="sr-only">Start team: {reason}</span>
-            {errors.length?<ul>{errors.map((issue,i)=><li key={i}>{issue.message}</li>)}</ul>:<p>{reason}</p>}
-          </div>
-        )}
-        {!reason && !locked && (
-          <p className="start-why tone-green">
-            <span aria-hidden="true">✓ </span>{draft.workflow ? 'Ready to start. The dispatcher reads Input first; workers wait for assignments.' : 'Ready to start. Each agent gets its job as its first message.'}
-          </p>
-        )}
-        {t.notice && (
-          <p className="tone-amber notice" role="status">
-            {t.notice}
-          </p>
-        )}
-        {startError && (
-          <DismissibleError className="tone-red notice">
-            Could not start: {startError}
-            {planHeld && (
-              <>
-                {' '}
-                <button type="button" className="btn btn-sm" onClick={() => void start(true)}>
-                  Start anyway
-                </button>
-              </>
-            )}
-          </DismissibleError>
-        )}
-      </div>
-      </details>
       </div>
 
       {narrow && !draft.workflow ? (

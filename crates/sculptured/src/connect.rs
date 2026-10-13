@@ -82,6 +82,25 @@ pub async fn redeem(origin: &str, key: &str, name: &str, platform: &str) -> Resu
     Ok(Credentials { origin: origin.to_string(), device_id: g.device_id, key: g.device_key })
 }
 
+/// Whether the server still accepts these saved credentials. Only a refusal (401: the computer was
+/// disconnected) is no; an unreachable server is taken as yes, so a network blip never re-pairs.
+pub async fn still_connected(c: &Credentials) -> bool {
+    let r = http().get(format!("{}/gw/api/device/check", c.origin)).bearer_auth(format!("{}.{}", c.device_id, c.key)).send().await;
+    !matches!(r, Ok(r) if r.status() == reqwest::StatusCode::UNAUTHORIZED)
+}
+
+/// The credentials to connect with when a one-time `key` was given: the saved ones while they still
+/// work (re-running the command does not add the computer twice), else the key's. None without a key.
+pub async fn credentials(origin: &str, saved: Option<Credentials>, key: Option<&str>, name: &str) -> Option<Result<Credentials, String>> {
+    let key = key?;
+    if let Some(c) = saved.filter(|c| c.origin == origin) {
+        if still_connected(&c).await {
+            return Some(Ok(c));
+        }
+    }
+    Some(redeem(origin, key, name, std::env::consts::OS).await)
+}
+
 /// A computer with no folders allowed yet lets agents work anywhere in its home folder. True when it did.
 pub fn default_to_home(policy: &mut hostd::policy::RunnerPolicy, home: &Path) -> Result<bool, String> {
     if !policy.allowed_folders.is_empty() {
@@ -267,22 +286,25 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
     if let Some(access) = a.access { policy.access = access; }
     set_caps(&mut policy, &a.caps)?;
     policy.save(&policy_file)?;
-    let creds = match Credentials::load(&dir)? {
-        Some(c) if c.origin == origin => c,
-        _ if a.key.is_some() => {
-            let name = a.name.clone().unwrap_or_else(this_computer);
-            let c = redeem(&origin, a.key.as_deref().unwrap_or_default(), &name, std::env::consts::OS).await?;
-            c.save(&dir)?;
-            c
-        }
+    let saved = Credentials::load(&dir)?;
+    let name = a.name.clone().unwrap_or_else(this_computer);
+    let from_key = credentials(&origin, saved.clone(), a.key.as_deref(), &name).await.transpose()?;
+    let creds = match (from_key, saved) {
+        (Some(c), _) => { c.save(&dir)?; c }
+        (None, Some(c)) if c.origin == origin => c,
         _ => {
-            let name = a.name.clone().unwrap_or_else(this_computer);
             let c = pair(&origin, &name, std::env::consts::OS, |code, link| {
                 println!("To connect this computer, open:\n  {link}\nand confirm the code {code}");
                 // The desktop app shows the link in its own window instead (`--no-browser`).
                 if !a.no_browser {
-                    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
-                    let _ = std::process::Command::new(opener).arg(link).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn();
+                    let mut open = if cfg!(windows) {
+                        let mut c = std::process::Command::new("cmd");
+                        c.args(["/C", "start", ""]);
+                        c
+                    } else {
+                        std::process::Command::new(if cfg!(target_os = "macos") { "open" } else { "xdg-open" })
+                    };
+                    let _ = open.arg(link).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn();
                 }
             }).await?;
             c.save(&dir)?;
@@ -401,6 +423,26 @@ mod tests {
         assert_eq!((creds.origin.as_str(), creds.key.len()), (origin.as_str(), 64));
         let err = redeem(&origin, &"x".repeat(64), "Laptop", std::env::consts::OS).await.unwrap_err();
         assert!(err.contains("already used or has expired"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn a_disconnected_computer_reconnects_with_the_new_key_in_its_command() {
+        let app = Router::new()
+            .route("/gw/api/device/check", axum::routing::get(|h: axum::http::HeaderMap| async move {
+                let ok = h.get("authorization").is_some_and(|v| v == "Bearer live-id.live-key");
+                if ok { axum::http::StatusCode::OK } else { axum::http::StatusCode::UNAUTHORIZED }
+            }))
+            .route("/gw/api/device/redeem", post(|| async { Json(json!({"device_id":"new-id","device_key":"n".repeat(64)})) }));
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", l.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        let saved = |id: &str, key: &str| Some(Credentials { origin: origin.clone(), device_id: id.into(), key: key.into() });
+        let live = credentials(&origin, saved("live-id", "live-key"), Some("k"), "PC").await.unwrap().unwrap();
+        assert_eq!(live.device_id, "live-id", "a key that still works is kept: re-running does not add a second computer");
+        let revoked = credentials(&origin, saved("old-id", "old-key"), Some("k"), "PC").await.unwrap().unwrap();
+        assert_eq!(revoked.device_id, "new-id", "a disconnected computer uses the new key");
+        let fresh = credentials(&origin, None, Some("k"), "PC").await.unwrap().unwrap();
+        assert_eq!(fresh.device_id, "new-id");
     }
 
     #[test]

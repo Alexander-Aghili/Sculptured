@@ -2,12 +2,13 @@
 
 .model-fields { display: flex; flex-direction: column; gap: 8px; }
 
+/* Equal columns that always fit the panel: a long name ("Practice agent") wraps inside its own button. */
 .kind-switch {
-  display: inline-flex; gap: 2px; padding: 3px; align-self: flex-start;
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 3px; align-self: stretch;
   background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--r);
 }
 .kind-opt {
-  display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+  display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 8px; min-width: 0; text-align: center; line-height: 1.2;
   border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); font: inherit; cursor: pointer;
 }
 .kind-opt:hover:not(:disabled) { background: var(--hover); color: var(--text); }
