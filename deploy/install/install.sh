@@ -43,7 +43,8 @@ main() {
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
   say "Downloading Sculptured for $t…"
-  fetch "$RELEASES/$asset" "$tmp/$asset"
+  ( fetch "$RELEASES/$asset" "$tmp/$asset" ) 2>/dev/null \
+    || die "there is no Sculptured build for $t at $RELEASES yet. Nothing was installed."
   fetch "$RELEASES/$asset.sha256" "$tmp/$asset.sha256"
   want=$(cut -d' ' -f1 < "$tmp/$asset.sha256")
   got=$(sha256 "$tmp/$asset")
