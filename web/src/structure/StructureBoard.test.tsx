@@ -23,7 +23,7 @@ const lastSaved = (): TeamDraft => {
 async function board(rec = teamRecord()) {
   const server = fakeTeam(rec);
   renderAt('/team/t/structure');
-  await screen.findByRole('region', { name: 'Structure board' });
+  await screen.findByRole('region', { name: 'Design board' });
   return server;
 }
 
@@ -43,7 +43,7 @@ describe('Structure board: adding agents', () => {
   it('keeps the inspector closed during selection and dragging, with add tools exposed', async () => {
     localStorage.clear();
     await board();
-    const canvas = screen.getByRole('region', { name: 'Structure board' });
+    const canvas = screen.getByRole('region', { name: 'Design board' });
     expect(document.getElementById('workspace-details')).not.toBeVisible();
     expect(document.querySelector('.structure-status')).not.toHaveAttribute('open');
     expect(document.querySelector('.sb-tools-disclosure')).toHaveAttribute('open');
@@ -62,7 +62,7 @@ describe('Structure board: adding agents', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     fireEvent.keyDown(builder, {key:'Enter'});
     expect(screen.getByRole('region', { name: 'Agent Builder' })).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Structure board' })).toBe(canvas);
+    expect(screen.getByRole('region', { name: 'Design board' })).toBe(canvas);
   });
 
   it('keeps the board mounted while editing workflow input, review routes and dispatch settings', async () => {
@@ -72,7 +72,7 @@ describe('Structure board: adding agents', () => {
       stages: [{ id:'build', name:'Build', agent:'builder', routes:{ ready:'review' } }, { id:'review', name:'Review', agent:'reviewer', routes:{ revise:'build', accept:null } }],
     } });
     await board(teamRecord({ draft:d }));
-    const canvas = screen.getByRole('region', { name:'Structure board' });
+    const canvas = screen.getByRole('region', { name:'Design board' });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name:'Input: links, notes and ideas' }));
     await user.type(screen.getByLabelText('Workflow input'), 'Links and rough ideas');
@@ -86,13 +86,13 @@ describe('Structure board: adding agents', () => {
     await user.click(screen.getByRole('button', { name:'Dispatch N · settings' }));
     expect(screen.getByLabelText('Maximum items')).toHaveValue(24);
     expect(screen.getByRole('button', { name:'Add reusable stage' })).toBeVisible();
-    expect(screen.getByRole('region', { name:'Structure board' })).toBe(canvas);
+    expect(screen.getByRole('region', { name:'Design board' })).toBe(canvas);
     expect(lastSaved().connections).toEqual([]);
   });
 
   it('hides the inspector without remounting the canvas or saving the draft', async () => {
     await board();
-    const canvas = screen.getByRole('region', { name: 'Structure board' });
+    const canvas = screen.getByRole('region', { name: 'Design board' });
     const inspector = document.getElementById('workspace-details');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'App menu' }));
@@ -100,7 +100,7 @@ describe('Structure board: adding agents', () => {
     expect(inspector).not.toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Show details panel' }));
     expect(inspector).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Structure board' })).toBe(canvas);
+    expect(screen.getByRole('region', { name: 'Design board' })).toBe(canvas);
     expect(api.saveTeam).not.toHaveBeenCalled();
   });
 

@@ -1,4 +1,5 @@
 import { SignInNeeded } from './SignInNeeded';
+import { OpenQuestions } from './OpenQuestions';
 import { useCallback, useId, useRef, useState, type RefObject } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { VisualProgress } from '../visual/VisualProgress';
@@ -65,10 +66,12 @@ type Props = {
   onBack: () => void;
   controlsRef?: RefObject<AgentControls | null>;
   composerRef?: RefObject<HTMLTextAreaElement | null>;
+  /** Changes each time the person chose "Answer": the agent's first open question takes the focus. */
+  answerToken?: number;
 };
 
 /** The agent pane replaces the board: header, transcript or raw events, composer. */
-export function AgentPane({ a, tab, feed, epoch, onBack, controlsRef, composerRef }: Props) {
+export function AgentPane({ a, tab, feed, epoch, onBack, controlsRef, composerRef, answerToken }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId();
@@ -150,6 +153,7 @@ export function AgentPane({ a, tab, feed, epoch, onBack, controlsRef, composerRe
         </div>
         <HandoffActions key={seat.id} a={a} />
         <SignInNeeded a={a} feed={feed} />
+        <OpenQuestions key={`q-${seat.id}`} seat={seat.id} name={a.name} feed={feed} focusToken={answerToken} />
         <StallNotice seat={seat} />
         {a.waitingFor && a.waitingFor.length > 0 && !a.stuck && (
           <p className="pane-waiting">

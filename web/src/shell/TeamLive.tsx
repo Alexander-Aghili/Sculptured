@@ -182,7 +182,7 @@ export function TeamLive(p: Props) {
           ) : (
             <>
               <Icon name="activity" size={16} />
-              <span className="tab-on">Live</span>
+              <span className="tab-on">Run</span>
               <span className="muted"> · </span>
               <span className="team-title">{shown}</span>
             </>
@@ -299,7 +299,7 @@ export function TeamLive(p: Props) {
           )}
           {p.teamId && (
             <p>
-              Fix it on the <Link to={structurePath(p.teamId)}>Structure board</Link>.
+              Fix it on the <Link to={structurePath(p.teamId)}>Design board</Link>.
             </p>
           )}
         </DismissibleError>

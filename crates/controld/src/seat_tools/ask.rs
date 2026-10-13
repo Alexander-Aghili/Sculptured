@@ -8,10 +8,11 @@ use serde_json::{json, Value};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::oneshot;
 
-/// Why a question raised through a seat tool is withdrawn when its host connection drops.
-const LINK_DROPPED: &str = "the connection to the agent's runner dropped; the agent was told the question failed";
-/// Why an answer handed to a call whose host connection dropped is recorded as failed.
-const ANSWER_LOST: &str = "the connection to the agent's runner dropped before the answer reached the agent";
+/// Why a question raised through a seat tool is withdrawn when its call stopped waiting unanswered. A
+/// computer dropping off is not such a reason: the question stays open and the call waits for it.
+const STOPPED_WAITING: &str = "the agent's call stopped waiting for an answer; the agent was told the question failed";
+/// Why an answer is recorded as failed when Sculptured could no longer pass the call's reply on.
+const ANSWER_LOST: &str = "Sculptured could not pass the answer on to the agent's call";
 
 pub(super) async fn request_input(st: &AppState, seat: &str, args: &Value) -> Result<Outcome, ToolError> {
     let text = string_arg(args, "question")?.to_string();
@@ -121,7 +122,7 @@ async fn wait_for_answer(st: &AppState, seat: &str, id: &str, mut rx: oneshot::R
     loop {
         tokio::select! {
             biased;
-            // Dropped unanswered: `SeatWait::send` found the call's connection closed.
+            // The waiter was dropped without an answer: nothing can answer this call any more.
             a = &mut rx => match a {
                 Ok(a) => return Ok(a),
                 Err(_) => break,
@@ -140,7 +141,7 @@ async fn wait_for_answer(st: &AppState, seat: &str, id: &str, mut rx: oneshot::R
     }
     drop(rx);
     lost_on_the_way(st, seat, id, None).await;
-    Err(ToolError::Failed(LINK_DROPPED.into()))
+    Err(ToolError::Failed(STOPPED_WAITING.into()))
 }
 
 /// The question's withdrawal, if the store shows one (an interrupted turn, an ended process, a restart).
@@ -154,10 +155,10 @@ fn withdrawn(st: &AppState, id: &str) -> Option<ToolError> {
     Some(ToolError::Failed(format!("the question was withdrawn: {why}")))
 }
 
-/// The call's host connection closed: nothing can reach the agent any more. Under the question's
-/// claim (so an answer or expiry in flight finishes first), an answer handed over in the meantime is
-/// recorded as failed, and a question still open is withdrawn rather than left for someone to answer
-/// into a connection nobody reads.
+/// The call can no longer be answered (its waiter is gone, or its reply could not be passed on). Under
+/// the question's claim (so an answer or expiry in flight finishes first), an answer handed over in the
+/// meantime is recorded as failed, and a question still open is withdrawn rather than left for someone
+/// to answer into a call nobody waits on.
 pub(super) async fn lost_on_the_way(st: &AppState, seat: &str, id: &str, answer: Option<Answer>) {
     let _held = crate::questions::tool_claim(id).await;
     st.seat_waits.lock().unwrap().remove(id);
@@ -167,7 +168,7 @@ pub(super) async fn lost_on_the_way(st: &AppState, seat: &str, id: &str, answer:
     }
     let open = question(st.store.lock().unwrap().connection(), id).ok().flatten().is_some_and(|q| q.state == QuestionState::Open);
     if open {
-        let body = EventBody::QuestionWithdrawn { question_id: id.to_string(), reason: LINK_DROPPED.into() };
+        let body = EventBody::QuestionWithdrawn { question_id: id.to_string(), reason: STOPPED_WAITING.into() };
         record_system(st, seat, Provenance::Heuristic, body);
     }
 }

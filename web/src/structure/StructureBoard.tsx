@@ -412,7 +412,7 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
               <p id={`${ids}-why`} className="run-banner tone-amber" role="status">
                 <span aria-hidden="true">◑ </span>This team is running. You can rename agents, edit their jobs and move cards. To add, remove or reconnect
                 agents, stop the team first{started ? ' on the ' : '.'}
-                {started && <Link to={teamPath(teamId)}>Live board</Link>}
+                {started && <Link to={teamPath(teamId)}>Run board</Link>}
                 {started ? '.' : ''}
               </p>
             ) : null}

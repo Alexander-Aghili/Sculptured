@@ -100,7 +100,8 @@ fn string_arg<'a>(args: &'a Value, key: &str) -> Result<&'a str, ToolError> {
 /// What a call returns, and the question it asked and the answer it got (`request_input`, `approve`).
 type Outcome = (Value, Option<(String, Answer)>);
 
-/// Handles one call and sends its reply on `reply`, the host connection it came in on.
+/// Handles one call and sends its reply on `reply`, which passes it to the host's link of the moment
+/// (`hosts::session::on_call`): a link that dropped meanwhile is no reason to lose it.
 pub async fn handle_call(st: AppState, reply: UnboundedSender<ToHost>, call_id: String, seat: String, tool: String, args: Value) {
     let (ok, result, error, asked) = match dispatch(&st, &seat, &tool, &args).await {
         Ok((result, asked)) => (true, result, None, asked),
@@ -113,7 +114,8 @@ pub async fn handle_call(st: AppState, reply: UnboundedSender<ToHost>, call_id: 
         }
         Err(ToolError::Failed(reason)) => (false, Value::Null, Some(reason), None),
     };
-    // The connection closed after the answer came: the agent never gets it.
+    // The reply could not be passed on (controld is shutting down): the agent never gets the answer.
+    // A computer that dropped off is not this case; its reply waits for it (`HostRegistry::finish_call`).
     if reply.send(ToHost::SeatToolReply { call_id, ok, result, error }).is_err()
         && let Some((id, answer)) = asked
     {

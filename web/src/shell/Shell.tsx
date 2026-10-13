@@ -168,6 +168,7 @@ export function Shell({ openStream, layouts: givenLayouts = {}, names: givenName
   const controls = useRef<AgentControls | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
   const answerNext = useRef(false);
+  const [answerToken, setAnswerToken] = useState(0);
   const toastId = useRef(0);
 
   useEffect(() => {
@@ -279,13 +280,14 @@ export function Shell({ openStream, layouts: givenLayouts = {}, names: givenName
   const openInTeam = (id: string) => rig && open({ rig, id });
   const answer = (id: string) => {
     answerNext.current = true;
+    setAnswerToken((n) => n + 1);
     openInTeam(id);
   };
   const back = useCallback(() => {
     if (rig) navigate(teamPath(rig));
   }, [rig, navigate]);
 
-  // "Answer" lands in the composer.
+  // "Answer" lands in the composer, then in the agent's open question once it has loaded (OpenQuestions).
   useEffect(() => {
     if (openAgent && answerNext.current) {
       answerNext.current = false;
@@ -475,6 +477,7 @@ export function Shell({ openStream, layouts: givenLayouts = {}, names: givenName
           onBack={back}
           controlsRef={controls}
           composerRef={composer}
+          answerToken={answerToken}
         />
       );
     } else {

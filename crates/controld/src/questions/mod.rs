@@ -53,7 +53,7 @@ pub(crate) async fn tool_claim(id: &str) -> Option<impl Sized> {
 }
 
 const DECISION_CHARS: usize = 500;
-const RESTARTED: &str = "Sculptured restarted while the agent waited for an answer; the agent was told the question failed";
+const RESTARTED: &str = "Sculptured restarted while the agent waited for an answer; if the agent still waits, its question is asked again";
 
 fn human() -> Actor {
     Actor::Human("local".into())

@@ -92,8 +92,8 @@ fn withdraw_orphans(st: &AppState) {
     for q in open {
         let waiting = st.seat_waits.lock().unwrap().contains_key(&q.id);
         let live = st.store.lock().unwrap().seat(&q.seat).ok().flatten().is_some_and(|s| is_live(s.lifecycle));
-        // Only the old controld's waiter could answer a seat-tool question, and hostd already failed
-        // that call when the link dropped (Task 6), so the agent carried on.
+        // Only the old controld's waiter could answer a seat-tool question, and it is gone. hostd keeps
+        // the call pending and sends it again when it reconnects, which asks it afresh as a new question.
         let reason = if through_tool(st, &q) && !waiting {
             Some(RESTARTED)
         } else if !live {

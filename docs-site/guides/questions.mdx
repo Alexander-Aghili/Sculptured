@@ -39,7 +39,7 @@ The tools agents use are listed in [Agent tools](/reference/agent-tools).
 - **The status line** at the top counts "N needs you" across all your teams.
 - A toast appears when an agent you are not looking at starts needing you. It stays until you click it.
 
-**Answer** opens the agent with its message box focused.
+**Answer** opens the agent. Its questions show at the top of its conversation, and the first one takes the focus.
 
 ## Answering
 
@@ -49,7 +49,21 @@ Your answer is recorded first and then sent to the agent. The log reads question
 - **Choices.** An answer must fit the question: one of its choices, or your own words. Otherwise you get "That answer does not fit this question."
 - **Delivery in doubt.** If Sculptured could not confirm that the answer reached the agent, the answer stays recorded and is marked as unconfirmed, and the agent stays in Needs you until that is settled. An answer that certainly did not arrive opens the question again while the agent can still take it.
 
-<Note>The message box sends with the **Inform** intent by default. An Inform message waits for the agent's current turn to end, and a turn that waits on a question only ends when the question is answered or times out. To redirect the agent now, open **⋯** next to the message box, choose **Instruct**, and tick **Interrupt current turn**. Interrupting the turn withdraws the open question, and the agent then reads your message.</Note>
+## Answer in the app
+
+Each question is a card above the agent's conversation. It shows what the agent asked, word for word, and when it stops waiting.
+
+| The agent asked | What the card offers |
+| --- | --- |
+| A question with choices | One button per choice. If it also takes your own words, a box and **Send answer**. |
+| A question in its own words | A box for your answer and **Send answer**. |
+| To run a tool (**Restricted** agents) | The tool, its input under **Tool input**, and Sculptured's reading of what it would do, such as "deletes files". Then **Allow** or **Deny**. |
+
+- **Deny with a reason.** Type a reason before you choose **Deny**, and the agent is told it. Without one, it is told "The person running this team did not allow this."
+- **Send again.** If your answer may not have reached the agent, the card says why, in the computer's words, and offers **Send again**.
+- **After the timeout.** The card stays until you dismiss it with **OK**. For a question, it shows what the agent decided, and you can send a late answer. For a tool approval, it says it was allowed automatically, and **Deny now** tells the agent it should not have been allowed and to undo what it did if it can.
+
+<Tip>A message you type in the agent's own message box is not an answer. It waits for the agent's current turn to end, and a turn that waits on a question ends only when the question is answered or times out. Answer on the card instead.</Tip>
 
 ## When nobody answers
 
@@ -57,7 +71,7 @@ Each question waits **10 minutes** by default. A team can set its own timeout, f
 
 <AccordionGroup>
   <Accordion title="An agent question times out">The agent is told: "No operator answer within 10m. Proceed with your best judgment and state the decision you made." It is asked to call `record_decision` with what it chose and why. That decision is recorded as agent-reported. If the agent says nothing, the decision's source stays unknown.</Accordion>
-  <Accordion title="A tool approval times out">An approval nobody answers in time is **allowed**, and the decision is recorded. Approvals are a way to watch a restricted agent, not a guarantee that a tool never runs. Keep work you must not risk away from agents nobody is watching.</Accordion>
+  <Accordion title="A tool approval times out">An approval nobody answers in time is **allowed**, and the decision is recorded. You can still choose **Deny now** on its card afterwards. Approvals are a way to watch a restricted agent, not a guarantee that a tool never runs. Keep work you must not risk away from agents nobody is watching.</Accordion>
   <Accordion title="You answer after the timeout">A late answer is not lost. It reaches the agent once, as an instruction that overrides the decision it made on its own.</Accordion>
 </AccordionGroup>
 

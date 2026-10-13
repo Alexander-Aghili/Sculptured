@@ -566,7 +566,7 @@ export function StructureCanvas(p: Props) {
         onKeyDown={onKeyDown}
         onScroll={draft.workflow ? e => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } : undefined}
         data-testid="structure-viewport"
-        aria-label="Structure board"
+        aria-label="Design board"
         role="region"
       >
         {empty && !ghost && (

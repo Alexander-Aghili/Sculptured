@@ -178,3 +178,15 @@ button, input, textarea, select { font-family:var(--font-ui); }
 .signin-needed { margin:8px 12px; padding:10px 12px; border:1px solid color-mix(in srgb, var(--amber) 45%, transparent); border-radius:9px; background:color-mix(in srgb, var(--amber) 9%, transparent); display:grid; gap:6px; }
 .signin-needed p { margin:0; }
 .signin-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+/* An agent's open questions and tool approvals, answered above its conversation (OpenQuestions). */
+.open-questions { margin:8px 12px; display:grid; gap:8px; }
+.question-card { padding:12px 14px; border:1px solid color-mix(in srgb, var(--accent, #477C80) 45%, transparent); border-radius:10px; background:color-mix(in srgb, var(--accent, #477C80) 7%, transparent); box-shadow:0 1px 2px rgb(0 0 0 / .06); display:grid; gap:8px; }
+.question-card.permission { border-color:color-mix(in srgb, var(--amber) 50%, transparent); background:color-mix(in srgb, var(--amber) 8%, transparent); }
+.question-card p { margin:0; }
+.question-text { white-space:pre-wrap; }
+.question-risks { margin:0; padding-left:1.2em; }
+.question-input pre { max-height:180px; overflow:auto; font-size:12px; margin:6px 0 0; }
+.question-answer, .question-reason { width:100%; box-sizing:border-box; font:inherit; padding:7px 9px; border:1px solid var(--line, #d6e0de); border-radius:7px; background:var(--surface, transparent); color:inherit; }
+.question-answer { resize:vertical; }
+.question-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.question-deadline { font-size:12px; }

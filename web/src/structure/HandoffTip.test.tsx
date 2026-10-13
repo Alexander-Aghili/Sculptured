@@ -27,7 +27,7 @@ describe('Structure board: what a connection does', () => {
     });
     fakeTeam(teamRecord({ draft }));
     renderAt('/team/t/structure');
-    await screen.findByRole('region', { name: 'Structure board' });
+    await screen.findByRole('region', { name: 'Design board' });
     const hands = document.querySelector('[data-connection="c1"]')!;
     expect(hands).toHaveAttribute('data-tip', "Reviewer starts when Builder finishes; Builder's result is passed along");
     const watches = document.querySelector('[data-connection="c2"]')!;
@@ -37,7 +37,7 @@ describe('Structure board: what a connection does', () => {
   it("says in the Job field when an agent's Job is sent", async () => {
     fakeTeam(teamRecord());
     renderAt('/team/t/structure');
-    await screen.findByRole('region', { name: 'Structure board' });
+    await screen.findByRole('region', { name: 'Design board' });
     await userEvent.click(screen.getByRole('button', { name: /^Reviewer — / }));
     expect(screen.getByRole('textbox', { name: 'Job' })).toHaveAccessibleDescription(
       'Sent with its first handoff, as the Job reads then: you can still change it while this agent waits.',

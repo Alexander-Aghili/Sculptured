@@ -389,7 +389,7 @@ describe('After Sculptured restarts', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Could not start: 1 thing to fix');
     expect(alert).toHaveTextContent("Builder's folder is outside your home folder");
-    expect(within(alert).getByRole('link', { name: 'Structure board' })).toHaveAttribute('href', '/team/t/structure');
+    expect(within(alert).getByRole('link', { name: 'Design board' })).toHaveAttribute('href', '/team/t/structure');
     expect(alert).not.toHaveTextContent('SERVER TEXT');
   });
 

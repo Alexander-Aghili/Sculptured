@@ -347,7 +347,7 @@ export function TemplateGallery({ onCreated, onClose, inline }: { onCreated: (id
           <span className="muted">Tell your own Claude Code or Codex what you need, and it drafts the team.</span>
         </p>
       )}
-      <p className="gallery-intro muted">Pick a starting point. You can change every agent, job, folder and connection on the Structure board before you start it.</p>
+      <p className="gallery-intro muted">Pick a starting point. You can change every agent, job, folder and connection on the Design board before you start it.</p>
       {!practice && <p className="gallery-warn tone-amber">{kind === 'codex' ? 'Codex' : 'Claude'} agents use your own CLI logins and may cost money once started.</p>}
       {loadError && (
         <DismissibleError className="tone-red pad">
@@ -384,7 +384,7 @@ export function TemplateGallery({ onCreated, onClose, inline }: { onCreated: (id
         <ol className="flow" aria-label="How a team runs">
           <li>
             <span className="flow-n">1</span>
-            <span className="flow-t">Structure</span>
+            <span className="flow-t">Design</span>
             <span className="flow-d">Drag agents in, give each a job and a folder, and connect who hands work to whom.</span>
           </li>
           <li>
@@ -394,7 +394,7 @@ export function TemplateGallery({ onCreated, onClose, inline }: { onCreated: (id
           </li>
           <li>
             <span className="flow-n">3</span>
-            <span className="flow-t">Live</span>
+            <span className="flow-t">Run</span>
             <span className="flow-d">Watch each agent work, answer the ones that need you, and message any of them.</span>
           </li>
         </ol>

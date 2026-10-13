@@ -20,7 +20,7 @@ const kindOf = (id: string) => saved().agents.find((a) => a.id === id)!.kind;
 async function board() {
   fakeTeam(teamRecord());
   renderAt('/team/t/structure');
-  await screen.findByRole('region', { name: 'Structure board' });
+  await screen.findByRole('region', { name: 'Design board' });
   return userEvent.setup();
 }
 

@@ -58,7 +58,7 @@ flowchart LR
 - **Reports to** and **watches** arrows record design intent. The agents coordinate through their Jobs, using [managed messages](/reference/agent-tools#send_agent_message) and files.
 - A planned arrow does not prove that a message was sent. Open the team's communications to see what agents actually sent each other.
 
-The dynamic dispatch block contains only the coordinator. Its specialists appear on the live board only when the coordinator actually creates them with [`spawn_agent`](/reference/agent-tools#spawn_agent).
+The dynamic dispatch block contains only the coordinator. Its specialists appear on the **Run** board only when the coordinator actually creates them with [`spawn_agent`](/reference/agent-tools#spawn_agent).
 
 <Note>The bidding and swarm blocks are bounded teaching protocols. They do not provision machines, take payments, or provide distributed consensus or fault tolerance. The blackboard uses single-writer files, not a transactional shared memory.</Note>
 
