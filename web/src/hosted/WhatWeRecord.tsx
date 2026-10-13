@@ -1,3 +1,4 @@
+import { BackToApp } from './BackToApp';
 import { RECORDED_EVENTS } from './analytics';
 import { RECORDED } from './session';
 import './hosted.css';
@@ -6,6 +7,7 @@ import './hosted.css';
 export function WhatWeRecord() {
   return (
     <main className="hosted-page hosted-record">
+      <BackToApp />
       <h1>What we record</h1>
       <p>{RECORDED}</p>
       <p>

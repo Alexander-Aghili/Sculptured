@@ -1,3 +1,4 @@
+import { BackToApp } from './BackToApp';
 import { useCallback, useEffect, useState } from 'react';
 import { usePolling } from '../usePolling';
 import { api } from '../api';
@@ -20,6 +21,7 @@ export function ComputersPage() {
   usePolling(load, 10000);
   return (
     <main className="hosted-page hosted-admin">
+      <BackToApp />
       <h1>Computers</h1>
       <p className="muted">Your agents run on your own computers, with your own Claude Code and Codex sign-ins. Each computer decides which folders agents may use.</p>
       {error && <p className="tone-red" role="alert">{error}</p>}

@@ -1,3 +1,4 @@
+import { BackToApp } from '../hosted/BackToApp';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
@@ -16,6 +17,7 @@ export function AccountPage() {
   useEffect(() => { api.accountUsage().then(setUsage, (e) => setError(errorText(e))); }, []);
   return (
     <main className="acct-page">
+      <BackToApp />
       <p><Link to="/">← Projects</Link></p>
       <h1>Your account</h1>
       {s.kind === 'signed-in' ? <SignedIn name={s.user.name} email={s.user.email} admin={s.user.role === 'admin'} /> :

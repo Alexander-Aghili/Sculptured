@@ -76,3 +76,7 @@
 .connect-steps .btn { display: inline-flex; align-items: center; gap: 6px; }
 .connect-copied { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
 .connect-copied p { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.back-to-app { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px; padding: 5px 10px 5px 8px; font-size: 13px; color: var(--muted); text-decoration: none; border: 1px solid var(--line-2); border-radius: 7px; background: var(--panel); }
+.back-to-app:hover { color: var(--text); background: var(--hover); }
+.back-to-app:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

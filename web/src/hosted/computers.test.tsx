@@ -34,6 +34,7 @@ it('lists computers with their state and disconnects one', async () => {
   expect(await screen.findByText('Laptop')).toBeInTheDocument();
   expect(screen.getByText('Connected')).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Connect a computer' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Back to Sculptured' })).toHaveAttribute('href', '/');
   await userEvent.click(screen.getByRole('button', { name: 'Disconnect Laptop' }));
   await waitFor(() => expect(screen.queryByText('Laptop')).toBeNull());
 });

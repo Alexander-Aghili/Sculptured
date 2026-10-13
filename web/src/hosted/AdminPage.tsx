@@ -1,3 +1,4 @@
+import { BackToApp } from './BackToApp';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { gw } from './session';
 import { AdminAnalytics } from './AdminAnalytics';
@@ -35,6 +36,7 @@ export function AdminPage(_: { csrf?: string }) {
   };
   return (
     <main className="hosted-page hosted-admin">
+      <BackToApp />
       <div className="admin-head">
         <h1>Beta admin</h1>
         {/* The ops site signs admins in with a one-time ticket from here (opens in a new tab). */}
