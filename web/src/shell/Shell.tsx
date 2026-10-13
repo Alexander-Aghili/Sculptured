@@ -31,6 +31,7 @@ import type { GraphHandle } from './LiveGraph';
 import { agentPath, buildTeams, draftTeamRow, firstMessageIsWork, flatAgents, sortTeams, structurePath, teamPath, type AgentRow } from './model';
 import { Sidebar } from './Sidebar';
 import { StatusLine } from './StatusLine';
+import { ConnectingPanel } from './ConnectingPanel';
 import { TeamLive, type Mode } from './TeamLive';
 import { DeploymentHistoryView } from '../collaboration/DeploymentHistoryView';
 import { Toasts, type Toast } from './Toasts';
@@ -460,13 +461,7 @@ export function Shell({ openStream, layouts: givenLayouts = {}, names: givenName
       </Panel>
     );
   } else if (!snap) {
-    content = (
-      <Panel title={<span className="team-title">{rig}</span>} className="connecting">
-        <p role="status" className="pad muted">
-          {WORDS.connecting(rig)}
-        </p>
-      </Panel>
-    );
+    content = <ConnectingPanel key={rig} rig={rig} />;
   } else if (openAgent) {
     const a = byId[openAgent];
     if (a?.seat) {
