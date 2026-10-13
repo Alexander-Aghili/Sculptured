@@ -1,0 +1,41 @@
+---
+title: Designing teams of agents
+description: When to split work across agents, which pattern to use, and how to write each agent's Job.
+---
+
+Start with **one agent**. Teams cost more — Anthropic measured multi-agent systems using about 15× the tokens of a chat — and a single agent is often enough. Split work only for one of four reasons ([CS2680 Agent Design II](https://cs2680.com/slides/5_agent_design_2.pdf), slide 6):
+
+| Reason | Example |
+| --- | --- |
+| **Specialization** | A researcher, a writer and a reviewer with different instructions or models. |
+| **Isolation** | A reviewer set to **Restricted** so it cannot edit what it reviews. |
+| **Parallelism** | Independent chapters or components built at the same time. |
+| **Context** | Each agent keeps a small context instead of one agent carrying everything. |
+
+## Pick a pattern
+
+| Pattern | Shape on the board | Use for | Watch |
+| --- | --- | --- | --- |
+| Pipeline with a review loop (slide 11) | Builder → Reviewer ↺ | Most build-and-check work; cheapest to debug | Bound the revision rounds |
+| Supervisor and workers (slide 9) | Lead → Workers → Lead | Separable parts that one agent integrates | The lead's context grows fastest |
+| Independent reviewers (slide 13) | Draft → Reviewer A + B → Editor | Quality over cost | Reviewers must not see each other's verdicts |
+| Dynamic dispatch (slide 16) | Coordinator → spawned specialists → Assembly | The number of pieces is known only at run time | Set spawn, depth and token limits first |
+
+Each has a ready-made example in the [CS2680 pattern catalog](/guides/pattern-catalog). Try it with Practice agents first; they make no model calls.
+
+## Write each Job like a task spec
+
+Slide 21 lists what a delegated task needs. In Sculptured that is the agent's **Job**:
+
+1. **Objective** — what to achieve, in a sentence or two.
+2. **Output** — the exact file, format or message it hands on.
+3. **Done when** — a check anyone can run (tests pass; a file has these sections).
+4. **Boundaries** — what it must not touch or decide.
+5. **Budget** — its **token limit**, with or without the agents it spawns.
+6. **Tools and permissions** — Restricted for reviewers and anything that should not edit.
+
+## What goes wrong
+
+Overlap, gaps nobody owns, hidden dependencies between "parallel" pieces, outputs that cannot be merged, lost context at the aggregation step, stragglers, and agents messaging each other in loops (slides 24–25, 36). An agent saying "done" is a report, not proof: end the pipeline with a step that runs the tests.
+
+<Note>Paraphrased from Juncheng Yang's CS2680 lectures; not an endorsement by the course.</Note>

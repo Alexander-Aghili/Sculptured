@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+<title>Sculptured</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #10141c; color: #e1e6ee; display: grid; place-items: center; min-height: 100vh; }
+  main { max-width: 560px; padding: 24px; display: grid; gap: 16px; }
+  h1 { margin: 0; font-size: 22px; }
+  .choice { border: 1px solid #2e3844; border-radius: 10px; padding: 16px; display: grid; gap: 8px; }
+  .choice h2 { margin: 0; font-size: 16px; }
+  .muted { color: #8c97a8; margin: 0; }
+  input { padding: 8px 10px; border-radius: 6px; border: 1px solid #2e3844; background: #0b0e12; color: inherit; font: inherit; }
+  button { justify-self: start; padding: 8px 14px; border-radius: 6px; border: 1px solid #3d4856; background: #1c232d; color: inherit; font: inherit; cursor: pointer; }
+  button.primary { background: #b5b1ff; color: #0d0f1a; border-color: #9f9aff; }
+  #error { color: #f28e97; margin: 0; min-height: 1.5em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>How do you want to use Sculptured?</h1>
+  <section class="choice">
+    <h2>On this computer</h2>
+    <p class="muted">Your teams and agents stay on this computer. Sign in to your account later from Community to browse and download shared blocks.</p>
+    <label class="muted" for="local-account">Your Sculptured account address (optional, for Community)</label>
+    <input id="local-account" placeholder="https://app.example.com" autocomplete="url">
+    <button id="local" class="primary">Use on this computer</button>
+  </section>
+  <section class="choice">
+    <h2>Sculptured account</h2>
+    <p class="muted">Use your Sculptured account. This computer is connected to it and runs your agents while the app is open.</p>
+    <input id="account" placeholder="https://app.example.com" autocomplete="url">
+    <button id="use-account">Sign in to my account</button>
+  </section>
+  <p id="error" role="alert"></p>
+</main>
+<script src="chooser.js"></script>
+</body>
+</html>

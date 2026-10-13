@@ -1,0 +1,716 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "sculptured.team/v1",
+  "type": "object",
+  "properties": {
+    "format": {
+      "description": "Always \"sculptured.team/v1\".",
+      "type": "string",
+      "pattern": "^sculptured\\.team/v1$"
+    },
+    "settings": {
+      "$ref": "#/$defs/PortableSettings",
+      "default": {
+        "own_copies": false
+      }
+    },
+    "team": {
+      "$ref": "#/$defs/TeamDraft"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "team"
+  ],
+  "$defs": {
+    "AgentAdvanced": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "description": "A shell command Sculptured runs in the agent's folder after each turn it finishes (exit 0 =\npassed). None = no check.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "description": "This agent's own model, overriding its group's and team's default for its kind. None = inherit.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "permission": {
+          "$ref": "#/$defs/PermissionPosture",
+          "default": "unrestricted"
+        },
+        "resume": {
+          "$ref": "#/$defs/ResumeBehaviour",
+          "default": "resume-if-possible"
+        },
+        "token_limit": {
+          "description": "Tokens this agent may use in one run; reaching it soft-stops the agent. None = no limit.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenLimit"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AgentKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ]
+        },
+        {
+          "description": "Runs the stub driver: no model calls, no cost.",
+          "type": "string",
+          "const": "practice"
+        }
+      ]
+    },
+    "BoardPosition": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "ConnectionKind": {
+      "oneOf": [
+        {
+          "description": "`delegates_to`: the giver starts before the receiver.",
+          "type": "string",
+          "const": "hands-work-to"
+        },
+        {
+          "description": "`escalates_to`: design intent, not enforced.",
+          "type": "string",
+          "const": "reports-to"
+        },
+        {
+          "description": "`can_observe`: design intent, not enforced.",
+          "type": "string",
+          "const": "watches"
+        }
+      ]
+    },
+    "CopiesMode": {
+      "type": "string",
+      "enum": [
+        "shared",
+        "per-item"
+      ]
+    },
+    "DraftAgent": {
+      "type": "object",
+      "properties": {
+        "advanced": {
+          "$ref": "#/$defs/AgentAdvanced",
+          "default": {
+            "model": null,
+            "permission": "unrestricted",
+            "resume": "resume-if-possible"
+          }
+        },
+        "folder": {
+          "description": "Absolute path. Practice agents may leave it empty (they use the home folder).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "group_id": {
+          "description": "None = the default group (`DEFAULT_GROUP_ID`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Immutable; becomes the RigSpec member id.",
+          "type": "string"
+        },
+        "job": {
+          "description": "Plain-language instructions, sent as the agent's first message at start.",
+          "type": "string",
+          "default": ""
+        },
+        "kind": {
+          "$ref": "#/$defs/AgentKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "x",
+        "y"
+      ]
+    },
+    "DraftConnection": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ConnectionKind"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "kind"
+      ]
+    },
+    "DraftGroup": {
+      "type": "object",
+      "properties": {
+        "h": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "id": {
+          "description": "Immutable; becomes the RigSpec pod id.",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "models": {
+          "description": "This group's model per provider; absent = inherit the team's.",
+          "$ref": "#/$defs/ModelDefaults"
+        },
+        "w": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "x",
+        "y",
+        "w",
+        "h"
+      ]
+    },
+    "Escalation": {
+      "description": "After `after_rounds` rounds at a stage, its items go to `agent` (typically a stronger model's agent).",
+      "type": "object",
+      "properties": {
+        "after_rounds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "agent": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "after_rounds",
+        "agent"
+      ]
+    },
+    "Guard": {
+      "description": "A project check run every `every_minutes` while the team runs; while it fails, no new work goes out.",
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "every_minutes": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "timeout_s": {
+          "description": "Seconds before the guard command is stopped (default 600, at most 3600).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "command",
+        "every_minutes"
+      ]
+    },
+    "Join": {
+      "description": "How a review panel decides: every reviewer, or the first approval.",
+      "type": "string",
+      "enum": [
+        "all",
+        "any"
+      ]
+    },
+    "ModelDefaults": {
+      "description": "Per-provider model defaults for a team or a group. None = inherit (group, then team, then the\nCLI's own default). An agent keeps its Claude-or-Codex kind and may override with `AgentAdvanced.model`.",
+      "type": "object",
+      "properties": {
+        "claude": {
+          "description": "For Claude agents: an alias (`opus`, `sonnet`) or a full model id.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "codex": {
+          "description": "For Codex agents: a model slug (e.g. `gpt-6-sol`).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      }
+    },
+    "PermissionPosture": {
+      "type": "string",
+      "enum": [
+        "unrestricted",
+        "restricted"
+      ]
+    },
+    "PortableSettings": {
+      "description": "The team settings that are part of its structure (not which computer runs it).",
+      "type": "object",
+      "properties": {
+        "own_copies": {
+          "description": "Each Claude Code / Codex agent works in its own git copy.",
+          "type": "boolean",
+          "default": false
+        },
+        "posture": {
+          "description": "None: the global setting.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PermissionPosture"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "question_timeout_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ResumeBehaviour": {
+      "type": "string",
+      "enum": [
+        "resume-if-possible",
+        "relaunch-fresh",
+        "checkpoint-only"
+      ]
+    },
+    "Schedule": {
+      "description": "A message sent to `agent` every `every_minutes` while the team runs; skipped when the agent is busy.",
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "every_minutes": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "agent",
+        "every_minutes",
+        "message"
+      ]
+    },
+    "StageKind": {
+      "description": "Who runs a stage: an agent (default), Sculptured running a command, or a person.",
+      "type": "string",
+      "enum": [
+        "agent",
+        "check",
+        "human",
+        "merge"
+      ]
+    },
+    "TeamDraft": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DraftAgent"
+          }
+        },
+        "connections": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DraftConnection"
+          }
+        },
+        "decision_log": {
+          "description": "People keep a decision log that agents read with read_decisions (Advanced).",
+          "type": "boolean"
+        },
+        "folder": {
+          "description": "Default working folder for agents without their own override.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "groups": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DraftGroup"
+          }
+        },
+        "id": {
+          "description": "Immutable; becomes the rig name.",
+          "type": "string"
+        },
+        "models": {
+          "description": "The team's model per provider; absent = the CLI's own default.",
+          "$ref": "#/$defs/ModelDefaults"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revision": {
+          "description": "Server-assigned save counter for optimistic concurrency.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "schedules": {
+          "description": "Messages sent to an agent every N minutes while the team runs (Advanced).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Schedule"
+          }
+        },
+        "workflow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Workflow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "revision"
+      ]
+    },
+    "TokenCount": {
+      "description": "Which reported tokens count toward a limit.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "output"
+          ]
+        },
+        {
+          "description": "Input, output, cache reads and cache writes.",
+          "type": "string",
+          "const": "all"
+        },
+        {
+          "description": "Everything except cache reads.",
+          "type": "string",
+          "const": "new"
+        }
+      ]
+    },
+    "TokenLimit": {
+      "description": "A per-agent token limit for one run (since the team started).",
+      "type": "object",
+      "properties": {
+        "counts": {
+          "$ref": "#/$defs/TokenCount",
+          "default": "all"
+        },
+        "include_subagents": {
+          "description": "Count the agents it spawns (and theirs) toward this agent's limit.",
+          "type": "boolean",
+          "default": true
+        },
+        "tokens": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "tokens"
+      ]
+    },
+    "Workflow": {
+      "type": "object",
+      "properties": {
+        "collector": {
+          "type": "string"
+        },
+        "copies": {
+          "description": "per-item: each item gets its own git branch and folder (Advanced).",
+          "$ref": "#/$defs/CopiesMode"
+        },
+        "dispatcher": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "guard": {
+          "description": "Pauses new work while this project check fails (Advanced).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Guard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "input": {
+          "type": "string",
+          "default": ""
+        },
+        "input_position": {
+          "description": "Board placement only; changing it does not alter workflow execution.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoardPosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_steps": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_tasks": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkflowStage"
+          }
+        }
+      },
+      "required": [
+        "dispatcher",
+        "entry",
+        "collector",
+        "max_tasks",
+        "max_steps",
+        "stages"
+      ]
+    },
+    "WorkflowStage": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "description": "Empty for check and human stages.",
+          "type": "string",
+          "default": ""
+        },
+        "command": {
+          "description": "check: the shell command, run in the team's project folder.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "escalate": {
+          "description": "Hands items to a stronger agent after a number of rounds here (single-agent stages).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Escalation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "into": {
+          "description": "merge: the branch to merge into (default: the project's current branch).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "join": {
+          "$ref": "#/$defs/Join"
+        },
+        "kind": {
+          "$ref": "#/$defs/StageKind"
+        },
+        "max_rounds": {
+          "description": "How often one item may enter this stage; entering past it takes `on_limit`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string"
+        },
+        "on_limit": {
+          "description": "The stage to take when `max_rounds` is reached; none blocks the item.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "position": {
+          "description": "Board placement of the stage's own box (check, person, merge, review panel); none places it\nautomatically. Changing it does not alter workflow execution.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoardPosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "description": "Panel outcome order, worst first (default: blocked, then any non-\"approved\", then \"approved\").",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prompt": {
+          "description": "human: what the person decides. The outcomes are the route keys.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewers": {
+          "description": "A review panel: 2–6 agents who all take the same item (instead of `agent`/`workers`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "routes": {
+          "description": "An outcome selects one route. Null completes this item; \"blocked\" is reserved.",
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "timeout_s": {
+          "description": "check: seconds before the command is stopped (default 600, at most 3600).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "workers": {
+          "description": "Additional interchangeable agents for concurrent topics at this stage.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "routes"
+      ]
+    }
+  }
+}

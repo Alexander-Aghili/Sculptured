@@ -1,0 +1,373 @@
+//! `sculptured serve` runs controld and supervises a local hostd child process.
+//! `sculptured hostd` runs the host runtime; controld normally starts it.
+mod connect;
+use axum::Router;
+use clap::{Parser, Subcommand};
+use controld::{app, hosts::{HostRegistry, LOCAL_HOST}, store::Store, AppState};
+use std::io::Write;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+use std::time::Duration;
+use tower_http::services::{ServeDir, ServeFile};
+use tracing_subscriber::EnvFilter;
+
+#[derive(Parser)]
+#[command(name = "sculptured", version, about = "Run and supervise teams of local coding agents")]
+struct Cli {
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Run controld (API, UI, store) and a local hostd.
+    Serve {
+        #[arg(long, default_value_t = 4410)]
+        port: u16,
+        #[arg(long, env = "SCULPTURED_DATA_DIR")]
+        data_dir: Option<PathBuf>,
+        #[arg(long, default_value = "web/dist")]
+        web_dir: PathBuf,
+        #[arg(long)]
+        claude_program: Option<PathBuf>,
+        #[arg(long)]
+        codex_program: Option<PathBuf>,
+        /// Question timeout in seconds, overriding the settings (tests and e2e only).
+        #[arg(long, hide = true)]
+        question_timeout_secs: Option<u64>,
+        /// Hosted beta: serve one user behind the gateway (needs SCULPTURED_GATEWAY_SECRET); no local agent runner.
+        #[arg(long)]
+        hosted: bool,
+    },
+    /// Run a host runtime that dials controld.
+    Hostd {
+        #[arg(long)]
+        controld: String,
+        #[arg(long, default_value = "local")]
+        host_id: String,
+        #[arg(long)]
+        data_dir: PathBuf,
+        #[arg(long, env = "SCULPTURED_HOST_TOKEN", hide_env_values = true)]
+        token: String,
+        #[arg(long)]
+        claude_program: Option<PathBuf>,
+        #[arg(long)]
+        codex_program: Option<PathBuf>,
+    },
+    /// The agent tools server a CLI starts for its agent (stdio). Not for people.
+    #[command(hide = true)]
+    SeatTools,
+    /// Link this computer to a Sculptured account and run its agents here.
+    Connect {
+        /// The account's address, e.g. https://app.example.com
+        origin: String,
+        /// How this computer appears in your account (default: its hostname).
+        #[arg(long)]
+        name: Option<String>,
+        /// A folder agents may work in (repeatable). Add more later with `sculptured allow`.
+        #[arg(long)]
+        allow: Vec<PathBuf>,
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+        #[arg(long)]
+        claude_program: Option<PathBuf>,
+        #[arg(long)]
+        codex_program: Option<PathBuf>,
+        /// Connect automatically whenever you log in (systemd user service or LaunchAgent).
+        #[arg(long)]
+        install_service: bool,
+        /// Don't open the system browser for the pairing link (the desktop app shows it itself).
+        #[arg(long, hide = true)]
+        no_browser: bool,
+        /// Limit agents on this computer: Claude asks before risky actions, Codex writes only in its folder.
+        #[arg(long, conflicts_with = "full_access")]
+        sandboxed: bool,
+        /// Let agents act as you do on this computer (the default).
+        #[arg(long)]
+        full_access: bool,
+        /// Turn on something the account may do here: git, copies, checks, cli-sign-in, plan-usage (repeatable).
+        #[arg(long, value_name = "CAPABILITY")]
+        enable: Vec<String>,
+        /// Turn off something the account may do here (repeatable).
+        #[arg(long, value_name = "CAPABILITY")]
+        disable: Vec<String>,
+    },
+    /// Let agents from your account work in a folder on this computer.
+    Allow {
+        folder: PathBuf,
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+    },
+}
+
+fn main() -> ExitCode {
+    migrate_legacy_environment();
+    let cli = Cli::parse();
+    // `hostd` has read its token from the environment by now. Remove it so no agent
+    // process (or anything else this process starts) inherits it.
+    // SAFETY: no other thread exists yet; the tokio runtime is built below.
+    unsafe { std::env::remove_var(drivers::HOST_TOKEN_ENV); std::env::remove_var("RIG_CONTROL_HOST_TOKEN"); };
+    let runtime = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("sculptured: cannot start the async runtime: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    runtime.block_on(run(cli))
+}
+
+async fn run(cli: Cli) -> ExitCode {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_writer(std::io::stderr)
+        .init();
+    let result = match cli.cmd {
+        Cmd::Serve { port, data_dir, web_dir, claude_program, codex_program, question_timeout_secs, hosted } => {
+            let data_dir = match data_dir.or_else(|| std::env::var_os("HOME").map(|h| default_data_dir(Path::new(&h)))) {
+                Some(d) => d,
+                None => {
+                    eprintln!("sculptured: set --data-dir or SCULPTURED_DATA_DIR (HOME is not set)");
+                    return ExitCode::FAILURE;
+                }
+            };
+            serve(port, data_dir, web_dir, claude_program, codex_program, question_timeout_secs, hosted).await
+        }
+        Cmd::Hostd { controld, host_id, data_dir, token, claude_program, codex_program } => {
+            hostd::run_hostd(hostd::HostdOptions { controld_url: controld, host_id, data_dir, token, claude_program, codex_program, policy: None })
+                .await
+        }
+        // Logging goes to stderr, so stdout carries only the MCP protocol.
+        Cmd::SeatTools => tokio::task::spawn_blocking(hostd::seat_tools::run_shim).await.map_err(|e| e.to_string()).and_then(|r| r),
+        Cmd::Connect { origin, name, allow, data_dir, claude_program, codex_program, install_service, no_browser, sandboxed, full_access, enable, disable } => {
+            let access = if sandboxed { Some(hostd::policy::Access::Sandboxed) } else if full_access { Some(hostd::policy::Access::Full) } else { None };
+            let caps = enable.into_iter().map(|c| (c, true)).chain(disable.into_iter().map(|c| (c, false))).collect();
+            connect::run_connect(connect::ConnectArgs { origin, name, allow, data_dir, claude_program, codex_program, install_service, no_browser, access, caps }).await
+        }
+        Cmd::Allow { folder, data_dir } => connect::run_allow(&folder, data_dir),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) if e == hostd::ALREADY_RUNNING => {
+            eprintln!("sculptured: {e}");
+            ExitCode::from(75)
+        }
+        Err(e) => {
+            eprintln!("sculptured: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Reuses `{data_dir}/host-token` (mode 0600) so a hostd that outlives controld
+/// can reconnect after a controld restart.
+fn host_token(data_dir: &Path) -> Result<String, String> {
+    let path = data_dir.join("host-token");
+    if let Ok(t) = std::fs::read_to_string(&path)
+        && !t.trim().is_empty()
+    {
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("cannot chmod {}: {e}", path.display()))?;
+        return Ok(t.trim().to_string());
+    }
+    let token = format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple());
+    // Write a private temp file, then rename, so the token is never readable by others.
+    let tmp = data_dir.join(format!("host-token.tmp-{}", std::process::id()));
+    let write = || -> std::io::Result<()> {
+        let mut f = std::fs::OpenOptions::new().create(true).write(true).truncate(true).mode(0o600).open(&tmp)?;
+        f.write_all(token.as_bytes())?;
+        f.sync_all()?;
+        std::fs::rename(&tmp, &path)
+    };
+    write().map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+    Ok(token)
+}
+
+/// Creates `dir` (and missing parents) with mode 0700, and tightens it to 0700 if it
+/// already exists: it holds the host token, the event store and agent transcripts.
+fn private_dir(dir: &Path) -> Result<(), String> {
+    use std::os::unix::fs::DirBuilderExt;
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(dir)
+        .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
+        .map_err(|e| format!("cannot chmod {}: {e}", dir.display()))
+}
+
+async fn serve(
+    port: u16,
+    data_dir: PathBuf,
+    web_dir: PathBuf,
+    claude_program: Option<PathBuf>,
+    codex_program: Option<PathBuf>,
+    question_timeout_secs: Option<u64>,
+    hosted: bool,
+) -> Result<(), String> {
+    private_dir(&data_dir)?;
+    let mut store = Store::open(&data_dir.join("controld.sqlite")).map_err(|e| format!("cannot open store: {e}"))?;
+    store.set_question_timeout_override(question_timeout_secs.map(|s| s * 1000)).map_err(|e| format!("cannot write settings: {e}"))?;
+    let token = host_token(&data_dir)?;
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
+        .await
+        .map_err(|e| format!("cannot bind 127.0.0.1:{port}: {e}"))?;
+    let actual = listener.local_addr().map_err(|e| e.to_string())?.port();
+    let st = AppState::new(store, token.clone(), vec![format!("127.0.0.1:{actual}"), format!("localhost:{actual}")])
+        .with_cli_programs(claude_program.clone(), codex_program.clone());
+    let st = if hosted {
+        let secret = std::env::var("SCULPTURED_GATEWAY_SECRET").map_err(|_| "--hosted needs SCULPTURED_GATEWAY_SECRET".to_string())?;
+        let secret = std::sync::Arc::new(secret.into_bytes());
+        let st = st.with_auth(controld::auth::AuthPolicy::Gateway { secret: secret.clone() });
+        // The gateway passes where to report (analytics) and as whom; without both, nothing is sent.
+        match (std::env::var("SCULPTURED_GATEWAY_URL"), std::env::var("SCULPTURED_USER")) {
+            (Ok(url), Ok(user)) => {
+                let st = st.with_analytics(controld::analytics::Analytics::start(url, user, secret));
+                controld::analytics::watch(&st);
+                st
+            }
+            _ => st,
+        }
+    } else {
+        st
+    };
+    // `fallback` (not `not_found_service`) keeps status 200 for SPA deep links.
+    let web_ui = Router::new()
+        .fallback_service(ServeDir::new(&web_dir).fallback(ServeFile::new(web_dir.join("index.html"))));
+    let router = app(st.clone(), Some(web_ui));
+
+    let server = tokio::spawn(async move { axum::serve(listener, router).await });
+    // A hostd that outlived a previous controld re-reads this file to find the new port.
+    let host_dir = data_dir.join("host-local");
+    private_dir(&host_dir)?;
+    let url_file = host_dir.join("controld.url");
+    let url_tmp = host_dir.join(format!("controld.url.tmp-{}", std::process::id()));
+    std::fs::write(&url_tmp, format!("ws://127.0.0.1:{actual}/host"))
+        .and_then(|_| std::fs::rename(&url_tmp, &url_file))
+        .map_err(|e| format!("cannot write {}: {e}", url_file.display()))?;
+    // Hosted: agents run on the user's own computer (milestone 2), never on the server.
+    if !hosted {
+        tokio::spawn(supervise_hostd(st.hosts.clone(), actual, host_dir, token, claude_program, codex_program));
+        // Announce readiness only once the local hostd is connected; a boot sent before
+        // that would put every seat in attention ("Sculptured's agent runner is not connected").
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        while !st.hosts.is_connected(LOCAL_HOST) {
+            if tokio::time::Instant::now() >= deadline {
+                tracing::warn!("local hostd has not connected after 10s; seats need attention until it does");
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+    println!("listening on http://127.0.0.1:{actual}");
+    server
+        .await
+        .map_err(|e| format!("server task failed: {e}"))?
+        .map_err(|e| format!("server error: {e}"))
+}
+
+/// Keeps one local hostd child running; restarts it with backoff if it exits.
+async fn supervise_hostd(
+    hosts: HostRegistry,
+    port: u16, data_dir: PathBuf, token: String, claude_program: Option<PathBuf>, codex_program: Option<PathBuf>) {
+    const MIN_BACKOFF: Duration = Duration::from_millis(500);
+    const MAX_BACKOFF: Duration = Duration::from_secs(30);
+    let exe = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!(%e, "cannot locate own executable; hostd not started");
+            return;
+        }
+    };
+    let mut backoff = MIN_BACKOFF;
+    let mut owned_count = 0u32;
+    loop {
+        let mut cmd = tokio::process::Command::new(&exe);
+        cmd.arg("hostd")
+            .arg("--controld")
+            .arg(format!("ws://127.0.0.1:{port}/host"))
+            .arg("--host-id")
+            .arg("local")
+            .arg("--data-dir")
+            .arg(&data_dir)
+            .env("SCULPTURED_HOST_TOKEN", &token)
+            .stdout(std::process::Stdio::null());
+        if let Some(p) = &claude_program {
+            cmd.arg("--claude-program").arg(p);
+        }
+        if let Some(p) = &codex_program {
+            cmd.arg("--codex-program").arg(p);
+        }
+        // SAFETY: setsid is async-signal-safe. A new session detaches hostd from serve's
+        // process group and controlling terminal, so Ctrl-C or SIGHUP aimed at serve
+        // cannot kill the agents (spec 3.1). process_group(0) alone would still leave
+        // hostd attached to the terminal's session and exposed to SIGHUP.
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::setsid();
+                Ok(())
+            });
+        }
+        let started = tokio::time::Instant::now();
+        match cmd.spawn() {
+            Ok(mut child) => {
+                let status = child.wait().await;
+                if status.as_ref().ok().and_then(|s| s.code()) == Some(75) {
+                    // A hostd that outlived the previous controld holds the lock and
+                    // follows controld.url by itself. Check back slowly.
+                    owned_count += 1;
+                    if owned_count >= 2 && !hosts.is_connected(LOCAL_HOST) {
+                        let pid = std::fs::read_to_string(data_dir.join("hostd.pid")).unwrap_or_else(|_| "unknown".into());
+                        tracing::warn!(pid = %pid.trim(), "an existing hostd owns the data dir; not starting another");
+                    } else {
+                        tracing::info!("existing hostd owns the data dir; not starting another");
+                    }
+                    tokio::time::sleep(Duration::from_secs(30)).await;
+                    continue;
+                }
+                owned_count = 0;
+                tracing::warn!(?status, "hostd exited; restarting");
+                // Only a child that stayed up a while counts as healthy.
+                if started.elapsed() >= Duration::from_secs(10) {
+                    backoff = MIN_BACKOFF;
+                }
+            }
+            Err(e) => tracing::error!(%e, "cannot start hostd"),
+        }
+        tokio::time::sleep(backoff).await;
+        backoff = (backoff * 2).min(MAX_BACKOFF);
+    }
+}
+
+/// Compatibility for existing installations and live agent tool processes during the rename.
+/// Called before any thread is started; credentials are removed again before agents launch.
+fn migrate_legacy_environment() {
+    for suffix in ["DATA_DIR", "HOST_TOKEN", "SEAT_SOCKET", "SEAT_TOKEN", "SEAT_APPROVE"] {
+        let current=format!("SCULPTURED_{suffix}");
+        if std::env::var_os(&current).is_none() {
+            if let Some(value)=std::env::var_os(format!("RIG_CONTROL_{suffix}")) {
+                // SAFETY: main calls this before parsing CLI arguments or creating threads.
+                unsafe { std::env::set_var(current,value) };
+            }
+        }
+    }
+}
+fn default_data_dir(home:&Path)->PathBuf {
+    let current=home.join(".sculptured");
+    let legacy=home.join(".rig-control");
+    if !current.exists() && legacy.exists() { legacy } else { current }
+}
+#[cfg(test)]
+mod branding_migration_tests {
+    use super::*;
+    #[test]
+    fn existing_projects_are_reused_and_new_installs_use_sculptured() {
+        let home=tempfile::tempdir().unwrap();
+        assert_eq!(default_data_dir(home.path()),home.path().join(".sculptured"));
+        std::fs::create_dir(home.path().join(".rig-control")).unwrap();
+        assert_eq!(default_data_dir(home.path()),home.path().join(".rig-control"));
+        std::fs::create_dir(home.path().join(".sculptured")).unwrap();
+        assert_eq!(default_data_dir(home.path()),home.path().join(".sculptured"));
+    }
+}

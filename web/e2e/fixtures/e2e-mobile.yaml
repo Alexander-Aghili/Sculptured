@@ -1,0 +1,10 @@
+version: "0.2"
+name: e2e-mobile
+pods:
+  - id: dev
+    label: Dev
+    members:
+      - { id: a, agent_ref: "local:agents/a", profile: default, runtime: stub, cwd: "." }
+      - { id: b, agent_ref: "local:agents/b", profile: default, runtime: stub, cwd: "." }
+    edges:
+      - { kind: delegates_to, from: a, to: b }

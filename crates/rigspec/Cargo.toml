@@ -1,0 +1,17 @@
+[package]
+name = "rigspec"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+model.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+sha2.workspace = true
+hex.workspace = true
+ts-rs.workspace = true
+
+[lints]
+workspace = true

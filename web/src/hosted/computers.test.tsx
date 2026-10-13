@@ -1,0 +1,65 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, expect, it, vi } from 'vitest';
+import { ConnectPage } from './ConnectPage';
+import { ComputersPage } from './ComputersPage';
+
+afterEach(() => vi.restoreAllMocks());
+const reply = (status: number, body: unknown) => Promise.resolve(new Response(JSON.stringify(body), { status }));
+
+it('approving a code names the computer first, then confirms', async () => {
+  const f = vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
+    const u = String(url);
+    if (u.includes('/gw/api/device/code/WXYZ-2345')) return reply(200, { name: "Alex's laptop", platform: 'linux', user_code: 'WXYZ-2345' });
+    if (u.endsWith('/gw/api/device/approve') && init?.method === 'POST') return reply(200, { ok: true });
+    return reply(404, {});
+  });
+  render(<MemoryRouter initialEntries={['/connect?code=WXYZ-2345']}><ConnectPage /></MemoryRouter>);
+  expect(await screen.findByText(/Allow ‘Alex's laptop’ \(linux\) to run agents for you\?/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Allow' }));
+  expect(await screen.findByText(/Connected/)).toBeInTheDocument();
+  expect(f.mock.calls.some(([u, i]) => String(u).endsWith('/approve') && JSON.parse(String((i as RequestInit).body)).user_code === 'WXYZ-2345')).toBe(true);
+});
+
+it('lists computers with their state and disconnects one', async () => {
+  let revoked = false;
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
+    const u = String(url);
+    if (u.endsWith('/gw/api/devices')) return reply(200, revoked ? [] : [{ id: 'd1', name: 'Laptop', platform: 'macos', created_at: '2026-10-11T00:00:00Z', last_seen: null, connected: true }]);
+    if (u.endsWith('/gw/api/devices/d1/revoke') && init?.method === 'POST') { revoked = true; return reply(200, { ok: true }); }
+    return reply(404, {});
+  });
+  render(<MemoryRouter><ComputersPage /></MemoryRouter>);
+  expect(await screen.findByText('Laptop')).toBeInTheDocument();
+  expect(screen.getByText('Connected')).toBeInTheDocument();
+  expect(screen.getByText(`curl -fsSL ${window.location.origin}/install.sh | sh -s -- --allow ~/projects`)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Disconnect Laptop' }));
+  await waitFor(() => expect(screen.queryByText('Laptop')).toBeNull());
+});
+
+it('warns not to approve a code someone else sent, and says when and where it was requested', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url) => String(url).includes('/gw/api/device/code/') ? reply(200, { name: 'MacBook', platform: 'macos', user_code: 'WXYZ-2345', requested_at: '2026-10-12T01:00:00Z', requested_from: '203.0.113.9' }) : reply(404, {}));
+  render(<MemoryRouter initialEntries={['/connect?code=WXYZ-2345']}><ConnectPage /></MemoryRouter>);
+  expect(await screen.findByText(/Only approve a code you just saw on your own computer/)).toBeInTheDocument();
+  expect(screen.getByText(/203\.0\.113\.9/)).toBeInTheDocument();
+});
+
+it('shows what each connected computer allows and its CLIs, with sign-in on that computer', async () => {
+  const calls: string[] = [];
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
+    const u = String(url); calls.push(`${init?.method ?? 'GET'} ${u}`);
+    if (u.endsWith('/gw/api/devices')) return reply(200, [{ id: 'd1', name: 'Laptop', platform: 'linux', created_at: '2026-10-11T00:00:00Z', last_seen: null, connected: true }]);
+    if (u.endsWith('/api/hosts')) return reply(200, [{ id: 'd1', drivers: ['stub'], policy: { allowed_folders: ['/home/a/proj'], access: 'full', capabilities: ['git', 'copies', 'checks', 'cli_sign_in', 'plan_usage'], platform: 'linux' } }]);
+    if (u.includes('/api/clis?host=d1')) return reply(200, [{ name: 'claude', installed: true, version: '2.1', signed_in: true, account: 'a@x', detail: '' }, { name: 'codex', installed: true, version: '0.9', signed_in: false, account: null, detail: '' }]);
+    if (u.includes('/api/clis/codex/login?host=d1')) return reply(200, { url: 'https://auth.example/x', output: '' });
+    return reply(404, {});
+  });
+  render(<MemoryRouter><ComputersPage /></MemoryRouter>);
+  expect(await screen.findByText('/home/a/proj')).toBeInTheDocument();
+  expect(screen.getByText(/Full access/)).toBeInTheDocument();
+  expect(await screen.findByText(/Claude: signed in/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in to Codex on Laptop' }));
+  expect(await screen.findByRole('link', { name: /open the sign-in page/ })).toHaveAttribute('href', 'https://auth.example/x');
+  expect(calls.some((c) => c.startsWith('POST') && c.includes('/api/clis/codex/login?host=d1'))).toBe(true);
+});

@@ -1,0 +1,68 @@
+{
+  "name": "sculptured-desktop",
+  "productName": "Sculptured",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sculptured on your computer: design, run and watch teams of local Claude Code and Codex agents",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish never",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "dev.sculptured.desktop",
+    "productName": "Sculptured",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.mjs",
+      "src/**",
+      "icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../target/release",
+        "to": "bin",
+        "filter": [
+          "sculptured",
+          "sculptured.exe"
+        ]
+      },
+      {
+        "from": "../web/dist",
+        "to": "web"
+      }
+    ],
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "maintainer": "Sculptured",
+      "category": "Development",
+      "icon": "icon.png"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "icon.png"
+    }
+  },
+  "license": "Apache-2.0"
+}

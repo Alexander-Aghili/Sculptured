@@ -1,0 +1,55 @@
+/* Runs on / model pickers, the agent details sheet and the right-click menu. Theme tokens only. */
+
+.model-fields { display: flex; flex-direction: column; gap: 8px; }
+
+.kind-switch {
+  display: inline-flex; gap: 2px; padding: 3px; align-self: flex-start;
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--r);
+}
+.kind-opt {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+  border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); font: inherit; cursor: pointer;
+}
+.kind-opt:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.kind-opt.on { background: var(--raised-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-3); }
+.kind-opt.on.v-claude { box-shadow: inset 0 0 0 1px var(--claude); }
+.kind-opt.on.v-codex { box-shadow: inset 0 0 0 1px var(--codex); }
+.kind-opt.on.v-practice { box-shadow: inset 0 0 0 1px var(--practice); }
+.kind-opt:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.model-select { display: flex; flex-direction: column; gap: 6px; }
+.model-row { display: grid; grid-template-columns: 110px 1fr; align-items: start; gap: 8px; }
+.model-row-kind { color: var(--muted); padding-top: 7px; }
+
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 50; display: flex; justify-content: center; align-items: flex-start;
+  padding: 6vh 16px 16px; background: rgba(5, 7, 10, 0.6); overflow-y: auto;
+}
+.agent-sheet {
+  width: min(760px, 100%); background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--r-lg);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5); outline: none; font-size: 1.0769rem;
+}
+.sheet-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.sheet-title { margin: 0; font-size: 1.4rem; font-weight: 600; color: var(--text); }
+.sheet-body { padding: 20px 24px 24px; }
+.sheet-body .agent-form { display: flex; flex-direction: column; gap: 18px; }
+.sheet-body .fld-job { min-height: 220px; font-size: 1rem; line-height: 1.55; }
+
+.ctx-menu {
+  position: fixed; z-index: 60; min-width: 210px; margin: 0; padding: 4px; list-style: none;
+  background: var(--raised); border: 1px solid var(--line-2); border-radius: var(--r); box-shadow: var(--shadow-card);
+}
+.ctx-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; text-align: left;
+  border: 0; border-radius: var(--r-sm); background: transparent; color: var(--text); font: inherit; cursor: pointer;
+}
+.ctx-menu button:hover:not(:disabled), .ctx-menu button:focus-visible { background: var(--hover); outline: none; }
+.ctx-menu button:disabled { color: var(--muted); cursor: not-allowed; }
+.ctx-menu button[aria-checked='true']::after { content: '✓'; margin-left: auto; color: var(--accent); }
+.ctx-menu [role='separator'] { height: 1px; margin: 4px 6px; background: var(--line); }
+
+@media (max-width: 600px) {
+  .sheet-backdrop { padding: 0; }
+  .agent-sheet { border-radius: 0; min-height: 100%; }
+  .sheet-body { padding: 16px; }
+}

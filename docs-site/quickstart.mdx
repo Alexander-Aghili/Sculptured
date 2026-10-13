@@ -1,0 +1,37 @@
+---
+title: Quickstart
+description: Run the workspace and create your first local agent team.
+---
+
+## Start an installed workspace
+
+```bash
+~/.sculptured/bin/sculptured serve --port 4410 --web-dir ~/.sculptured/web
+```
+
+Open `http://127.0.0.1:4410`. If it is already running, use that instance. The local agent runner starts automatically.
+
+## Build from source
+
+Use Rust and Node.js. Install and sign in to Codex or Claude Code separately; Sculptured does not replace their provider sign-in.
+
+```bash
+cd web
+npm ci
+npm run build
+cd ..
+cargo build --locked --release -p sculptured
+./target/release/sculptured serve --port 4410 --web-dir web/dist
+```
+
+<Steps>
+  <Step title="Create a project">Open the workspace menu and Projects. Create a blank project or choose a template.</Step>
+  <Step title="Choose a folder">Set the project folder. Every agent inherits it unless you set an explicit override.</Step>
+  <Step title="Define the goal">Write each role's job. If the project has Input, add links, source notes, ideas, and constraints there.</Step>
+  <Step title="Review the board">Arrange agents and connect handoffs. Resolve every item under “Things to fix.”</Step>
+  <Step title="Start and inspect">Start the team, open Live, and open an agent to read its transcript or send guidance.</Step>
+</Steps>
+
+<Tip>Practice agents exercise the local control system without model requests. Their scripted replies demonstrate behavior, not reasoning.</Tip>
+
+Continue with [the board](/guides/board) and [agent controls](/guides/control).

@@ -1,0 +1,39 @@
+---
+title: Run and maintain
+description: Start Sculptured, build it from source, back up your data and upgrade safely.
+---
+
+Sculptured runs on your own computer: `sculptured serve` listens on loopback port 4410 and starts a local runner (`hostd`) that drives your Codex and Claude Code agents. Projects, transcripts, Git work and settings stay in `~/.sculptured/`. Do not expose port 4410 to the Internet.
+
+## Start an installed copy
+
+```bash
+~/.sculptured/bin/sculptured serve --port 4410 --web-dir ~/.sculptured/web
+```
+
+If it is already running, open http://127.0.0.1:4410 instead of starting a second copy. The runner may outlive the server; stop teams in the app before upgrading. Sign in to Codex or Claude Code as your own OS user; Sculptured uses their existing sign-in.
+
+## Build from source
+
+```bash
+cd web
+npm ci
+npm run build
+cd ..
+cargo build --locked --release -p sculptured
+./target/release/sculptured serve --port 4410 --web-dir web/dist
+```
+
+## Back up your data
+
+Everything lives in `~/.sculptured/`. The databases use SQLite's write-ahead log, so copying only `controld.sqlite` while Sculptured runs is not a reliable backup. Either stop Sculptured and copy the folder, or snapshot the database while it runs:
+
+```bash
+sqlite3 ~/.sculptured/controld.sqlite ".backup '/path/to/backup/controld.sqlite'"
+```
+
+Agents' own copies of your repositories (`~/.sculptured/copies/`) can hold unmerged work: merge or copy it out before deleting them.
+
+## Upgrade and roll back
+
+Stop running teams, replace the binary and web folder, then start `sculptured serve` again; it upgrades its database on start. Keep the previous binary until you have checked the new one. Database upgrades are not reversed automatically, so restore your backup if you need to go back to an older version.

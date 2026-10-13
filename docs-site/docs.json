@@ -1,0 +1,56 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Sculptured",
+  "colors": {
+    "primary": "#477C80",
+    "light": "#ADD5CE",
+    "dark": "#244D55"
+  },
+  "favicon": "/images/sculptured-coastal-emblem.png",
+  "appearance": {
+    "default": "system"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get started",
+        "pages": [
+          "introduction",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Work with agents",
+        "pages": [
+          "guides/agent-design",
+          "guides/board",
+          "guides/control",
+          "guides/context",
+          "guides/textbook"
+        ]
+      },
+      {
+        "group": "Share & maintain",
+        "pages": [
+          "guides/community",
+          "guides/pattern-catalog",
+          "guides/git"
+        ]
+      },
+      {
+        "group": "Operate",
+        "pages": [
+          "operations",
+          "security"
+        ]
+      }
+    ]
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view"
+    ]
+  }
+}

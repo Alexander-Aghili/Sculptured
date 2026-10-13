@@ -1,0 +1,48 @@
+use super::{engine, running};
+use crate::state::AppState;
+use model::DispatchTask;
+use serde::Deserialize;
+use serde_json::{json, Value};
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Dispatch { batch_id: String, summary: String, tasks: Vec<DispatchTask> }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Complete { assignment: String, outcome: String, result: String }
+
+pub fn call(st: &AppState, seat: &str, tool: &str, args: &Value) -> Result<Value, String> {
+    let rig = crate::seat_ids::rig_of(seat).ok_or("Unknown agent.")?;
+    let mut store = st.store.lock().unwrap();
+    let (d, start) = running(&store, rig)?;
+    let agent = d.agent_for_seat(seat).ok_or("Agent is not in this project.")?;
+    match tool {
+        "dispatch_work" => {
+            let req: Dispatch = serde_json::from_value(args.clone()).map_err(|e| e.to_string())?;
+            if d.workflow.as_ref().unwrap().dispatcher != agent.id { return Err("Only the configured dispatcher can create a batch.".into()); }
+            dispatch(&mut store, &d, start, req)?;
+        }
+        "complete_work" => {
+            let req: Complete = serde_json::from_value(args.clone()).map_err(|e| e.to_string())?;
+            let mut run = store.workflow_run(rig, start).map_err(|e| e.to_string())?.ok_or("No batch has been dispatched.")?;
+            engine::complete(&mut run, &agent.id, &req.assignment, &req.outcome, &req.result)?;
+            store.save_workflow(&run, None).map_err(|e| e.to_string())?;
+        }
+        "workflow_status" => {},
+        _ => return Err("Unknown workflow tool.".into()),
+    }
+    let run = store.workflow_run(rig, start).map_err(|e| e.to_string())?;
+    let summary = run.map(|r| json!({"batch_id":r.batch_id,"summary":r.summary,"tasks":r.all_tasks().map(|t| json!({"id":t.input.id,"title":t.input.title,"mode":t.input.mode,"depends_on":t.input.depends_on,"waiting_for":super::topics::waiting(&r,t),"stage":t.stage,"status":t.status,"assigned_agent":t.assigned_agent,"assignment":t.assignment,"steps":t.history.len(),"problem":t.problem,"latest_report":t.history.last()})).collect::<Vec<_>>() }));
+    Ok(json!({ "text": serde_json::to_string(&summary).map_err(|e| e.to_string())? }))
+}
+
+fn dispatch(store: &mut crate::store::Store, d: &model::TeamDraft, start: i64, req: Dispatch) -> Result<(), String> {
+    if !model::valid_segment(&req.batch_id) || req.summary.trim().is_empty() || req.summary.len() > 12000 { return Err("Provide a simple batch_id and a summary of 1–12000 bytes.".into()); }
+    let run = engine::new_run(&d.id, start, req.batch_id, req.summary, d.workflow.clone().unwrap(), req.tasks)?;
+    if let Some(old) = store.workflow_run(&d.id, start).map_err(|e| e.to_string())? {
+        let same = old.batch_id == run.batch_id && old.summary == run.summary && old.tasks.iter().map(|t| &t.input).eq(run.tasks.iter().map(|t| &t.input));
+        return if same { Ok(()) } else { Err("This start already has a batch. Stop and start the project to dispatch a new batch.".into()) };
+    }
+    store.save_workflow(&run, None).map_err(|e| e.to_string())?;
+    Ok(())
+}

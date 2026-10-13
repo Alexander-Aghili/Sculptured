@@ -1,0 +1,2953 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "sculptured.session/v1 line",
+  "description": "One line of a .sculptured-session.jsonl file: the first line is a SessionHeader, each later line a SessionLine.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SessionHeader"
+    },
+    {
+      "$ref": "#/$defs/SessionLine"
+    }
+  ],
+  "$defs": {
+    "ActionClass": {
+      "description": "What a tool call did, classified by Sculptured (spec §6.4). Always heuristic.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "file-read"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "file-edit"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "shell-test-run"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "shell-build"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "shell-git"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "shell-install"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "shell-other"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "web"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "mcp"
+            },
+            "server": {
+              "type": "string"
+            },
+            "tool": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "server",
+            "tool"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "skill"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "subagent-spawn"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "other"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "Actor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "human"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "seat"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "system"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        }
+      ]
+    },
+    "AgentAdvanced": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "description": "A shell command Sculptured runs in the agent's folder after each turn it finishes (exit 0 =\npassed). None = no check.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "description": "This agent's own model, overriding its group's and team's default for its kind. None = inherit.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "permission": {
+          "$ref": "#/$defs/PermissionPosture",
+          "default": "unrestricted"
+        },
+        "resume": {
+          "$ref": "#/$defs/ResumeBehaviour",
+          "default": "resume-if-possible"
+        },
+        "token_limit": {
+          "description": "Tokens this agent may use in one run; reaching it soft-stops the agent. None = no limit.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenLimit"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AgentKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ]
+        },
+        {
+          "description": "Runs the stub driver: no model calls, no cost.",
+          "type": "string",
+          "const": "practice"
+        }
+      ]
+    },
+    "Answer": {
+      "oneOf": [
+        {
+          "description": "A typed answer or a chosen option's label.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ]
+        },
+        {
+          "description": "Permission prompts: run the tool.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "allow"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Permission prompts: do not run it.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "deny"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Nobody answered in time (D8): an agent question is told to decide; a permission prompt is allowed.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "expired"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "BoardPosition": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "Caps": {
+      "description": "What a driver can do. The UI disables controls whose capability is false and says why.",
+      "type": "object",
+      "properties": {
+        "fork": {
+          "type": "boolean"
+        },
+        "interrupt": {
+          "type": "boolean"
+        },
+        "mid_turn_input": {
+          "type": "boolean"
+        },
+        "questions": {
+          "type": "boolean"
+        },
+        "resume": {
+          "type": "boolean"
+        },
+        "subagent_events": {
+          "type": "boolean"
+        },
+        "usage": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "interrupt",
+        "questions",
+        "resume",
+        "fork",
+        "usage",
+        "mid_turn_input",
+        "subagent_events"
+      ]
+    },
+    "ConnectionKind": {
+      "oneOf": [
+        {
+          "description": "`delegates_to`: the giver starts before the receiver.",
+          "type": "string",
+          "const": "hands-work-to"
+        },
+        {
+          "description": "`escalates_to`: design intent, not enforced.",
+          "type": "string",
+          "const": "reports-to"
+        },
+        {
+          "description": "`can_observe`: design intent, not enforced.",
+          "type": "string",
+          "const": "watches"
+        }
+      ]
+    },
+    "ContextBasis": {
+      "description": "Where a context figure comes from.",
+      "oneOf": [
+        {
+          "description": "The CLI's own per-call total.",
+          "type": "string",
+          "const": "reported"
+        },
+        {
+          "description": "Sculptured adds up the CLI's numbers.",
+          "type": "string",
+          "const": "estimated"
+        }
+      ]
+    },
+    "CopiesMode": {
+      "type": "string",
+      "enum": [
+        "shared",
+        "per-item"
+      ]
+    },
+    "Cost": {
+      "description": "An estimated cost in US dollars, with its source.",
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/CostSource"
+        },
+        "usd": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "usd",
+        "source"
+      ]
+    },
+    "CostSource": {
+      "description": "Where a cost figure came from.",
+      "oneOf": [
+        {
+          "description": "Claude Code's own `costUSD` for the turn.",
+          "type": "string",
+          "const": "claude-code"
+        },
+        {
+          "description": "Sculptured's price table of OpenAI list prices (`OPENAI_PRICES_CHECKED`).",
+          "type": "string",
+          "const": "openai-list-prices"
+        }
+      ]
+    },
+    "DecisionSource": {
+      "oneOf": [
+        {
+          "description": "The agent called `record_decision` (structured, agent-reported).",
+          "type": "string",
+          "const": "record-decision"
+        },
+        {
+          "description": "The agent's next message after the timeout (unstructured, agent-reported).",
+          "type": "string",
+          "const": "next-message"
+        },
+        {
+          "description": "A permission prompt that Sculptured allowed on timeout (D8).",
+          "type": "string",
+          "const": "allowed-on-timeout"
+        },
+        {
+          "description": "The agent did not say what it decided.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "Desired": {
+      "type": "string",
+      "enum": [
+        "running",
+        "stopped"
+      ]
+    },
+    "DraftAgent": {
+      "type": "object",
+      "properties": {
+        "advanced": {
+          "$ref": "#/$defs/AgentAdvanced",
+          "default": {
+            "model": null,
+            "permission": "unrestricted",
+            "resume": "resume-if-possible"
+          }
+        },
+        "folder": {
+          "description": "Absolute path. Practice agents may leave it empty (they use the home folder).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "group_id": {
+          "description": "None = the default group (`DEFAULT_GROUP_ID`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Immutable; becomes the RigSpec member id.",
+          "type": "string"
+        },
+        "job": {
+          "description": "Plain-language instructions, sent as the agent's first message at start.",
+          "type": "string",
+          "default": ""
+        },
+        "kind": {
+          "$ref": "#/$defs/AgentKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "x",
+        "y"
+      ]
+    },
+    "DraftConnection": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ConnectionKind"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "kind"
+      ]
+    },
+    "DraftGroup": {
+      "type": "object",
+      "properties": {
+        "h": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "id": {
+          "description": "Immutable; becomes the RigSpec pod id.",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "models": {
+          "description": "This group's model per provider; absent = inherit the team's.",
+          "$ref": "#/$defs/ModelDefaults"
+        },
+        "w": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "x",
+        "y",
+        "w",
+        "h"
+      ]
+    },
+    "Escalation": {
+      "description": "After `after_rounds` rounds at a stage, its items go to `agent` (typically a stronger model's agent).",
+      "type": "object",
+      "properties": {
+        "after_rounds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "agent": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "after_rounds",
+        "agent"
+      ]
+    },
+    "EventBody": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "child": {
+              "type": "string"
+            },
+            "parent": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "team-topology-changed"
+            }
+          },
+          "required": [
+            "type",
+            "parent",
+            "child"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seat_count": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "spec_hash": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "rig-booted"
+            }
+          },
+          "required": [
+            "type",
+            "spec_hash",
+            "seat_count"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "desired": {
+              "$ref": "#/$defs/Desired"
+            },
+            "type": {
+              "type": "string",
+              "const": "rig-desired-changed"
+            }
+          },
+          "required": [
+            "type",
+            "desired"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "lifecycle": {
+              "$ref": "#/$defs/SeatLifecycle"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "seat-lifecycle-changed"
+            }
+          },
+          "required": [
+            "type",
+            "lifecycle"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/SeatActivity"
+            },
+            "type": {
+              "type": "string",
+              "const": "seat-activity-changed"
+            }
+          },
+          "required": [
+            "type",
+            "activity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "caps": {
+              "$ref": "#/$defs/Caps"
+            },
+            "cause": {
+              "$ref": "#/$defs/TenureCause"
+            },
+            "driver": {
+              "type": "string"
+            },
+            "native_session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tenure": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "tenure-started"
+            }
+          },
+          "required": [
+            "type",
+            "tenure",
+            "cause",
+            "driver",
+            "caps"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "exit_code": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
+            },
+            "signal": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
+            },
+            "stderr_tail": {
+              "type": "string"
+            },
+            "tenure": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "tenure-ended"
+            }
+          },
+          "required": [
+            "type",
+            "tenure",
+            "stderr_tail"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "turn_id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "turn-started"
+            }
+          },
+          "required": [
+            "type",
+            "turn_id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "turn_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "agent-text"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "call_id": {
+              "type": "string"
+            },
+            "input": true,
+            "name": {
+              "type": "string"
+            },
+            "parent_call_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "turn_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "tool-called"
+            }
+          },
+          "required": [
+            "type",
+            "call_id",
+            "name",
+            "input"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "call_id": {
+              "type": "string"
+            },
+            "is_error": {
+              "type": "boolean"
+            },
+            "output": {
+              "type": "string"
+            },
+            "turn_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "tool-resulted"
+            }
+          },
+          "required": [
+            "type",
+            "call_id",
+            "output",
+            "is_error"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "cache_read_tokens": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "cache_write_tokens": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "cost": {
+              "description": "The turn's estimated cost and where it came from; absent when no source prices it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Cost"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "input_tokens": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "output_tokens": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "turn_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "usage-reported"
+            }
+          },
+          "required": [
+            "type",
+            "input_tokens",
+            "output_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "$ref": "#/$defs/TurnStatus"
+            },
+            "turn_id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "turn-ended"
+            }
+          },
+          "required": [
+            "type",
+            "turn_id",
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "intent": {
+              "$ref": "#/$defs/MessageIntent"
+            },
+            "message_id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "message-queued"
+            }
+          },
+          "required": [
+            "type",
+            "message_id",
+            "intent",
+            "text"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "message_id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "message-delivered"
+            }
+          },
+          "required": [
+            "type",
+            "message_id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "message_id": {
+              "type": "string"
+            },
+            "turn_id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "message-consumed"
+            }
+          },
+          "required": [
+            "type",
+            "message_id",
+            "turn_id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "message_id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "message-failed"
+            }
+          },
+          "required": [
+            "type",
+            "message_id",
+            "reason"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "events-lost"
+            }
+          },
+          "required": [
+            "type",
+            "count"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "raw": true,
+            "type": {
+              "type": "string",
+              "const": "unrecognized"
+            }
+          },
+          "required": [
+            "type",
+            "raw"
+          ]
+        },
+        {
+          "description": "controld: this seat waits for these upstream seats (along \"hands work to\"\nconnections) to finish before it gets its first handoff, and whether its handoffs\nare stuck. Empty and None = neither waiting nor stuck.",
+          "type": "object",
+          "properties": {
+            "stuck": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/HandoffStuck"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "type": {
+              "type": "string",
+              "const": "handoff-waiting"
+            },
+            "waiting_for": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "waiting_for"
+          ]
+        },
+        {
+          "description": "controld: these upstream turns were handed over to this seat as message `message_id`\nin the start that began at `start_seq` (its `RigBooted`). Recorded in the same\ntransaction as that message, so a turn is never handed twice. `resend_of` names the\nearlier message this one re-sends, when it is a resend.",
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HandoffSource"
+              }
+            },
+            "message_id": {
+              "type": "string"
+            },
+            "resend_of": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "start_seq": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "handed-over"
+            },
+            "wave": {
+              "description": "The \"More work\" wave this message belongs to, if any.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Wave"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "type",
+            "message_id",
+            "from"
+          ]
+        },
+        {
+          "description": "The operator asked this seat to hand its latest finished turn over again\n(\"Hand over again\"). `turn_seq` is that turn's `TurnEnded` seq.",
+          "type": "object",
+          "properties": {
+            "turn_id": {
+              "type": "string"
+            },
+            "turn_seq": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "type": {
+              "type": "string",
+              "const": "handover-requested"
+            }
+          },
+          "required": [
+            "type",
+            "turn_id",
+            "turn_seq"
+          ]
+        },
+        {
+          "description": "The agent (or its CLI) asks the operator something and waits.",
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "$ref": "#/$defs/QuestionPrompt"
+            },
+            "question_id": {
+              "type": "string"
+            },
+            "source": {
+              "$ref": "#/$defs/QuestionSource"
+            },
+            "turn_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "question-raised"
+            }
+          },
+          "required": [
+            "type",
+            "question_id",
+            "source",
+            "prompt"
+          ]
+        },
+        {
+          "description": "`late`: the question had already expired; the answer is an instruct message overriding the agent's decision.",
+          "type": "object",
+          "properties": {
+            "answer": {
+              "$ref": "#/$defs/Answer"
+            },
+            "late": {
+              "type": "boolean"
+            },
+            "question_id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "question-answered"
+            }
+          },
+          "required": [
+            "type",
+            "question_id",
+            "answer",
+            "late"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "question_id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "question-expired"
+            }
+          },
+          "required": [
+            "type",
+            "question_id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decision": {
+              "type": "string"
+            },
+            "question_id": {
+              "type": "string"
+            },
+            "rationale": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source": {
+              "$ref": "#/$defs/DecisionSource"
+            },
+            "type": {
+              "type": "string",
+              "const": "question-decided"
+            }
+          },
+          "required": [
+            "type",
+            "question_id",
+            "decision",
+            "source"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "question_id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "question-withdrawn"
+            }
+          },
+          "required": [
+            "type",
+            "question_id",
+            "reason"
+          ]
+        },
+        {
+          "description": "The operator has seen an expired question; it leaves Needs you.",
+          "type": "object",
+          "properties": {
+            "question_id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "question-acknowledged"
+            }
+          },
+          "required": [
+            "type",
+            "question_id"
+          ]
+        },
+        {
+          "description": "The agent's `report` call: findings about its work (agent-reported). `turn_id` is the\nturn running when it was received, so the work ledger can place it in an attempt.",
+          "type": "object",
+          "properties": {
+            "findings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Finding"
+              }
+            },
+            "summary": {
+              "type": "string"
+            },
+            "turn_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "findings-reported"
+            },
+            "verdict": {
+              "$ref": "#/$defs/ReportVerdict"
+            }
+          },
+          "required": [
+            "type",
+            "summary",
+            "findings",
+            "verdict"
+          ]
+        },
+        {
+          "description": "An agent report or tool call that failed validation (spec §6.3). Evidence; never interrupts the agent.",
+          "type": "object",
+          "properties": {
+            "raw": true,
+            "reason": {
+              "type": "string"
+            },
+            "tool": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "report-rejected"
+            }
+          },
+          "required": [
+            "type",
+            "tool",
+            "reason",
+            "raw"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "call_id": {
+              "type": "string"
+            },
+            "class": {
+              "$ref": "#/$defs/ActionClass"
+            },
+            "paths": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "risks": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/RiskFlag"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "action-interpreted"
+            }
+          },
+          "required": [
+            "type",
+            "call_id",
+            "class"
+          ]
+        },
+        {
+          "description": "The operator asked for a new session (spec §6.8 handover). A reason is required.",
+          "type": "object",
+          "properties": {
+            "mode": {
+              "$ref": "#/$defs/SessionMode"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "new-session-requested"
+            }
+          },
+          "required": [
+            "type",
+            "mode",
+            "reason"
+          ]
+        },
+        {
+          "description": "A restore needs the operator: the resume failed or cannot be tried.",
+          "type": "object",
+          "properties": {
+            "can_resume": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "restore-needed"
+            }
+          },
+          "required": [
+            "type",
+            "reason",
+            "can_resume"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decision": {
+              "$ref": "#/$defs/RestoreDecision"
+            },
+            "type": {
+              "type": "string",
+              "const": "restore-decided"
+            }
+          },
+          "required": [
+            "type",
+            "decision"
+          ]
+        },
+        {
+          "description": "The turn ended on the provider's usage or rate limit (`text`: the CLI's words, verbatim; `resets`:\nthe time those words name, if any). The operator sends \"continue\" once it resets; Sculptured\nnever retries by itself. Recorded just before the turn's `TurnEnded { Failed }`.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/LimitKind"
+            },
+            "resets": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "text": {
+              "type": "string"
+            },
+            "turn_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "limit-reached"
+            }
+          },
+          "required": [
+            "type",
+            "kind",
+            "text"
+          ]
+        },
+        {
+          "description": "controld launched this agent without optional abilities its host (an older agent runner) lacks:\n`features` names them (`host_proto::features`), `note` says so in plain words and how to update.\nNever posture: a restricted agent is refused instead.",
+          "type": "object",
+          "properties": {
+            "features": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "note": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "features-dropped"
+            }
+          },
+          "required": [
+            "type",
+            "features",
+            "note"
+          ]
+        },
+        {
+          "description": "A recorded answer could not reach the agent for certain (its host was not connected, or the\nagent's program refused it): the question is open again. `reason`: the host's words, verbatim.",
+          "type": "object",
+          "properties": {
+            "question_id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "question-answer-failed"
+            }
+          },
+          "required": [
+            "type",
+            "question_id",
+            "reason"
+          ]
+        },
+        {
+          "description": "The agent's program reports the question settled (hostd maps the driver's `QuestionResolved`).\nSculptured records its own answer or expiry before delivering it, so a question still open\nwhen this arrives was settled by the program itself, without Sculptured's answer. On an answered\n(or expired) question it confirms the delivery.",
+          "type": "object",
+          "properties": {
+            "question_id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "question-resolved"
+            }
+          },
+          "required": [
+            "type",
+            "question_id"
+          ]
+        },
+        {
+          "description": "The recorded answer (or expiry) may not have reached the agent: it was sent but no reply came, or a\n\"Send again\" was refused. `reason`: the host's or program's words, verbatim. The question stays\nanswered; Needs you shows it until a \"Send again\" or the program confirms it.",
+          "type": "object",
+          "properties": {
+            "question_id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "question-answer-unconfirmed"
+            }
+          },
+          "required": [
+            "type",
+            "question_id",
+            "reason"
+          ]
+        },
+        {
+          "description": "A \"Send again\" of the recorded answer (or expiry) reached the agent: the doubt is cleared.",
+          "type": "object",
+          "properties": {
+            "question_id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "question-answer-confirmed"
+            }
+          },
+          "required": [
+            "type",
+            "question_id"
+          ]
+        },
+        {
+          "description": "The model a session asked for and, once the CLI says, the model it reports using.\n`requested`: what Sculptured passed (None = the CLI's own default). `observed`: the CLI's own\nwords (Claude `system/init.model`, Codex `thread/start` result `model` or `model/rerouted.toModel`);\nNone until the CLI says. Recorded after the session's `TenureStarted`, which clears the seat's model.",
+          "type": "object",
+          "properties": {
+            "effort": {
+              "description": "Codex `reasoningEffort`, when reported.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "observed": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "provider": {
+              "description": "Codex `modelProvider` (e.g. \"openai\"); None for Claude.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "reason": {
+              "description": "Codex reroute reason, verbatim.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "requested": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rerouted_from": {
+              "description": "Codex `model/rerouted` `fromModel`.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "type": {
+              "type": "string",
+              "const": "model-observed"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Intermediate reasoning the CLI showed (agent-reported). `text` verbatim, capped by\n`model::cap::truncate(_, MAX_TEXT)`; \"\" when `form` is `Hidden`.",
+          "type": "object",
+          "properties": {
+            "estimated_tokens": {
+              "description": "Claude `system/thinking_tokens` estimate, when reported.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "default": null,
+              "minimum": 0
+            },
+            "form": {
+              "$ref": "#/$defs/ThinkingForm"
+            },
+            "item_id": {
+              "description": "Codex reasoning item id; Claude message id.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "parent_call_id": {
+              "description": "Set for a subagent's thinking (Claude `parent_tool_use_id`).",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "text": {
+              "type": "string"
+            },
+            "turn_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "thinking-recorded"
+            }
+          },
+          "required": [
+            "type",
+            "form",
+            "text"
+          ]
+        },
+        {
+          "description": "How full the agent's context was after a model call.",
+          "type": "object",
+          "properties": {
+            "basis": {
+              "$ref": "#/$defs/ContextBasis"
+            },
+            "turn_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "context-reported"
+            },
+            "used_tokens": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "window_tokens": {
+              "description": "The CLI's runtime window (None = the CLI did not say).",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "type",
+            "used_tokens",
+            "basis"
+          ]
+        },
+        {
+          "description": "The CLI's report of how much of the signed-in plan is used (account-wide).",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "plan-usage-reported"
+            },
+            "usage": {
+              "$ref": "#/$defs/PlanUsage"
+            }
+          },
+          "required": [
+            "type",
+            "usage"
+          ]
+        },
+        {
+          "description": "Sculptured began running the agent's check command (its design's \"check\", in its folder).",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "check-started"
+            }
+          },
+          "required": [
+            "type",
+            "command"
+          ]
+        },
+        {
+          "description": "The check's outcome as Sculptured observed it: the command's own exit status, not the agent's word.",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "duration_ms": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "exit_code": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
+            },
+            "output": {
+              "description": "The last part of its combined output.",
+              "type": "string"
+            },
+            "passed": {
+              "type": "boolean"
+            },
+            "timed_out": {
+              "type": "boolean"
+            },
+            "type": {
+              "type": "string",
+              "const": "check-ran"
+            }
+          },
+          "required": [
+            "type",
+            "command",
+            "passed",
+            "timed_out",
+            "output",
+            "duration_ms"
+          ]
+        }
+      ]
+    },
+    "EventRecord": {
+      "description": "One append-only event. `seq` is controld's global order (0 before ingest);\n`(host, host_seq)` is the producer's identity for deduplication.",
+      "type": "object",
+      "properties": {
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "at_ms": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "body": {
+          "$ref": "#/$defs/EventBody"
+        },
+        "host": {
+          "type": "string"
+        },
+        "host_seq": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "seq": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "subject": {
+          "$ref": "#/$defs/Subject"
+        }
+      },
+      "required": [
+        "seq",
+        "host",
+        "host_seq",
+        "at_ms",
+        "actor",
+        "subject",
+        "provenance",
+        "body"
+      ]
+    },
+    "Finding": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "description": "Where, as the agent put it (a file and line, a page, a part name). None when not given.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "text": {
+          "description": "The finding in the agent's words.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "Guard": {
+      "description": "A project check run every `every_minutes` while the team runs; while it fails, no new work goes out.",
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "every_minutes": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "timeout_s": {
+          "description": "Seconds before the guard command is stopped (default 600, at most 3600).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "command",
+        "every_minutes"
+      ]
+    },
+    "HandoffSource": {
+      "type": "object",
+      "properties": {
+        "requested_seq": {
+          "description": "Set when the operator's \"Hand over again\" sent this turn: that request's event seq.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64",
+          "default": null
+        },
+        "seat": {
+          "description": "The upstream seat.",
+          "type": "string"
+        },
+        "turn_id": {
+          "type": "string"
+        },
+        "turn_seq": {
+          "description": "The seq of that turn's `TurnEnded` event: the handoff's identity.",
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "seat",
+        "turn_id",
+        "turn_seq"
+      ]
+    },
+    "HandoffStuck": {
+      "description": "Why a seat's handoffs are stuck, in plain words naming agents (never seat ids).",
+      "type": "object",
+      "properties": {
+        "can_resend": {
+          "description": "True when re-sending a recorded handoff can help (it was not sent or not delivered).",
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "E.g. \"Airframe needs attention\", \"Planner has no job\", \"the handoff from Lead was not sent\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "can_resend"
+      ]
+    },
+    "Join": {
+      "description": "How a review panel decides: every reviewer, or the first approval.",
+      "type": "string",
+      "enum": [
+        "all",
+        "any"
+      ]
+    },
+    "LimitKind": {
+      "oneOf": [
+        {
+          "description": "The plan's allowance (Claude \"session limit\", \"usage limit\", \"weekly limit\"; Codex `usageLimitExceeded`).",
+          "type": "string",
+          "const": "usage"
+        },
+        {
+          "description": "A rate limit (Claude \"rate limit\"; Codex `rateLimitExceeded`).",
+          "type": "string",
+          "const": "rate"
+        }
+      ]
+    },
+    "MessageIntent": {
+      "type": "string",
+      "enum": [
+        "inform",
+        "instruct"
+      ]
+    },
+    "ModelDefaults": {
+      "description": "Per-provider model defaults for a team or a group. None = inherit (group, then team, then the\nCLI's own default). An agent keeps its Claude-or-Codex kind and may override with `AgentAdvanced.model`.",
+      "type": "object",
+      "properties": {
+        "claude": {
+          "description": "For Claude agents: an alias (`opus`, `sonnet`) or a full model id.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "codex": {
+          "description": "For Codex agents: a model slug (e.g. `gpt-6-sol`).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      }
+    },
+    "Origin": {
+      "description": "How a line came to be: recorded by Sculptured, converted from another tool's file, or inferred by AI.",
+      "type": "string",
+      "enum": [
+        "observed",
+        "converted",
+        "ai-reconstructed"
+      ]
+    },
+    "PermissionPosture": {
+      "type": "string",
+      "enum": [
+        "unrestricted",
+        "restricted"
+      ]
+    },
+    "PlanUsage": {
+      "description": "A CLI's report of how much of the signed-in plan is used. Account-wide: it counts use from\noutside Sculptured too.",
+      "type": "object",
+      "properties": {
+        "credits": {
+          "description": "Codex: the credit balance, verbatim, when the plan has credits that use past the limit spends.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "description": "`claude` or `codex`.",
+          "type": "string"
+        },
+        "status": {
+          "description": "The CLI's status word, verbatim (Claude `allowed`, `allowed_warning`, `rejected`; Codex the\nlimit it reached), if any.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "windows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanWindow"
+          }
+        }
+      },
+      "required": [
+        "provider",
+        "windows"
+      ]
+    },
+    "PlanWindow": {
+      "description": "One window of a subscription plan's allowance, as the CLI reported it.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "`five_hour`, `seven_day`, or `<n>_minutes` for another length.",
+          "type": "string"
+        },
+        "resets_at": {
+          "description": "When the window resets, Unix seconds.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "used_percent": {
+          "description": "Percent of the window used, 0–100 (it can pass 100). None when the CLI did not say.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "PortableSettings": {
+      "description": "The team settings that are part of its structure (not which computer runs it).",
+      "type": "object",
+      "properties": {
+        "own_copies": {
+          "description": "Each Claude Code / Codex agent works in its own git copy.",
+          "type": "boolean",
+          "default": false
+        },
+        "posture": {
+          "description": "None: the global setting.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PermissionPosture"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "question_timeout_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Provenance": {
+      "type": "string",
+      "enum": [
+        "protocol-observed",
+        "agent-reported",
+        "filesystem-observed",
+        "captured-tool",
+        "verified",
+        "heuristic",
+        "operator"
+      ]
+    },
+    "QuestionOption": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "QuestionPrompt": {
+      "description": "What the agent asked, verbatim (capped). Shown as evidence, never rewritten.",
+      "type": "object",
+      "properties": {
+        "allow_other": {
+          "description": "Free text is accepted besides the options.",
+          "type": "boolean",
+          "default": false
+        },
+        "header": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "options": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/QuestionOption"
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "tool": {
+          "description": "Permission prompts: the tool the agent wants to run.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tool_input": {
+          "description": "Permission prompts: the tool's input, verbatim."
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "QuestionSource": {
+      "oneOf": [
+        {
+          "description": "The agent called its `request_input` tool.",
+          "type": "string",
+          "const": "request-input"
+        },
+        {
+          "description": "The CLI's own ask-the-user prompt (Codex `item/tool/requestUserInput`, a Practice agent's `ask:`).",
+          "type": "string",
+          "const": "native-question"
+        },
+        {
+          "description": "The CLI asks before running a tool. Only a restricted posture produces these.",
+          "type": "string",
+          "const": "native-permission"
+        }
+      ]
+    },
+    "ReportVerdict": {
+      "type": "string",
+      "enum": [
+        "no-problems",
+        "problems-found",
+        "unsure"
+      ]
+    },
+    "RestoreDecision": {
+      "oneOf": [
+        {
+          "description": "Try resuming the agent's previous session (again).",
+          "type": "string",
+          "const": "resume"
+        },
+        {
+          "description": "Start a fresh session; unfinished work is sent with the continue message.",
+          "type": "string",
+          "const": "fresh"
+        },
+        {
+          "description": "Leave the agent stopped.",
+          "type": "string",
+          "const": "leave"
+        }
+      ]
+    },
+    "ResumeBehaviour": {
+      "type": "string",
+      "enum": [
+        "resume-if-possible",
+        "relaunch-fresh",
+        "checkpoint-only"
+      ]
+    },
+    "RiskFlag": {
+      "description": "A consequence worth a person's attention, in plain words. Never blocks anything.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "Stable code, e.g. `force-push`, `outside-folder-delete`, `network-write`, `sudo`.",
+          "type": "string"
+        },
+        "text": {
+          "description": "Plain sentence, e.g. \"force-pushed to origin main\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "text"
+      ]
+    },
+    "Schedule": {
+      "description": "A message sent to `agent` every `every_minutes` while the team runs; skipped when the agent is busy.",
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "every_minutes": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "agent",
+        "every_minutes",
+        "message"
+      ]
+    },
+    "SeatActivity": {
+      "type": "string",
+      "enum": [
+        "working",
+        "waiting-input",
+        "idle",
+        "unknown"
+      ]
+    },
+    "SeatLifecycle": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "launching",
+        "running",
+        "stopping",
+        "stopped",
+        "stale",
+        "attention",
+        "failed"
+      ]
+    },
+    "SessionAgent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent": {
+          "description": "The agent that spawned this one, if any.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "SessionHeader": {
+      "title": "SessionHeader",
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionAgent"
+          }
+        },
+        "ended_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "format": {
+          "description": "Always \"sculptured.session/v1\".",
+          "type": "string",
+          "pattern": "^sculptured\\.session/v1$"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "started_ms": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "team": {
+          "description": "The team as of the run's start; null when it was not recorded (runs from before this format).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TeamFile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "team_id": {
+          "type": "string"
+        },
+        "tokens": {
+          "$ref": "#/$defs/TokenTotals"
+        }
+      },
+      "required": [
+        "format",
+        "source",
+        "team_id",
+        "started_ms",
+        "agents",
+        "tokens"
+      ]
+    },
+    "SessionLine": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/EventRecord"
+        },
+        "origin": {
+          "$ref": "#/$defs/Origin"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "event"
+      ]
+    },
+    "SessionMode": {
+      "description": "How a new session for an agent starts (spec §6.8 \"handover\"; \"New session\" in the UI).",
+      "oneOf": [
+        {
+          "description": "A new session primed with a handover note, then sent its unfinished work.",
+          "type": "string",
+          "const": "fresh"
+        },
+        {
+          "description": "A native fork of the current session (Codex, Practice; not Claude in M2).",
+          "type": "string",
+          "const": "fork"
+        }
+      ]
+    },
+    "Source": {
+      "description": "Where the run happened.",
+      "type": "string",
+      "enum": [
+        "sculptured",
+        "imported:claude-code",
+        "imported:codex"
+      ]
+    },
+    "StageKind": {
+      "description": "Who runs a stage: an agent (default), Sculptured running a command, or a person.",
+      "type": "string",
+      "enum": [
+        "agent",
+        "check",
+        "human",
+        "merge"
+      ]
+    },
+    "Subject": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "rig"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "seat"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "host"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        }
+      ]
+    },
+    "TeamDraft": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DraftAgent"
+          }
+        },
+        "connections": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DraftConnection"
+          }
+        },
+        "decision_log": {
+          "description": "People keep a decision log that agents read with read_decisions (Advanced).",
+          "type": "boolean"
+        },
+        "folder": {
+          "description": "Default working folder for agents without their own override.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "groups": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DraftGroup"
+          }
+        },
+        "id": {
+          "description": "Immutable; becomes the rig name.",
+          "type": "string"
+        },
+        "models": {
+          "description": "The team's model per provider; absent = the CLI's own default.",
+          "$ref": "#/$defs/ModelDefaults"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revision": {
+          "description": "Server-assigned save counter for optimistic concurrency.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "schedules": {
+          "description": "Messages sent to an agent every N minutes while the team runs (Advanced).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Schedule"
+          }
+        },
+        "workflow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Workflow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "revision"
+      ]
+    },
+    "TeamFile": {
+      "title": "sculptured.team/v1",
+      "type": "object",
+      "properties": {
+        "format": {
+          "description": "Always \"sculptured.team/v1\".",
+          "type": "string",
+          "pattern": "^sculptured\\.team/v1$"
+        },
+        "settings": {
+          "$ref": "#/$defs/PortableSettings",
+          "default": {
+            "own_copies": false
+          }
+        },
+        "team": {
+          "$ref": "#/$defs/TeamDraft"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "team"
+      ]
+    },
+    "TenureCause": {
+      "type": "string",
+      "enum": [
+        "fresh",
+        "resume",
+        "handover",
+        "fork"
+      ]
+    },
+    "ThinkingForm": {
+      "description": "What the CLI showed of a model's thinking.",
+      "oneOf": [
+        {
+          "description": "A summary of the reasoning (Claude thinking summaries, Codex reasoning summary).",
+          "type": "string",
+          "const": "summary"
+        },
+        {
+          "description": "The reasoning text itself.",
+          "type": "string",
+          "const": "full"
+        },
+        {
+          "description": "Thinking happened but the CLI returned no text.",
+          "type": "string",
+          "const": "hidden"
+        }
+      ]
+    },
+    "TokenCount": {
+      "description": "Which reported tokens count toward a limit.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "output"
+          ]
+        },
+        {
+          "description": "Input, output, cache reads and cache writes.",
+          "type": "string",
+          "const": "all"
+        },
+        {
+          "description": "Everything except cache reads.",
+          "type": "string",
+          "const": "new"
+        }
+      ]
+    },
+    "TokenLimit": {
+      "description": "A per-agent token limit for one run (since the team started).",
+      "type": "object",
+      "properties": {
+        "counts": {
+          "$ref": "#/$defs/TokenCount",
+          "default": "all"
+        },
+        "include_subagents": {
+          "description": "Count the agents it spawns (and theirs) toward this agent's limit.",
+          "type": "boolean",
+          "default": true
+        },
+        "tokens": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "tokens"
+      ]
+    },
+    "TokenTotals": {
+      "type": "object",
+      "properties": {
+        "cache_read": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "cache_write": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "input": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "output": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "input",
+        "output",
+        "cache_read",
+        "cache_write"
+      ]
+    },
+    "TurnStatus": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "failed",
+        "interrupted"
+      ]
+    },
+    "Wave": {
+      "description": "A wave of \"More work\": started by one agent's finished work (or a \"Hand over again\"\npress on it), it runs every agent downstream of that origin once.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The seq of the event that started it: the origin's `TurnEnded` or its `HandoverRequested`.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "origin": {
+          "description": "The seat the wave started at.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "origin"
+      ]
+    },
+    "Workflow": {
+      "type": "object",
+      "properties": {
+        "collector": {
+          "type": "string"
+        },
+        "copies": {
+          "description": "per-item: each item gets its own git branch and folder (Advanced).",
+          "$ref": "#/$defs/CopiesMode"
+        },
+        "dispatcher": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "guard": {
+          "description": "Pauses new work while this project check fails (Advanced).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Guard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "input": {
+          "type": "string",
+          "default": ""
+        },
+        "input_position": {
+          "description": "Board placement only; changing it does not alter workflow execution.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoardPosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_steps": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_tasks": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkflowStage"
+          }
+        }
+      },
+      "required": [
+        "dispatcher",
+        "entry",
+        "collector",
+        "max_tasks",
+        "max_steps",
+        "stages"
+      ]
+    },
+    "WorkflowStage": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "description": "Empty for check and human stages.",
+          "type": "string",
+          "default": ""
+        },
+        "command": {
+          "description": "check: the shell command, run in the team's project folder.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "escalate": {
+          "description": "Hands items to a stronger agent after a number of rounds here (single-agent stages).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Escalation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "into": {
+          "description": "merge: the branch to merge into (default: the project's current branch).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "join": {
+          "$ref": "#/$defs/Join"
+        },
+        "kind": {
+          "$ref": "#/$defs/StageKind"
+        },
+        "max_rounds": {
+          "description": "How often one item may enter this stage; entering past it takes `on_limit`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string"
+        },
+        "on_limit": {
+          "description": "The stage to take when `max_rounds` is reached; none blocks the item.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "position": {
+          "description": "Board placement of the stage's own box (check, person, merge, review panel); none places it\nautomatically. Changing it does not alter workflow execution.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoardPosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "description": "Panel outcome order, worst first (default: blocked, then any non-\"approved\", then \"approved\").",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prompt": {
+          "description": "human: what the person decides. The outcomes are the route keys.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewers": {
+          "description": "A review panel: 2–6 agents who all take the same item (instead of `agent`/`workers`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "routes": {
+          "description": "An outcome selects one route. Null completes this item; \"blocked\" is reserved.",
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "timeout_s": {
+          "description": "check: seconds before the command is stopped (default 600, at most 3600).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "workers": {
+          "description": "Additional interchangeable agents for concurrent topics at this stage.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "routes"
+      ]
+    }
+  }
+}

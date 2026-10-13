@@ -1,0 +1,13 @@
+{
+  "name": "corner-shop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A tiny shop library: the patient for the coding-hospital showcase team.",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

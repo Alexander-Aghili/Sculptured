@@ -1,0 +1,142 @@
+//! The agent tools (spec §6.3): `request_input`, `record_decision`, `report` and, in restricted posture,
+//! `approve`. Calls arrive from hostd as `FromHost::SeatTool`; every reply is `{"text": …}` (the text the
+//! agent reads). An invalid call is stored as `report-rejected` evidence and answered with a tool error.
+//!
+//! Delivery of an answer to a waiting call: controld knows a reply cannot arrive when the call's host
+//! connection has closed (`SeatWait::send` refuses, an answer handed over then is recorded as failed,
+//! and the question is withdrawn). A per-reply acknowledgement from hostd is deferred: a reply handed to
+//! a connection that dies before hostd reads it (or a hostd that dies) is not detected here, and stays
+//! unconfirmed like any other delivery without a reply.
+mod ask;
+mod records;
+
+use crate::state::AppState;
+use host_proto::{SeatToolsParams, ToHost};
+use model::{Actor, Answer, EventBody, PermissionPosture, Provenance, Subject};
+use rigspec::{CompiledSeat, Runtime};
+use serde_json::Value;
+use tokio::sync::{mpsc::UnboundedSender, oneshot};
+
+/// A `request_input` or `approve` call waiting for its answer (`AppState::seat_waits`).
+pub struct SeatWait {
+    answer: oneshot::Sender<Answer>,
+    /// The host connection the call came in on.
+    link: UnboundedSender<ToHost>,
+}
+
+impl SeatWait {
+    /// Hands the answer to the waiting call. Err (with the answer) when the call can no longer reply:
+    /// its host connection has closed or it stopped waiting. `questions::deliver` then records the
+    /// answer as not sent.
+    pub fn send(self, answer: Answer) -> Result<(), Answer> {
+        if self.link.is_closed() {
+            return Err(answer);
+        }
+        self.answer.send(answer)
+    }
+}
+
+/// Claude, Codex and Practice agents get the tools; `approve` is Claude's permission-prompt tool, so
+/// only a restricted Claude agent gets it (Codex asks natively, Task 13; Practice uses `perm:`).
+pub fn launch_params(_st: &AppState, seat: &CompiledSeat, posture: PermissionPosture) -> Option<SeatToolsParams> {
+    matches!(seat.runtime, Runtime::ClaudeCode | Runtime::Codex | Runtime::Stub)
+        .then(|| SeatToolsParams { approve: posture == PermissionPosture::Restricted && seat.runtime == Runtime::ClaudeCode })
+}
+
+/// Defence in depth behind hostd's own check: `approve` only for an agent that would be launched with it.
+fn may_approve(st: &AppState, seat: &str) -> bool {
+    let Ok((rig, spec)) = crate::launch::compiled_seat(st, seat) else { return false };
+    let posture = crate::posture::for_seat(st, &rig.name, &spec);
+    launch_params(st, &spec, posture).is_some_and(|p| p.approve)
+}
+
+enum ToolError {
+    /// The call itself was wrong: kept as `report-rejected` evidence.
+    Invalid(String),
+    /// A valid call that could not complete (the question was withdrawn, the store failed).
+    Failed(String),
+}
+
+fn invalid(s: impl Into<String>) -> ToolError {
+    ToolError::Invalid(s.into())
+}
+
+fn cut(s: &str, max: usize) -> String {
+    if s.chars().count() <= max { s.to_string() } else { format!("{}…", s.chars().take(max).collect::<String>()) }
+}
+
+/// The most of a rejected call's arguments kept as evidence.
+const RAW_BYTES: usize = 16 * 1024;
+
+/// The call's arguments as evidence: whole when small, else their first `RAW_BYTES` bytes as text.
+fn raw_evidence(args: &Value) -> Value {
+    let s = args.to_string();
+    if s.len() <= RAW_BYTES {
+        return args.clone();
+    }
+    Value::String(format!("{}…", model::cap::head(&s, RAW_BYTES)))
+}
+
+/// Records an event the agent's call reports (actor: the agent).
+fn record(st: &AppState, seat: &str, provenance: Provenance, body: EventBody) -> Result<(), ToolError> {
+    st.local_event(Actor::Seat(seat.to_string()), Subject::Seat(seat.to_string()), provenance, body)
+        .map(|_| ())
+        .map_err(|e| ToolError::Failed(format!("Sculptured could not record this: {e}")))
+}
+
+/// Records an event about a seat-tool call as Sculptured (system:controld).
+fn record_system(st: &AppState, seat: &str, provenance: Provenance, body: EventBody) {
+    if let Err(e) = st.local_event(Actor::System("controld".into()), Subject::Seat(seat.to_string()), provenance, body) {
+        tracing::error!(%seat, error = %e, "cannot record a seat-tool call's outcome");
+    }
+}
+
+fn current_turn(st: &AppState, seat: &str) -> Option<String> {
+    st.store.lock().unwrap().seat(seat).ok().flatten().and_then(|v| v.current_turn)
+}
+
+fn string_arg<'a>(args: &'a Value, key: &str) -> Result<&'a str, ToolError> {
+    match args.get(key).and_then(Value::as_str).map(str::trim) {
+        Some(s) if !s.is_empty() => Ok(s),
+        _ => Err(invalid(format!("{key} must be a non-empty string"))),
+    }
+}
+
+/// What a call returns, and the question it asked and the answer it got (`request_input`, `approve`).
+type Outcome = (Value, Option<(String, Answer)>);
+
+/// Handles one call and sends its reply on `reply`, the host connection it came in on.
+pub async fn handle_call(st: AppState, reply: UnboundedSender<ToHost>, call_id: String, seat: String, tool: String, args: Value) {
+    let (ok, result, error, asked) = match dispatch(&st, &seat, &tool, &args, &reply).await {
+        Ok((result, asked)) => (true, result, None, asked),
+        Err(ToolError::Invalid(reason)) => {
+            let body = EventBody::ReportRejected { tool: cut(&tool, 200), reason: reason.clone(), raw: raw_evidence(&args) };
+            if let Err(ToolError::Failed(e)) = record(&st, &seat, Provenance::ProtocolObserved, body) {
+                tracing::error!(%seat, error = %e, "cannot record a rejected tool call");
+            }
+            (false, Value::Null, Some(reason), None)
+        }
+        Err(ToolError::Failed(reason)) => (false, Value::Null, Some(reason), None),
+    };
+    // The connection closed after the answer came: the agent never gets it.
+    if reply.send(ToHost::SeatToolReply { call_id, ok, result, error }).is_err()
+        && let Some((id, answer)) = asked
+    {
+        ask::lost_on_the_way(&st, &seat, &id, Some(answer)).await;
+    }
+}
+
+/// `reply` is the host connection the call came in on; a waiting question watches it (see `ask`).
+async fn dispatch(st: &AppState, seat: &str, tool: &str, args: &Value, reply: &UnboundedSender<ToHost>) -> Result<Outcome, ToolError> {
+    match tool {
+        "spawn_agent" | "send_agent_message" | "team_status" => crate::collaboration::tools::call(st,seat,tool,args).await.map(|v|(v,None)).map_err(invalid),
+        "request_input" => ask::request_input(st, seat, args, reply).await,
+        "approve" if !may_approve(st, seat) => Err(invalid("the approve tool is not available to this agent")),
+        "approve" => ask::approve(st, seat, args, reply).await,
+        "record_decision" => records::record_decision(st, seat, args).map(|v| (v, None)),
+        "report" => records::report(st, seat, args).map(|v| (v, None)),
+        "dispatch_work" | "complete_work" | "workflow_status" => crate::workflow::call(st, seat, tool, args).map(|v| (v, None)).map_err(invalid),
+        "read_decisions" => crate::decisions::read_tool(st, seat, args).map(|v| (v, None)).map_err(invalid),
+        other => Err(invalid(format!("unknown tool {:?}", cut(other, 200)))),
+    }
+}

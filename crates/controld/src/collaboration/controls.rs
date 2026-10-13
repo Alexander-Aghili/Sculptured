@@ -1,0 +1,158 @@
+use crate::{error::ApiError, reconciler, state::AppState, store::ControlMode};
+use model::{EventBody, MessageIntent, SeatLifecycle};
+
+/// What the operator (or a limit) asks of a running agent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Control {
+    /// Wrap up the current work, then stop.
+    Soft,
+    /// Stop now, with every agent it spawned.
+    Hard,
+    /// Undo a stop.
+    Resume,
+}
+
+impl Control {
+    pub fn parse(s: &str) -> Result<Self, ApiError> {
+        match s {
+            "soft" => Ok(Self::Soft),
+            "hard" => Ok(Self::Hard),
+            "resume" => Ok(Self::Resume),
+            _ => Err(ApiError::bad_request("invalid_control", "Choose soft, hard or resume")),
+        }
+    }
+}
+
+pub async fn control_agent(st: &AppState, seat: &str, control: Control) -> Result<(), ApiError> {
+    let view = st
+        .store
+        .lock()
+        .unwrap()
+        .seat(seat)?
+        .ok_or_else(|| ApiError::not_found("Unknown agent"))?;
+    if control == Control::Resume {
+        if st.store.lock().unwrap().budget_exhausted(seat)? {return Err(ApiError::conflict("budget_exhausted", "This agent reached its output budget. Start a new project run to reset it."));}
+        st.store.lock().unwrap().clear_control(seat)?;
+        if view.lifecycle != SeatLifecycle::Running {
+            reconciler::restart_seat(st, seat).await?;
+        }
+        return Ok(());
+    }
+    let _claim = st.try_begin_boot(&view.rig).ok_or_else(|| {
+        ApiError::conflict(
+            "team_starting",
+            "Project is changing. Retry the stop after that operation finishes.",
+        )
+    })?;
+    let children = {
+        let store = st.store.lock().unwrap();
+        let mut all = store.children(seat)?;
+        let mut i = 0;
+        while i < all.len() {
+            let next = store.children(&all[i])?;
+            for child in next {
+                if !all.contains(&child) {
+                    all.push(child)
+                }
+            }
+            i += 1;
+        }
+        all
+    };
+    // Descendants must not continue after a hard stop of their parent.
+    if control == Control::Hard {
+        let mut failures = Vec::new();
+        for id in children
+            .iter()
+            .rev()
+            .map(String::as_str)
+            .chain(std::iter::once(seat))
+        {
+            record(st, id, ControlMode::Hard)?;
+        }
+        for id in children
+            .iter()
+            .rev()
+            .map(String::as_str)
+            .chain(std::iter::once(seat))
+        {
+            if let Err(e) = reconciler::stop_seat(st, id).await {
+                failures.push(format!("{id}: {}", e.message));
+            }
+        }
+        if !failures.is_empty() {
+            return Err(ApiError::conflict("stop_failed", failures.join("; ")));
+        }
+        return Ok(());
+    }
+    record(st, seat, ControlMode::Soft)?;
+    if view.lifecycle != SeatLifecycle::Running {
+        return Ok(());
+    }
+    let text = "Soft stop requested by You. Wrap up the CURRENT assignment quickly within approximately 5,000 additional output tokens. Do not begin new research, broad refactors, new tasks or child agents. Save the current work, summarize exact artifact paths/revision, checks actually run, remaining problems and what the next agent needs. If appropriate, call complete_work with the honest outcome or send_agent_message to the next agent/your parent. Never claim success to finish faster. End your turn. The runner will stop this session after the wrap-up turn, the observed token budget, or 5 minutes. Usage reports may arrive late; the 5K threshold is approximate.";
+    // Interrupting first makes the wrap-up instruction available even to CLIs that queue input.
+    let id = reconciler::send_message(
+        st,
+        seat,
+        text.into(),
+        MessageIntent::Instruct,
+        view.current_turn.is_some(),
+    )
+    .await?;
+    st.store.lock().unwrap().set_control_message(seat, &id)?;
+    Ok(())
+}
+fn record(st: &AppState, seat: &str, mode: ControlMode) -> Result<(), ApiError> {
+    let store = st.store.lock().unwrap();
+    let baseline = store.seat(seat)?.and_then(|s| s.tokens_out).unwrap_or(0);
+    store.record_control(seat, mode, baseline)?;
+    Ok(())
+}
+/// Durable soft-stop budgets. Reports can arrive at turn end, so disclose possible overshoot.
+pub async fn run(st: AppState) {
+    let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
+    loop {
+        tick.tick().await;
+        if let Err(e) = super::budgets::check(&st).await {
+            tracing::warn!(error=?e,"output-budget check failed");
+        }
+        super::token_limits::check(&st).await;
+        if let Err(e) = check(&st).await {
+            tracing::warn!(error=?e,"soft-stop check failed");
+        }
+    }
+}
+async fn check(st: &AppState) -> Result<(), ApiError> {
+    let controls = st.store.lock().unwrap().soft_stops()?;
+    for crate::store::SoftStop { seat, baseline: base, requested_ms: at, message_id: msg } in controls {
+        let stop = {
+            let store = st.store.lock().unwrap();
+            let Some(view) = store.seat(&seat)? else {
+                continue;
+            };
+            let events = store.latest_events_for_seat(&seat, 2000)?;
+            let turn = msg.as_ref().and_then(|id| {
+                events.iter().find_map(|e| match &e.body {
+                    EventBody::MessageConsumed {
+                        message_id,
+                        turn_id,
+                    } if message_id == id => Some(turn_id),
+                    _ => None,
+                })
+            });
+            let ended = turn.is_some_and(|t| {
+                events
+                    .iter()
+                    .any(|e| matches!(&e.body,EventBody::TurnEnded{turn_id,..}if turn_id==t))
+            });
+            ended
+                || view.tokens_out.unwrap_or(0).saturating_sub(base) >= 5000
+                || model::now_ms() - at >= 300000
+        };
+        if stop {
+            control_agent(st, &seat, Control::Hard).await?;
+            st.store.lock().unwrap().set_control_mode(&seat, ControlMode::Finished)?;
+        }
+    }
+    Ok(())
+}

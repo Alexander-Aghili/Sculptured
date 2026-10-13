@@ -1,0 +1,113 @@
+import type { CompiledEdge } from './generated/CompiledEdge';
+import type { CompiledRig } from './generated/CompiledRig';
+import type { ConnectionKind } from './generated/ConnectionKind';
+import type { Desired } from './generated/Desired';
+import type { EdgeKind } from './generated/EdgeKind';
+import type { Runtime } from './generated/Runtime';
+import type { SeatView } from './generated/SeatView';
+
+/**
+ * Every user-facing word for teams and agents lives here. OpenRig terms (rig, pod, seat,
+ * member, edge, runtime, RigSpec, YAML) may appear only inside an Advanced disclosure.
+ */
+
+export const RUNTIME_LABEL: Record<Runtime, string> = {
+  'claude-code': 'Claude',
+  codex: 'Codex',
+  pi: 'Pi',
+  omp: 'OMP',
+  terminal: 'Terminal',
+  stub: 'Practice agent',
+};
+
+export const KIND_LABEL: Record<'claude' | 'codex' | 'practice', string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  practice: 'Practice agent',
+};
+
+export const EDGE_WORDS: Record<EdgeKind, string> = {
+  delegates_to: 'hands work to',
+  escalates_to: 'reports to',
+  can_observe: 'watches',
+  spawned_by: 'was started by',
+  collaborates_with: 'works with',
+};
+
+export const NOT_ENFORCED = 'not enforced';
+
+/** Agent display names keyed by internal address (seat id). Teams pass names from their draft. */
+export type NameMap = Record<string, string>;
+
+/** The one way an agent is named: the team's name for it, else its label, else its short id. */
+export function displayName(seat: Pick<SeatView, 'id' | 'label' | 'member'>, names: NameMap = {}): string {
+  return names[seat.id] ?? (seat.label?.trim() || seat.member);
+}
+
+/** A name for an internal address when no seat view is at hand (connections, placeholders). */
+export function nameForId(id: string, names: NameMap = {}): string {
+  if (names[id]) return names[id];
+  const logical = id.split('@')[0];
+  return logical.split('.').pop() ?? logical;
+}
+
+/** Labels carried by a compiled team, as a NameMap. */
+export function labelNames(rig: CompiledRig): NameMap {
+  const out: NameMap = {};
+  for (const s of rig.seats) if (s.label?.trim()) out[s.id] = s.label.trim();
+  return out;
+}
+
+/** "Builder hands work to Reviewer", with "(not enforced)" for design-intent connections. */
+export function edgeSentence(e: CompiledEdge, names: NameMap = {}): string {
+  const text = `${nameForId(e.from, names)} ${EDGE_WORDS[e.kind]} ${nameForId(e.to, names)}`;
+  return e.enforced ? text : `${text} (${NOT_ENFORCED})`;
+}
+
+export const WORDS = {
+  allTeams: 'All teams',
+  advanced: 'Advanced',
+  internalId: 'Internal id',
+  stopTeam: 'Stop team…',
+  confirmStopTeam: 'Confirm stop team',
+  stopTeamConsequence: (team: string) => `Stops every running agent in ${team}. Their history is kept.`,
+  stoppingTeam: (team: string) => `Stopping ${team}…`,
+  teamCounts: (running: number, total: number) => `${running} of ${total} sessions open`,
+  needAttention: (n: number) => `${n} ${n === 1 ? 'needs' : 'need'} attention`,
+  desired: (d: Desired) => (d === 'running' ? 'set to run' : 'set to stop'),
+  connecting: (team: string) => `Connecting to ${team}…`,
+  groupRegion: (label: string) => `group ${label}`,
+  connections: 'Connections',
+  noConnections: 'No connections.',
+  unknownAgent: (name: string) => `${name} — unknown`,
+  notStartedAgent: (name: string) => `${name} — not started yet`,
+  notInTeam: (name: string, team: string) => `${name} is not part of ${team}.`,
+  statusUnknown: (name: string) => `${name} is part of this team but its status is unknown.`,
+  inspectorFor: (name: string) => `Inspector for ${name}`,
+  closeInspector: 'Back to the team',
+  session: (n: number) => (n > 0 ? `session #${n}` : 'not started yet'),
+  sessionStarted: (n: number, cause: string, driver: string) => `Session #${n} started · ${cause} · ${driver}`,
+  sessionEnded: (n: number, exit: number | null, signal: number | null) =>
+    `Session #${n} ended · exit ${exit ?? 'unknown'}${signal !== null ? ` · signal ${signal}` : ''}`,
+  agentControls: 'Agent controls',
+  stopAgent: 'Hard stop…',
+  confirmStopAgent: 'Confirm stop agent',
+  stopAgentConsequence: (name: string, inTurn: boolean) =>
+    `Stops ${name}. ${inTurn ? '1 turn in progress will be cut off.' : 'No turn in progress.'} Messages it has not read yet will be marked as not delivered.`,
+  agentAlreadyStopping: 'This agent is already stopping.',
+  noProcessToStop: (status: string) => `Status: ${status}; there is no process to stop.`,
+  agentsNotStopped: (n: number) => `${n === 1 ? '1 agent' : `${n} agents`} could not be stopped:`,
+  agentsNotStoppedLabel: 'Agents not stopped',
+  setupNotes: 'Advanced: setup notes',
+  sendNeedsRunning: (status: string) => `Status: ${status}; messages can only be sent to a running agent.`,
+  sentAtStart: 'sent at start',
+  firstMessageIsWork: "Your next message is this agent's work and starts the team's handoffs.",
+  cannotInterrupt: "This kind of agent can't be interrupted; wait for its turn to end, or stop it.",
+  interruptUnknown: 'Whether this agent can be interrupted is unknown until it reports what it can do.',
+} as const;
+
+export const CONNECTION_WORDS: Record<ConnectionKind, string> = {
+  'hands-work-to': 'hands work to',
+  'reports-to': 'reports to',
+  watches: 'watches',
+};

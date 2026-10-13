@@ -1,0 +1,10 @@
+{"dir":"meta","line":{"args":["app-server"],"program":"codex","version":"codex-cli 0.160.1"},"t_ms":9}
+{"dir":"in","line":{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"clientInfo":{"name":"sculptured-probe","version":"0.0.0"}}},"t_ms":10}
+{"dir":"out","line":{"id":1,"result":{"codexHome":"/home/user/.codex","platformFamily":"unix","platformOs":"linux","userAgent":"sculptured-probe/0.160.1 <redacted>"}},"t_ms":359}
+{"dir":"in","line":{"jsonrpc":"2.0","method":"initialized"},"t_ms":359}
+{"dir":"in","line":{"id":2,"jsonrpc":"2.0","method":"account/rateLimits/read","params":null},"t_ms":360}
+{"dir":"out","line":{"emittedAtMs":1791389248613,"method":"remoteControl/status/changed","params":{"environmentId":null,"installationId":"<redacted>","serverName":"user","status":"disabled"}},"t_ms":360}
+{"dir":"out","line":{"id":2,"result":{"accountId":"<redacted>","ordinaryUsageAllowed":"<redacted>","rateLimitResetCredits":"<redacted>","rateLimitUpsell":null,"rateLimits":{"credits":{"balance":"<redacted>","hasCredits":"<redacted>","unlimited":"<redacted>"},"individualLimit":null,"limitId":"codex","limitName":null,"normalModelSlug":null,"planType":"<redacted>","primary":{"resetsAt":"<redacted>","usedPercent":"<redacted>","windowDurationMins":"<redacted>"},"rateLimitReachedType":null,"secondary":null,"spendControlReached":"<redacted>"},"rateLimitsByLimitId":{"codex":{"credits":{"balance":"<redacted>","hasCredits":"<redacted>","unlimited":"<redacted>"},"individualLimit":null,"limitId":"codex","limitName":null,"normalModelSlug":null,"planType":"<redacted>","primary":{"resetsAt":"<redacted>","usedPercent":"<redacted>","windowDurationMins":"<redacted>"},"rateLimitReachedType":null,"secondary":null,"spendControlReached":"<redacted>"}}}},"t_ms":1257}
+{"dir":"out","line":{"emittedAtMs":1791389249668,"method":"account/updated","params":{"authMode":"<redacted>","planType":"<redacted>"}},"t_ms":1413}
+{"dir":"meta","line":{"stdin_closed":true},"t_ms":4258}
+{"dir":"meta","line":{"exit":0},"t_ms":4508}

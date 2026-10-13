@@ -1,0 +1,569 @@
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { api, ApiError } from '../api';
+import type { TeamDraft } from '../generated/TeamDraft';
+import { forgetViewports } from '../shell/viewport';
+import { draftAgent, teamDraft, teamRecord } from '../test-fixtures';
+import { openRigWords } from '../test-vocab';
+import { saveTiming } from '../useTeamDraft';
+import { card, fakeTeam, OFFSET, pos, renderAt, resetApi, sizeViewport } from './harness';
+
+vi.mock('../api', async (orig) => {
+  const m = await orig<typeof import('../api')>();
+  const names = ['getTeam', 'saveTeam', 'listTeams', 'templates', 'createTeam', 'startTeam', 'stopTeam', 'importTeam', 'listFolders', 'createFolder', 'listRigs', 'latestSeatEvents', 'stopRig', 'workflow'];
+  return { ...m, api: { ...m.api, ...Object.fromEntries(names.map((n) => [n, vi.fn()])) } };
+});
+
+const lastSaved = (): TeamDraft => {
+  const calls = vi.mocked(api.saveTeam).mock.calls;
+  return calls[calls.length - 1][2];
+};
+
+async function board(rec = teamRecord()) {
+  const server = fakeTeam(rec);
+  renderAt('/team/t/structure');
+  await screen.findByRole('region', { name: 'Structure board' });
+  return server;
+}
+
+beforeEach(() => {
+  resetApi();
+  forgetViewports();
+  localStorage.clear();
+  // These scenarios exercise the explicitly opened panel.
+  localStorage.setItem('sculptured.panels.v2.right', 'true');
+  saveTiming.delayMs = 5;
+});
+afterEach(() => {
+  saveTiming.delayMs = 500;
+});
+
+describe('Structure board: adding agents', () => {
+  it('keeps the inspector closed during selection and dragging, with add tools exposed', async () => {
+    localStorage.clear();
+    await board();
+    const canvas = screen.getByRole('region', { name: 'Structure board' });
+    expect(document.getElementById('workspace-details')).not.toBeVisible();
+    expect(document.querySelector('.structure-status')).not.toHaveAttribute('open');
+    expect(document.querySelector('.sb-tools-disclosure')).toHaveAttribute('open');
+    await userEvent.click(screen.getByText('Edit tools', { selector: 'summary' }));
+    expect(document.querySelector('.sb-tools-disclosure')).not.toHaveAttribute('open');
+    expect(api.saveTeam).not.toHaveBeenCalled();
+    const builder = card('Builder');
+    fireEvent.pointerDown(builder, {button:0,clientX:100,clientY:100,pointerId:1});
+    fireEvent.focus(builder);
+    expect(document.getElementById('workspace-details')).not.toBeVisible();
+    fireEvent.pointerMove(window, {clientX:180,clientY:260,pointerId:1});
+    fireEvent.pointerUp(window, {clientX:180,clientY:260,pointerId:1});
+    fireEvent.click(builder);
+    expect(pos('Builder')).toEqual([120,200]);
+    expect(document.getElementById('workspace-details')).not.toBeVisible();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.keyDown(builder, {key:'Enter'});
+    expect(screen.getByRole('region', { name: 'Agent Builder' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Structure board' })).toBe(canvas);
+  });
+
+  it('keeps the board mounted while editing workflow input, review routes and dispatch settings', async () => {
+    vi.mocked(api.workflow).mockResolvedValue({ config: null, run: null, active: false });
+    const d = teamDraft({ agents: ['dispatcher', 'builder', 'reviewer', 'frontend'].map(id => draftAgent(id)), connections: [], workflow: {
+      input: '', dispatcher: 'dispatcher', collector: 'frontend', entry: 'build', max_tasks: 24, max_steps: 12,
+      stages: [{ id:'build', name:'Build', agent:'builder', routes:{ ready:'review' } }, { id:'review', name:'Review', agent:'reviewer', routes:{ revise:'build', accept:null } }],
+    } });
+    await board(teamRecord({ draft:d }));
+    const canvas = screen.getByRole('region', { name:'Structure board' });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name:'Input: links, notes and ideas' }));
+    await user.type(screen.getByLabelText('Workflow input'), 'Links and rough ideas');
+    await waitFor(() => expect(lastSaved().workflow?.input).toBe('Links and rough ideas'));
+    await user.click(screen.getByRole('button', { name:'Close workflow details' }));
+    await user.click(screen.getByRole('button', { name:'Workflow route: revise' }));
+    expect(screen.getByLabelText('Destination for revise')).toHaveValue('build');
+    await user.selectOptions(screen.getByLabelText('Destination for revise'), 'review');
+    await waitFor(() => expect(lastSaved().workflow?.stages[1].routes.revise).toBe('review'));
+    await user.click(screen.getByRole('button', { name:'Close workflow details' }));
+    await user.click(screen.getByRole('button', { name:'Dispatch N · settings' }));
+    expect(screen.getByLabelText('Maximum items')).toHaveValue(24);
+    expect(screen.getByRole('button', { name:'Add reusable stage' })).toBeVisible();
+    expect(screen.getByRole('region', { name:'Structure board' })).toBe(canvas);
+    expect(lastSaved().connections).toEqual([]);
+  });
+
+  it('hides the inspector without remounting the canvas or saving the draft', async () => {
+    await board();
+    const canvas = screen.getByRole('region', { name: 'Structure board' });
+    const inspector = document.getElementById('workspace-details');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'App menu' }));
+    await user.click(screen.getByRole('button', { name: 'Hide details panel' }));
+    expect(inspector).not.toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Show details panel' }));
+    expect(inspector).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Structure board' })).toBe(canvas);
+    expect(api.saveTeam).not.toHaveBeenCalled();
+  });
+
+  it('n then Enter adds an agent at the next free place; arrows move it; Enter edits its name', async () => {
+    await board();
+    const user = userEvent.setup();
+    await user.keyboard('n');
+    expect(document.querySelector('.sb-tools-disclosure')).toHaveAttribute('open');
+    expect(screen.getByRole('button', { name: 'Add a Claude agent' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    const added = card('Claude 1');
+    expect(added).toHaveFocus();
+    expect(added).toHaveAttribute('aria-pressed', 'true');
+    // Builder sits at 40 and Reviewer at 300: the first free column slot is the third.
+    expect(pos('Claude 1')).toEqual([568, 40]);
+    await user.keyboard('{ArrowRight}{ArrowDown}');
+    expect(pos('Claude 1')).toEqual([584, 56]);
+    await user.keyboard('{Shift>}{ArrowRight}{/Shift}');
+    expect(pos('Claude 1')).toEqual([648, 56]);
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus();
+    await waitFor(() => expect(lastSaved().agents.find((a) => a.name === 'Claude 1')).toMatchObject({ kind: 'claude', x: 648, y: 56 }));
+  });
+
+  it('drags an agent in from the palette and drops it where the pointer is', async () => {
+    await board();
+    sizeViewport();
+    const practice = screen.getByRole('button', { name: 'Add a Practice agent' });
+    fireEvent.pointerDown(practice, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 400, clientY: 420, pointerId: 1 });
+    expect(document.querySelector('.sb-ghost')).not.toBeNull();
+    fireEvent.pointerUp(window, { clientX: 500, clientY: 400, pointerId: 1 });
+    // Centred under the pointer (card 200 wide, grabbed 24 below its top), on the 8 px grid.
+    expect(pos('Practice 1')).toEqual([500 - OFFSET - 100, 400 - OFFSET - 24]);
+    expect(document.querySelector('.sb-ghost')).toBeNull();
+  });
+});
+
+describe('Structure board: moving', () => {
+  it('drags a card and applies one move on release, which one undo reverts', async () => {
+    await board();
+    const builder = card('Builder');
+    fireEvent.pointerDown(builder, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 140, clientY: 120, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 180, clientY: 260, pointerId: 1 });
+    // While dragging the card follows the pointer; the draft is not touched until release.
+    expect(api.saveTeam).not.toHaveBeenCalled();
+    fireEvent.pointerUp(window, { clientX: 180, clientY: 260, pointerId: 1 });
+    expect(pos('Builder')).toEqual([120, 200]);
+    await waitFor(() => expect(api.saveTeam).toHaveBeenCalledTimes(1));
+    expect(lastSaved().agents[0]).toMatchObject({ x: 120, y: 200 });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Undo' }));
+    expect(pos('Builder')).toEqual([40, 40]);
+  });
+
+  it('selects with Tab and moves with the arrow keys; consecutive moves are one undo step', async () => {
+    await board();
+    const user = userEvent.setup();
+    act(() => card('Builder').focus());
+    expect(card('Builder')).toHaveAttribute('aria-pressed', 'true');
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
+    expect(pos('Builder')).toEqual([40, 88]);
+    await user.keyboard('{Control>}z{/Control}');
+    expect(pos('Builder')).toEqual([40, 40]);
+    await user.keyboard('{Control>}{Shift>}z{/Shift}{/Control}');
+    expect(pos('Builder')).toEqual([40, 88]);
+    expect(screen.getByRole('region', { name: 'Agent Builder' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('region', { name: 'Team' })).toBeInTheDocument();
+    expect(card('Builder')).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+describe('Structure board: connecting', () => {
+  const unconnected = () => teamRecord({ draft: teamDraft({ connections: [] }) });
+
+  it('drags from an agent’s ● port to another agent', async () => {
+    await board(unconnected());
+    const port = card('Builder').parentElement!.querySelector('.port.out')!;
+    fireEvent.pointerDown(port, { button: 0, clientX: 288, clientY: 188, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 350, clientY: 190, pointerId: 1 });
+    expect(document.querySelector('.edge.wire')).not.toBeNull();
+    // Reviewer's card spans 300–500 × 40–240 in the world.
+    fireEvent.pointerUp(window, { clientX: 300 + OFFSET + 50, clientY: 40 + OFFSET + 50, pointerId: 1 });
+    const label = await screen.findByRole('button', { name: 'Builder hands work to Reviewer' });
+    expect(label).toHaveTextContent('hands work to');
+    await waitFor(() => expect(lastSaved().connections).toEqual([expect.objectContaining({ from: 'builder', to: 'reviewer', kind: 'hands-work-to' })]));
+  });
+
+  it('connects from the agent panel with Connect to…, by keyboard', async () => {
+    await board(unconnected());
+    const user = userEvent.setup();
+    await user.click(card('Builder'));
+    const panel = screen.getByRole('dialog', { name: 'Builder details' });
+    await user.click(within(panel).getByRole('button', { name: 'Connect to…' }));
+    const menu = screen.getByRole('menu', { name: 'Builder hands work to' });
+    expect(within(menu).getAllByRole('menuitem')[0]).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('button', { name: 'Builder hands work to Reviewer' })).toBeInTheDocument();
+    expect(within(panel).getByText(/→ hands work to Reviewer/)).toBeInTheDocument();
+  });
+
+  it('refuses a connection to itself or a duplicate, with the reason in words', async () => {
+    await board();
+    const port = card('Builder').parentElement!.querySelector('.port.out')!;
+    fireEvent.pointerDown(port, { button: 0, clientX: 288, clientY: 188, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 400, clientY: 190, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 300 + OFFSET + 50, clientY: 40 + OFFSET + 50, pointerId: 1 });
+    expect(await screen.findByText('Builder already hands work to Reviewer.')).toBeInTheDocument();
+  });
+});
+
+describe('Structure board: groups', () => {
+  it('hides a group and its internal connections without saving or moving the board', async () => {
+    await board(teamRecord({draft:teamDraft({groups:[{id:'g',label:'Workers',x:10,y:10,w:570,h:300}], agents:[draftAgent('builder',{group_id:'g'}),draftAgent('reviewer',{group_id:'g',x:300})]})}));
+    const user=userEvent.setup(), world=screen.getByTestId('structure-world');
+    const transform=world.style.transform, original=pos('Builder');
+    await user.click(screen.getByRole('button',{name:'Hide contents of Workers'}));
+    expect(screen.queryByRole('button',{name:/^Builder — /})).toBeNull();
+    expect(screen.queryByRole('button',{name:'Builder hands work to Reviewer'})).toBeNull();
+    expect(world.querySelectorAll('path.edge')).toHaveLength(0);
+    expect(world.style.transform).toBe(transform);
+    expect(screen.getByRole('button',{name:'Show contents of Workers'})).toHaveAttribute('aria-expanded','false');
+    await user.keyboard('{Enter}');
+    expect(pos('Builder')).toEqual(original);
+    expect(screen.getByRole('button',{name:'Builder hands work to Reviewer'})).toBeInTheDocument();
+    expect(api.saveTeam).not.toHaveBeenCalled();
+  });
+
+  it('+ Group, then Move to group… puts an agent in it by keyboard; the group can be renamed', async () => {
+    await board();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Add a group' }));
+    const head = screen.getByRole('button', { name: /^Group: Group 2/ });
+    expect(head).toHaveFocus();
+    expect(screen.getByRole('button', { name: /^Group: Main group/ })).toBeInTheDocument();
+    const gpanel = screen.getByRole('region', { name: 'Group Group 2' });
+    await user.clear(within(gpanel).getByRole('textbox', { name: 'Name' }));
+    await user.type(within(gpanel).getByRole('textbox', { name: 'Name' }), 'Review');
+    expect(screen.getByRole('button', { name: /^Group: Review/ })).toBeInTheDocument();
+    await user.click(card('Reviewer'));
+    await user.click(screen.getByRole('button', { name: 'Move to group…' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Review' }));
+    const panel = screen.getByRole('dialog', { name: 'Reviewer details' });
+    expect(within(panel).getByText('Review', { selector: '.fld-value' })).toBeInTheDocument();
+    await waitFor(() => {
+      const d = lastSaved();
+      const g = d.groups.find((x) => x.label === 'Review')!;
+      expect(d.agents.find((a) => a.id === 'reviewer')!.group_id).toBe(g.id);
+    });
+  });
+
+  it('dropping a card on a group by pointer moves it into that group', async () => {
+    await board();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Add a group' }));
+    const box = screen.getByRole('button', { name: /^Group: Group 2/ }).closest('.sb-group') as HTMLElement;
+    const g = { x: parseFloat(box.style.left), y: parseFloat(box.style.top), w: parseFloat(box.style.width), h: parseFloat(box.style.height) };
+    const [rx, ry] = pos('Reviewer');
+    const dx = g.x + g.w / 2 - 100 - rx;
+    const dy = g.y + g.h / 2 - 100 - ry;
+    fireEvent.pointerDown(card('Reviewer'), { button: 0, clientX: 400, clientY: 200, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 400 + dx / 2, clientY: 200 + dy / 2, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 400 + dx, clientY: 200 + dy, pointerId: 1 });
+    expect(box).toHaveClass('drop-target');
+    fireEvent.pointerUp(window, { clientX: 400 + dx, clientY: 200 + dy, pointerId: 1 });
+    await waitFor(() => {
+      const d = lastSaved();
+      expect(d.agents.find((a) => a.id === 'reviewer')!.group_id).toBe(d.groups.find((x) => x.label === 'Group 2')!.id);
+    });
+  });
+
+  it('moves a group by dragging its head and by the arrow keys', async () => {
+    await board();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Add a group' }));
+    const head = screen.getByRole('button', { name: /^Group: Group 2/ });
+    const box = head.closest('.sb-group') as HTMLElement;
+    const x0 = parseFloat(box.style.left);
+    await user.keyboard('{ArrowRight}');
+    expect(parseFloat(box.style.left)).toBe(x0 + 16);
+    fireEvent.pointerDown(head, { button: 0, clientX: 600, clientY: 60, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 640, clientY: 140, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 640, clientY: 140, pointerId: 1 });
+    expect(parseFloat(box.style.left)).toBe(x0 + 16 + 40);
+  });
+});
+
+describe('Structure board: deleting and refusals', () => {
+  it('Del removes the selected agent and its connections; undo brings both back', async () => {
+    await board();
+    const user = userEvent.setup();
+    act(() => card('Reviewer').focus());
+    await user.keyboard('{Delete}');
+    expect(screen.queryByRole('button', { name: /^Reviewer — / })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Builder hands work to Reviewer' })).toBeNull();
+    await user.keyboard('{Control>}z{/Control}');
+    expect(card('Reviewer')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Builder hands work to Reviewer' })).toBeInTheDocument();
+  });
+
+  it('deletes a whole group by keyboard and undo restores it', async () => {
+    const grp = (id: string, x: number) => ({ id, label: id === 'team' ? 'Main group' : 'Side', x, y: 0, w: 248, h: 276 });
+    const d = teamDraft({
+      groups: [grp('team', 16), grp('side', 300)],
+      agents: [draftAgent('builder', { x: 40, y: 48, group_id: 'team' }), draftAgent('reviewer', { x: 328, y: 48, group_id: 'side' })],
+    });
+    await board(teamRecord({ draft: d }));
+    const user = userEvent.setup();
+    act(() => screen.getByRole('button', { name: /^Group: Side/ }).focus());
+    await user.keyboard('{Delete}');
+    expect(screen.queryByRole('button', { name: /^Group: Side/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(screen.getByRole('button', { name: /^Group: Side/ })).toBeVisible();
+    expect(card('Reviewer')).toBeVisible();
+  });
+});
+
+describe('Structure board: autosave', () => {
+  it('shows saving… then saved, and on a conflict keeps your edits and offers Reload', async () => {
+    saveTiming.delayMs = 150;
+    const server = await board();
+    const user = userEvent.setup();
+    await user.click(card('Builder'));
+    const name = screen.getByRole('textbox', { name: 'Name' });
+    await user.type(name, 'X');
+    expect(document.querySelector('.save-state')).toHaveTextContent('saving…');
+    await waitFor(() => expect(document.querySelector('.save-state')).toHaveTextContent('saved'));
+    vi.mocked(api.saveTeam).mockRejectedValue(new ApiError(409, 'draft_conflict', 'This team was changed somewhere else (it is now at version 9).'));
+    await user.type(name, 'Y');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('not saved: This team was changed somewhere else');
+    expect(name).toHaveValue('BuilderXY');
+    expect(card('BuilderXY')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start team' })).toBeDisabled();
+    server.rec = teamRecord({ draft: teamDraft({ revision: 9, name: 'Their team' }) });
+    await user.click(within(alert).getByRole('button', { name: 'Reload' }));
+    await waitFor(() => expect(document.querySelector('.save-state')).toHaveTextContent('saved'));
+    expect(card('Builder')).toBeInTheDocument();
+  });
+});
+
+describe('Structure board: problems and Start', () => {
+  const issue = (kind: 'agent' | 'connection', id: string, message: string) => ({
+    element: { kind, id },
+    severity: 'error' as const,
+    code: 'x',
+    message,
+    detail: null,
+    spec_path: null,
+  });
+
+  it('pins problems to their element, lists them, and Start says why it is disabled', async () => {
+    await board(
+      teamRecord({
+        issues: [issue('agent', 'reviewer', 'Reviewer needs a folder to work in'), issue('connection', 'c1', "Builder's connection loops back to itself")],
+      }),
+    );
+    const reviewer = card('Reviewer');
+    expect(reviewer).toHaveAccessibleName('Reviewer — Practice, 1 thing to fix');
+    expect(reviewer).toHaveAccessibleDescription('Reviewer needs a folder to work in');
+    expect(reviewer).toHaveTextContent('▲');
+    expect(screen.getByRole('button', { name: /^Builder hands work to Reviewer, 1 to fix/ })).toHaveTextContent('▲');
+    const start = screen.getByRole('button', { name: 'Start team' });
+    expect(start).toBeDisabled();
+    expect(start).toHaveAccessibleDescription(
+      "Start team: 2 things to fix: Reviewer needs a folder to work in; Builder's connection loops back to itself",
+    );
+    const fixes = screen.getByRole('region', { name: 'Things to fix' });
+    await userEvent.setup().click(within(fixes).getByRole('button', { name: /Reviewer needs a folder/ }));
+    expect(screen.getByRole('region', { name: 'Agent Reviewer' })).toBeInTheDocument();
+    await waitFor(() => expect(card('Reviewer')).toHaveFocus());
+  });
+
+  it('a start refused with problems shows them on the board', async () => {
+    await board();
+    vi.mocked(api.startTeam).mockRejectedValue(
+      new ApiError(422, 'team_invalid', '1 thing to fix', undefined, [issue('agent', 'builder', 'Builder needs a folder to work in')]),
+    );
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Start team' }));
+    expect(await screen.findByText(/Could not start: 1 thing to fix/)).toBeInTheDocument();
+    expect(card('Builder')).toHaveAccessibleName('Builder — Practice, 1 thing to fix');
+  });
+
+  // Hardening item 1: agent folders must sit inside home. The server's issues name the agent in plain words.
+  it.each([
+    ['folder-outside-home', '/etc/secret', "Builder's folder is outside your home folder", 'outside your home folder'],
+    ['folder-unreadable', '/home/me/locked', "Sculptured can't read Builder's folder: /home/me/locked", "can't be read"],
+    ['folder-bad-path', '/home/me/a/../b', "Builder's folder path can't be used: /home/me/a/../b", "path can't be used"],
+  ])('%s shows in plain words on the agent card, its panel and Things to fix', async (code, folder, message, short) => {
+    const rec = teamRecord({
+      draft: teamDraft({ agents: [draftAgent('builder', { x: 40, y: 40, folder }), draftAgent('reviewer', { x: 300, y: 40 })] }),
+      issues: [{ element: { kind: 'agent', id: 'builder' }, severity: 'error', code, message, detail: 'technical detail', spec_path: 'pods[0].members[0].cwd' }],
+    });
+    await board(rec);
+    const builder = card('Builder');
+    expect(builder).toHaveAccessibleName('Builder — Practice, 1 thing to fix');
+    expect(builder).toHaveAccessibleDescription(message);
+    const line = builder.querySelector('.sb-folder')!;
+    expect(line).toHaveTextContent(short);
+    expect(line).toHaveClass('tone-red');
+    expect(screen.getByRole('button', { name: 'Start team' })).toBeDisabled();
+    const fixes = screen.getByRole('region', { name: 'Things to fix' });
+    await userEvent.setup().click(within(fixes).getByRole('button', { name: message }));
+    const panel = screen.getByRole('region', { name: 'Agent Builder' });
+    expect(within(panel).getByRole('list', { name: 'Problems' })).toHaveTextContent(message);
+    expect(openRigWords(document.querySelector<HTMLElement>('.app')!)).toEqual([]);
+  });
+});
+
+describe('Structure board: words', () => {
+  it('uses no OpenRig words outside Advanced, with panels, menus and the folder picker open', async () => {
+    await board();
+    const user = userEvent.setup();
+    const app = () => document.querySelector<HTMLElement>('.app')!;
+    expect(openRigWords(app())).toEqual([]);
+    await user.click(card('Builder'));
+    await user.click(screen.getByRole('button', { name: 'Connect to…' }));
+    expect(openRigWords(app())).toEqual([]);
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Choose a folder for Builder' }));
+    await screen.findByRole('dialog', { name: 'Choose a folder' });
+    expect(openRigWords(app())).toEqual([]);
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Builder hands work to Reviewer' }));
+    expect(screen.getByRole('region', { name: 'Connection' })).toBeInTheDocument();
+    expect(openRigWords(app())).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Add a group' }));
+    expect(openRigWords(app())).toEqual([]);
+  });
+});
+
+describe('Structure board: viewport', () => {
+  it('keeps zoom across edits, and fits again on f', async () => {
+    await board();
+    const user = userEvent.setup();
+    const world = () => screen.getByTestId('structure-world').style.transform;
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }));
+    const zoomed = world();
+    expect(zoomed).toContain('scale(1.2)');
+    act(() => card('Builder').focus());
+    await user.keyboard('{ArrowDown}');
+    expect(world()).toBe(zoomed);
+  });
+});
+
+
+describe('Direct arrow and collapsed group editing', () => {
+  it('retargets an arrow on drop, preserves identity, and supports undo and keyboard editing', async () => {
+    await board(teamRecord({draft:teamDraft({agents:[draftAgent('builder',{x:40,y:40}),draftAgent('reviewer',{x:300,y:40}),draftAgent('third',{x:560,y:40})]})}));
+    sizeViewport();
+    fireEvent.click(document.querySelector('.edge-hit')!);
+    const handle=screen.getByRole('button',{name:/Change destination of/});
+    fireEvent.pointerDown(handle,{button:0,clientX:350,clientY:100,pointerId:2});
+    fireEvent.pointerMove(window,{clientX:650,clientY:100,pointerId:2});
+    fireEvent.pointerUp(window,{clientX:650,clientY:100,pointerId:2});
+    await waitFor(()=>expect(lastSaved().connections).toEqual([{id:'c1',from:'builder',to:'third',kind:'hands-work-to'}]));
+    await userEvent.click(screen.getByRole('button',{name:'Undo'}));
+    await waitFor(()=>expect(lastSaved().connections[0].to).toBe('reviewer'));
+    fireEvent.click(screen.getByRole('button',{name:/Change destination of/}),{detail:0});
+    await userEvent.selectOptions(screen.getByLabelText('Destination agent'),'third');
+    await waitFor(()=>expect(lastSaved().connections[0].to).toBe('third'));
+  });
+
+  it('moves a collapsed group and all its members by dragging its body without panning', async () => {
+    localStorage.clear();
+    await board(teamRecord({draft:teamDraft({groups:[{id:'g',label:'Workers',x:0,y:0,w:560,h:300}],agents:[draftAgent('builder',{x:40,y:40,group_id:'g'}),draftAgent('reviewer',{x:300,y:40,group_id:'g'})]})}));
+    await userEvent.click(screen.getByRole('button',{name:'Hide contents of Workers'}));
+    const body=document.querySelector('.group-collapsed')!, transform=screen.getByTestId('structure-world').style.transform;
+    fireEvent.pointerDown(body,{button:0,clientX:300,clientY:180,pointerId:1});
+    fireEvent.pointerMove(window,{clientX:380,clientY:260,pointerId:1});
+    fireEvent.pointerUp(window,{clientX:380,clientY:260,pointerId:1});
+    await waitFor(()=>expect(lastSaved().agents[0]).toMatchObject({x:120,y:120,group_id:'g'}));
+    expect(lastSaved().agents[1]).toMatchObject({x:380,y:120,group_id:'g'});
+    expect(screen.getByTestId('structure-world').style.transform).toBe(transform);
+    expect(document.getElementById('workspace-details')).not.toBeVisible();
+    expect(screen.queryByRole('button',{name:/Builder —/})).not.toBeInTheDocument();
+  });
+
+  it('drags workflow branch destinations without adding ordinary connections', async () => {
+    vi.mocked(api.workflow).mockResolvedValue({config:null,run:null,active:false});
+    await board(teamRecord({draft:teamDraft({agents:[draftAgent('builder',{x:40,y:40}),draftAgent('reviewer',{x:300,y:40}),draftAgent('frontend',{x:560,y:40})],connections:[],workflow:{input:'',dispatcher:'builder',collector:'frontend',entry:'review',max_tasks:24,max_steps:12,stages:[{id:'review',name:'Review',agent:'reviewer',routes:{revise:'review',accept:null}}]}})}));
+    sizeViewport();
+    fireEvent.click(document.querySelector('[data-workflow-route="review:revise"]')!);
+    const handle=screen.getByRole('button',{name:'Change destination of revise'});
+    fireEvent.pointerDown(handle,{button:0,clientX:380,clientY:100,pointerId:2});
+    fireEvent.pointerMove(window,{clientX:650,clientY:100,pointerId:2});
+    fireEvent.pointerUp(window,{clientX:650,clientY:100,pointerId:2});
+    await waitFor(()=>expect(lastSaved().workflow?.stages[0].routes.revise).toBeNull());
+    expect(lastSaved().connections).toEqual([]);
+    await userEvent.click(screen.getByRole('button',{name:'Undo'}));
+    await waitFor(()=>expect(lastSaved().workflow?.stages[0].routes.revise).toBe('review'));
+  });
+});
+
+it('does not auto-fit the viewport after a drag changes the drawing bounds', async () => {
+  localStorage.clear();
+  const width=vi.spyOn(HTMLElement.prototype,'clientWidth','get').mockReturnValue(1000);
+  const height=vi.spyOn(HTMLElement.prototype,'clientHeight','get').mockReturnValue(800);
+  try {
+    await board();
+    const transform=screen.getByTestId('structure-world').style.transform;
+    fireEvent.pointerDown(card('Reviewer'),{button:0,clientX:600,clientY:300,pointerId:1});
+    fireEvent.pointerMove(window,{clientX:900,clientY:500,pointerId:1});
+    fireEvent.pointerUp(window,{clientX:900,clientY:500,pointerId:1});
+    await waitFor(()=>expect(api.saveTeam).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('structure-world').style.transform).toBe(transform);
+  } finally { width.mockRestore(); height.mockRestore(); }
+});
+
+it('shows every card in full on request, and back', async()=>{
+  localStorage.clear();
+  await board(teamRecord({draft:teamDraft()}));
+  const toggle=screen.getByRole('button',{name:'Full text'});
+  expect(toggle).toHaveAttribute('aria-pressed','false');
+  await userEvent.click(toggle);
+  expect(toggle).toHaveAttribute('aria-pressed','true');
+  expect(document.querySelectorAll('.sb-slot.full-text').length).toBeGreaterThan(0);
+  await userEvent.click(toggle);
+  expect(document.querySelectorAll('.sb-slot.full-text').length).toBe(0);
+});
+
+it('sets the folder for every agent from the board toolbar', async()=>{
+  await board(teamRecord({draft:teamDraft({folder:'/home/me/proj'})}));
+  const button=screen.getByRole('button',{name:/^Project folder: .*proj/});
+  await userEvent.click(button);
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+});
+
+it('drags a stage box like Input, saving its position, and moves it by keyboard', async()=>{
+  localStorage.clear();vi.mocked(api.workflow).mockResolvedValue({config:null,run:null,active:false});
+  const d=teamDraft({connections:[],workflow:{input:'',dispatcher:'builder',collector:'reviewer',entry:'build',max_tasks:24,max_steps:12,stages:[
+    {id:'build',name:'Build',agent:'builder',routes:{done:'chief'}},{id:'chief',name:'Sign-off',agent:'',kind:'human',prompt:'Ship it?',routes:{ship:null,rework:'build'},position:{x:600,y:400}}]}});
+  await board(teamRecord({draft:d}));sizeViewport();
+  const box=screen.getByRole('button',{name:/^Person decides: Sign-off/});
+  fireEvent.pointerDown(box,{button:0,clientX:100,clientY:100,pointerId:1});
+  fireEvent.pointerMove(window,{clientX:180,clientY:260,pointerId:1});fireEvent.pointerUp(window,{clientX:180,clientY:260,pointerId:1});fireEvent.click(box);
+  await waitFor(()=>expect(lastSaved().workflow?.stages[1].position).toEqual({x:680,y:560}));
+  fireEvent.keyDown(box,{key:'ArrowRight',shiftKey:true});
+  await waitFor(()=>expect(lastSaved().workflow?.stages[1].position).toEqual({x:744,y:560}));
+});
+
+it('drags Input without opening its editor, saves the position and supports keyboard movement and undo', async()=>{
+  localStorage.clear();vi.mocked(api.workflow).mockResolvedValue({config:null,run:null,active:false});
+  const d=teamDraft({connections:[],workflow:{input:'Keep these notes',dispatcher:'builder',collector:'reviewer',entry:'build',max_tasks:24,max_steps:12,stages:[{id:'build',name:'Build',agent:'builder',routes:{done:null}}]}});
+  await board(teamRecord({draft:d}));sizeViewport();
+  const input=screen.getByRole('button',{name:'Input: links, notes and ideas'}),world=screen.getByTestId('structure-world').style.transform;
+  fireEvent.pointerDown(input,{button:0,clientX:100,clientY:100,pointerId:1});fireEvent.focus(input);
+  fireEvent.pointerMove(window,{clientX:180,clientY:260,pointerId:1});fireEvent.pointerUp(window,{clientX:180,clientY:260,pointerId:1});fireEvent.click(input);
+  await waitFor(()=>expect(lastSaved().workflow?.input_position).toEqual({x:-200,y:200}));
+  expect(screen.queryByLabelText('Workflow input')).not.toBeInTheDocument();expect(lastSaved().workflow?.input).toBe('Keep these notes');expect(screen.getByTestId('structure-world').style.transform).toBe(world);
+  fireEvent.keyDown(input,{key:'ArrowRight',shiftKey:true});
+  await waitFor(()=>expect(lastSaved().workflow?.input_position).toEqual({x:-136,y:200}));
+  await userEvent.click(screen.getByRole('button',{name:'Undo'}));
+  await waitFor(()=>expect(lastSaved().workflow?.input_position).toEqual({x:-200,y:200}));
+  fireEvent.pointerDown(input,{button:0,clientX:100,clientY:100,pointerId:2});fireEvent.pointerMove(window,{clientX:180,clientY:260,pointerId:2});fireEvent.pointerCancel(window,{pointerId:2});
+  expect(input.style.left).toBe('-200px');
+  fireEvent.click(input,{detail:0});expect(screen.getByLabelText('Workflow input')).toHaveValue('Keep these notes');
+});
+it('keeps setup errors dismissible without re-opening on a draft update',async()=>{
+ await board(teamRecord({issues:[{element:{kind:'agent',id:'reviewer'},severity:'error',code:'folder-missing',message:'Reviewer needs a folder to work in',detail:null,spec_path:null}]}));
+ const disclosure=document.querySelector('.structure-status')!;expect(disclosure).not.toHaveAttribute('open');
+ await userEvent.click(within(disclosure as HTMLElement).getByText('Needs setup'));
+ expect(disclosure).toHaveAttribute('open');await userEvent.click(screen.getByRole('button',{name:'Dismiss setup notice'}));expect(disclosure).not.toHaveAttribute('open');
+ expect(screen.getByRole('button',{name:'Start team'})).toBeDisabled();
+});

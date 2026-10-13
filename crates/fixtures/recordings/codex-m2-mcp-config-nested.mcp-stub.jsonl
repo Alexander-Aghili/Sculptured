@@ -1,0 +1,6 @@
+{"dir":"meta","line":{"args":["--log","/tmp/codex-probe/out/codex-m2-mcp-config-nested.mcp-stub.jsonl"],"env_RIG_PROBE_TOKEN_present":true,"program":"mcp-ping-stub"},"t_ms":0}
+{"dir":"in","line":{"id":0,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{"elicitation":{"form":{},"url":{}},"experimental":{"codex/auth-change":{}}},"clientInfo":{"name":"codex-mcp-client","title":"Codex","version":"0.160.1"},"protocolVersion":"2025-06-18"}},"t_ms":0}
+{"dir":"out","line":{"id":0,"jsonrpc":"2.0","result":{"capabilities":{"tools":{}},"protocolVersion":"2025-06-18","serverInfo":{"name":"mcp-ping-stub","version":"0.0.0"}}},"t_ms":0}
+{"dir":"in","line":{"jsonrpc":"2.0","method":"notifications/initialized"},"t_ms":0}
+{"dir":"in","line":{"id":1,"jsonrpc":"2.0","method":"tools/list","params":{"_meta":{"progressToken":0}}},"t_ms":0}
+{"dir":"out","line":{"id":1,"jsonrpc":"2.0","result":{"tools":[{"description":"Answers pong with the given message. A harmless probe tool.","inputSchema":{"properties":{"message":{"description":"Any short text.","type":"string"}},"required":["message"],"type":"object"},"name":"ping"}]}},"t_ms":0}

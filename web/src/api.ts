@@ -1,0 +1,255 @@
+import { track } from './hosted/analytics';
+import type { RigSummary } from './generated/RigSummary';
+import type { EventRecord } from './generated/EventRecord';
+import type { Diagnostic } from './generated/Diagnostic';
+import type { MessageIntent } from './generated/MessageIntent';
+import type { StopRigOutcome } from './generated/StopRigOutcome';
+import type { DraftIssue } from './generated/DraftIssue';
+import type { FolderEntry } from './generated/FolderEntry';
+import type { FolderListing } from './generated/FolderListing';
+import type { TeamDraft } from './generated/TeamDraft';
+import type { WorkflowRun } from './generated/WorkflowRun';
+import type { Workflow } from './generated/Workflow';
+import type { TeamImport } from './generated/TeamImport';
+import type { TeamRecord } from './generated/TeamRecord';
+import type { TeamSpec } from './generated/TeamSpec';
+import type { TeamSummary } from './generated/TeamSummary';
+import type { TemplateInfo } from './generated/TemplateInfo';
+import type { Answer } from './generated/Answer';
+import type { InboxItem } from './generated/InboxItem';
+import type { QuestionView } from './generated/QuestionView';
+import type { Settings } from './generated/Settings';
+import type { TeamSettings } from './generated/TeamSettings';
+import type { RestoreDecision } from './generated/RestoreDecision';
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public code: string,
+    message: string,
+    public diagnostics?: Diagnostic[],
+    /** Plain-language problems pinned to draft elements (a team that cannot start). */
+    public issues?: DraftIssue[],
+    /** What a tool answered when it could not be used (evidence for the user). */
+    public raw?: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/** Rows per history page; a full page means older events exist that were not loaded. */
+export const HISTORY_LIMIT = 500;
+
+/** One id per user action; reusing it makes a retry or a double-click execute once. */
+export function newRequestId(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  return `req-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+}
+
+/** `keepalive` lets a request outlive the page (a save sent as the page goes away). */
+/** `text`: send this body as-is with its content type (a file), not as JSON. */
+type RequestOptions = { keepalive?: boolean; text?: { body: string; type: string }; signal?: AbortSignal };
+
+let csrfToken: string | null = null;
+/** Hosted beta: the gateway's per-session CSRF token, sent with every write. */
+export function setCsrf(token: string | null) { csrfToken = token; }
+
+async function request<T>(method: 'GET' | 'POST' | 'PUT', url: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (opts.text) headers['content-type'] = opts.text.type;
+  else if (body !== undefined) headers['content-type'] = 'application/json';
+  if (method !== 'GET' && csrfToken) headers['x-csrf-token'] = csrfToken;
+  const res = await fetch(url, {
+    method,
+    ...(opts.keepalive ? { keepalive: true } : {}),
+    ...(opts.signal ? { signal: opts.signal } : {}),
+    headers: Object.keys(headers).length ? headers : undefined,
+    body: opts.text ? opts.text.body : body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    // Not JSON: an axum extractor rejection (text/plain) or an HTML page.
+    throw new ApiError(res.status, 'http_error', text.slice(0, 200));
+  }
+  if (json === null || typeof json !== 'object') {
+    // Valid JSON but not an object or array (null, a number, a string).
+    throw new ApiError(res.status, 'http_error', text.slice(0, 200));
+  }
+  if (!res.ok) {
+    const e = json.error ?? {};
+    throw new ApiError(res.status, e.code ?? 'http_error', e.message ?? `HTTP ${res.status}`, e.diagnostics, e.issues, e.raw);
+  }
+  return json as T;
+}
+
+const get = <T>(url: string) => request<T>('GET', url);
+
+/** A POST that carries the action's request id first, then its fields. */
+const post = <T>(url: string, requestId: string, fields: object = {}) =>
+  request<T>('POST', url, { request_id: requestId, ...fields });
+
+const rigUrl = (name: string) => `/api/rigs/${encodeURIComponent(name)}`;
+const seatUrl = (id: string) => `/api/seats/${encodeURIComponent(id)}`;
+
+const teamUrl = (id: string) => `/api/teams/${encodeURIComponent(id)}`;
+const questionUrl = (id: string) => `/api/questions/${encodeURIComponent(id)}`;
+
+/** What the generator is told before it drafts a team (all optional but the CLI). */
+export type GenerateOptions = {
+  cli: 'claude' | 'codex';
+  model: string | null;
+  size: '2-3' | '4-6' | '7-10' | null;
+  kinds: 'claude' | 'codex' | 'mixed' | 'practice' | null;
+  shape: 'chain' | 'lead' | 'reviewers' | null;
+  checks: boolean;
+  folder: string | null;
+  host?: string | null;
+  team?: string | null;
+};
+/** One drafted team: a `sculptured.team/v1` file, what was left out, and its issues. */
+export type GeneratedTeam = { label: string; rationale: string; file: TeamFileV1; dropped: string[]; issues: DraftIssue[] };
+export type TeamFileV1 = { format: string; team: import('./generated/TeamDraft').TeamDraft; settings: { posture?: string | null; own_copies: boolean; question_timeout_min?: number | null } };
+
+export type StartResult = { rig: string; warnings: DraftIssue[] };
+
+export type SendBody = { text: string; intent: MessageIntent; interrupt: boolean };
+type Empty = Record<string, never>;
+
+export const api = {
+  /** Hosted: `host` picks the computer (else the only connected one). */
+  clis: (host?: string) => get<import('./generated/CliStatus').CliStatus[]>(host ? `/api/clis?host=${encodeURIComponent(host)}` : '/api/clis'),
+  /** Connected computers (agent runners) with their drivers and, for connected computers, what they allow. */
+  hosts: () => get<{ id: string; drivers: string[]; policy: import('./generated/HostPolicyInfo').HostPolicyInfo | null }[]>('/api/hosts'),
+  planUsage: () => get<import('./generated/PlanUsageView').PlanUsageView[]>('/api/plan-usage'),
+  teamUsage: (id: string) => get<import('./generated/TeamUsage').TeamUsage>(`${teamUrl(id)}/usage`),
+  cliLogin: (name: string, host?: string) => post<import('./generated/LoginStarted').LoginStarted>(`/api/clis/${name}/login${host ? `?host=${encodeURIComponent(host)}` : ''}`, newRequestId()),
+  deployments: (id:string,before?:number) => get<import('./generated/DeploymentRun').DeploymentRun[]>(`${teamUrl(id)}/deployments${before ? `?before=${before}` : ''}`),
+  deployment: (id:string,seq:number) => get<import('./generated/DeploymentHistory').DeploymentHistory>(`${teamUrl(id)}/deployments/${seq}`),
+  deploymentEvents: (id:string,seq:number,seat:string,before?:number) => get<import('./generated/DeploymentEvents').DeploymentEvents>(`${teamUrl(id)}/deployments/${seq}/events?seat=${encodeURIComponent(seat)}${before ? `&before=${before}` : ''}`),
+  teamBudget: (id: string) => get<import("./generated/TeamBudget").TeamBudget>(`${teamUrl(id)}/budget`),
+  setTeamBudget: (id: string, output_limit: number | null) => post(`${teamUrl(id)}/budget`, newRequestId(), {output_limit}),
+  managedChildren: (id:string) => get<import('./generated/ManagedChild').ManagedChild[]>(`${teamUrl(id)}/children`),
+  communications: (id: string) => get<EventRecord[]>(`${teamUrl(id)}/communications`),
+  agentControl: (id: string) => get<{mode: string | null}>(`${seatUrl(id)}/control`),
+  controlAgent: (id: string, mode: "soft" | "hard" | "resume", requestId: string) => post(`${seatUrl(id)}/control`, requestId, {mode}),
+  workflow: (id: string) => get<{ config: Workflow | null; run: WorkflowRun | null; active: boolean; usage?: Record<string, import('./generated/TurnTokens').TurnTokens> }>(`${teamUrl(id)}/workflow`),
+  retryWorkflow: (id: string, task: string, start_seq: number) => request('POST', `${teamUrl(id)}/workflow/retry`, { task, start_seq }),
+  decideWorkflow: (id: string, body: { task: string; outcome: string; note: string; start_seq: number; log: boolean }) => request<{ decided: string }>('POST', `${teamUrl(id)}/workflow/decide`, body),
+  scheduleRuns: (id: string) => get<import('./generated/ScheduleRun').ScheduleRun[]>(`${teamUrl(id)}/schedules`),
+  resumeGuard: (id: string, start_seq: number) => request<{ resumed: boolean }>('POST', `${teamUrl(id)}/workflow/guard/resume`, { start_seq }),
+  decisions: (id: string) => get<import('./generated/DecisionEntry').DecisionEntry[]>(`${teamUrl(id)}/decisions`),
+  addDecision: (id: string, text: string) => request<{ id: string }>('POST', `${teamUrl(id)}/decisions`, { text }),
+  hideDecision: (id: string, entry: string) => request<{ hidden: string }>('POST', `${teamUrl(id)}/decisions/${encodeURIComponent(entry)}/hide`, {}),
+  listRigs: () => get<RigSummary[]>('/api/rigs'),
+  boot: (specPath: string, requestId = newRequestId()) =>
+    post<{ rig: string; diagnostics: Diagnostic[] }>('/api/rigs', requestId, { spec_path: specPath }),
+  stopRig: (name: string, requestId = newRequestId()) =>
+    post<StopRigOutcome>(`${rigUrl(name)}/stop`, requestId),
+  latestSeatEvents: (id: string, tail = HISTORY_LIMIT) =>
+    get<EventRecord[]>(`${seatUrl(id)}/events?tail=${tail}`),
+  send: (id: string, msg: SendBody, requestId = newRequestId()) =>
+    post<{ message_id: string }>(`${seatUrl(id)}/send`, requestId, msg),
+  interrupt: (id: string, requestId = newRequestId()) =>
+    post<Empty>(`${seatUrl(id)}/interrupt`, requestId),
+  stopSeat: (id: string, requestId = newRequestId()) =>
+    post<Empty>(`${seatUrl(id)}/stop`, requestId),
+  /** Relaunch one agent of a running team; it then gets what it is owed. */
+  restartSeat: (id: string, requestId = newRequestId()) =>
+    post<Empty>(`${seatUrl(id)}/restart`, requestId),
+  /** "Hand over again": pass the agent's latest finished turn to its downstream agents once. */
+  handOver: (id: string, requestId = newRequestId()) =>
+    post<Empty>(`${seatUrl(id)}/handover`, requestId),
+  /** Re-send the agent's handoffs that never reached it. */
+  resendHandoffs: (id: string, requestId = newRequestId()) =>
+    post<{ resent: number }>(`${seatUrl(id)}/resend`, requestId),
+
+  projectVisibility: () => get<import('./generated/ProjectVisibility').ProjectVisibility[]>('/api/project-visibility'),
+  setProjectVisibility: (id:string,status:import('./generated/ProjectVisibilityStatus').ProjectVisibilityStatus) => request<import('./generated/ProjectVisibility').ProjectVisibility>('PUT', `/api/project-visibility/${encodeURIComponent(id)}`, {status}),
+  listTeams: () => get<TeamSummary[]>('/api/teams'),
+  prepareTextbook: (id: string, revision: number) => request<{folder:string;files:number;commands:string[]}>('POST', `${teamUrl(id)}/textbook/prepare`, {revision}),
+  templates: () => get<TemplateInfo[]>('/api/team-templates'),
+  topicExecution: (id: string, body: {task:string;start_seq:number;mode:import('./generated/TopicMode').TopicMode;depends_on:string[];previous_mode:import('./generated/TopicMode').TopicMode;previous_depends_on:string[]}) => request<import('./generated/WorkflowRun').WorkflowRun>('POST', `${teamUrl(id)}/workflow/topic`, body),
+  getTeam: (id: string) => get<TeamRecord>(teamUrl(id)),
+  teamSpec: (id: string) => get<TeamSpec>(`${teamUrl(id)}/spec`),
+  groupBlocks: () => get<import('./generated/GroupBlock').GroupBlock[]>('/api/group-blocks'),
+  saveGroupBlock: (block: import('./generated/GroupBlock').GroupBlock, requestId = newRequestId()) => request<import('./generated/GroupBlock').GroupBlock>('PUT', `/api/group-blocks/${encodeURIComponent(block.id)}`, {request_id:requestId,block}),
+  createTeam: (template: string, practice: boolean, name: string | null, requestId = newRequestId()) =>
+    post<TeamRecord>('/api/teams', requestId, { template, practice, name }),
+  saveTeam: (id: string, revision: number, draft: TeamDraft, requestId = newRequestId(), opts?: RequestOptions) =>
+    request<TeamRecord>('PUT', teamUrl(id), { request_id: requestId, revision, draft }, opts),
+  /** `overPlanLimit`: start although a plan the team uses is near its limit (the server's `plan_limit` refusal). */
+  startTeam: (id: string, revision: number, requestId = newRequestId(), overPlanLimit = false) =>
+    post<StartResult>(`${teamUrl(id)}/start`, requestId, overPlanLimit ? { revision, over_plan_limit: true } : { revision }),
+  stopTeam: (id: string, requestId = newRequestId()) =>
+    post<StopRigOutcome>(`${teamUrl(id)}/stop`, requestId),
+  importTeam: (yaml: string, requestId = newRequestId()) =>
+    post<TeamImport>('/api/teams/import', requestId, { yaml }),
+  /** A `sculptured.team/v1` file; `folders` keeps this computer's folder paths. */
+  teamFile: (id: string, folders = false) => {
+    track('export-team-file');
+    return get<unknown>(`${teamUrl(id)}/file${folders ? '?folders=true' : ''}`);
+  },
+  /** Download address of a run as a `sculptured.session/v1` file. */
+  runFileUrl: (id: string, seq: number) => `${teamUrl(id)}/deployments/${seq}/session`,
+  importRun: (text: string) => {
+    track('import-run');
+    return request<{ team: TeamRecord; run: import('./generated/DeploymentRun').DeploymentRun; warnings: DraftIssue[] }>('POST', '/api/runs/import', undefined, { text: { body: text, type: 'application/x-ndjson' } });
+  },
+  importTeamFile: (file: unknown, requestId = newRequestId(), origin?: import('./generated/TeamOrigin').TeamOrigin) => {
+    // A team drafted with Describe it (it has an origin) is not a file import.
+    if (!origin) track('import-team-file');
+    return post<{ team: TeamRecord; warnings: DraftIssue[] }>('/api/teams/import-file', requestId, origin ? { file, origin } : { file });
+  },
+  /** The import's checks for a team file, without creating anything. */
+  checkTeamFile: (file: unknown) => request<{ issues: DraftIssue[] }>('POST', '/api/teams/check-file', { file }),
+  /** Your own Claude Code / Codex asks 2–4 questions about the described team. */
+  generateQuestions: (body: { options: GenerateOptions; prompt: string }, signal?: AbortSignal) =>
+    request<{ questions: { question: string; suggestions: string[] }[] }>('POST', '/api/generate/questions', body, { signal }),
+  /** Your own Claude Code / Codex drafts 1 or 3 teams, as team files with their issues. */
+  generateTeams: (body: { options: GenerateOptions; prompt: string; answers: { question: string; answer: string }[]; count: 1 | 3 }, signal?: AbortSignal) =>
+    request<{ alternatives: GeneratedTeam[]; cli: string; model: string | null }>('POST', '/api/generate/teams', body, { signal }),
+  /** Hosted: `on.team` browses the computer that runs that team; `on.host` a given computer. */
+  listFolders: (path?: string, on: { team?: string; host?: string } = {}) => {
+    const qs = Object.entries({ path, team: on.team, host: on.host })
+      .filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v!)}`).join('&');
+    return get<FolderListing>(qs ? `/api/folders?${qs}` : '/api/folders');
+  },
+  createFolder: (parent: string, name: string, requestId = newRequestId(), on: { team?: string; host?: string } = {}) =>
+    post<FolderEntry>('/api/folders', requestId, { parent, name, ...on }),
+
+  inbox: () => request<InboxItem[]>('GET', '/api/inbox'),
+  seatQuestions: (id: string) => request<QuestionView[]>('GET', `${seatUrl(id)}/questions`),
+  answer: (questionId: string, answer: Answer, requestId = newRequestId()) => {
+    track('answer-question');
+    return request<QuestionView>('POST', `${questionUrl(questionId)}/answer`, { request_id: requestId, answer });
+  },
+  /** Sends the recorded answer (or expiry) again when it may not have reached the agent (`QuestionView.unconfirmed`). */
+  sendAgain: (questionId: string, requestId = newRequestId()) =>
+    request<QuestionView>('POST', `${questionUrl(questionId)}/send-again`, { request_id: requestId }),
+  acknowledge: (questionId: string, requestId = newRequestId()) =>
+    request<QuestionView>('POST', `${questionUrl(questionId)}/acknowledge`, { request_id: requestId }),
+  machineMetrics: () => request<import('./generated/MachineSample').MachineSample[]>('GET','/api/system/metrics'),
+  gitStatus: (id:string) => request<import('./generated/GitSnapshot').GitSnapshot>('GET',`${teamUrl(id)}/git`),
+  gitDiff: (id:string,path:string,staged:boolean) => request<{text:string}>('GET',`${teamUrl(id)}/git/diff?path=${encodeURIComponent(path)}&staged=${staged}`),
+  gitAction: (id:string,action:string,fingerprint:string,paths:string[]=[],message='') => request<import('./generated/GitSnapshot').GitSnapshot>('POST',`${teamUrl(id)}/git/action`,{request_id:newRequestId(),action,fingerprint,paths,message}),
+  settings: () => request<Settings>('GET', '/api/settings'),
+  saveSettings: (settings: Settings, requestId = newRequestId()) =>
+    request<Settings>('PUT', '/api/settings', { request_id: requestId, settings }),
+  runCheck: (seat: string) => request<null>('POST', `/api/seats/${encodeURIComponent(seat)}/check`, {}),
+  copies: (id: string) => request<import('./generated/AgentCopies').AgentCopies>('GET', `${teamUrl(id)}/copies`),
+  copyAction: (id: string, action: 'merge' | 'remove', seat: string, requestId = newRequestId()) =>
+    request<import('./generated/AgentCopies').AgentCopies>('POST', `${teamUrl(id)}/copies/${action}`, { request_id: requestId, seat }),
+  teamSettings: (id: string) => request<TeamSettings>('GET', `${teamUrl(id)}/settings`),
+  saveTeamSettings: (id: string, settings: TeamSettings, requestId = newRequestId()) =>
+    request<TeamSettings>('PUT', `${teamUrl(id)}/settings`, { request_id: requestId, settings }),
+  restore: (seat: string, decision: RestoreDecision, requestId = newRequestId()) =>
+    request<Empty>('POST', `${seatUrl(seat)}/restore`, { request_id: requestId, decision }),
+  /** The team's one answer to "Resume N agents?" after a restart (decision 1): applies to every agent waiting. */
+  restoreTeam: (team: string, decision: RestoreDecision, requestId = newRequestId()) =>
+    request<Empty>('POST', `${teamUrl(team)}/restore`, { request_id: requestId, decision }),
+};

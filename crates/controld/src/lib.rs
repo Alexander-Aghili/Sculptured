@@ -1,0 +1,52 @@
+mod group_blocks;
+pub mod collaboration;
+pub mod auth;
+pub mod api;
+pub mod portable;
+pub mod generate;
+pub mod analytics;
+pub mod clis;
+pub mod checks;
+pub mod hosted;
+pub mod copies;
+pub mod ops;
+pub mod plan_usage;
+pub mod usage;
+pub mod background;
+pub mod error;
+pub mod extract;
+pub mod folders;
+pub mod guard;
+pub mod handoffs;
+pub mod stream;
+pub mod hosts;
+mod idempotent;
+pub mod interpret;
+pub mod launch;
+pub mod posture;
+pub(crate) mod projections;
+pub mod questions;
+pub mod reconciler;
+pub mod restore;
+pub mod seat_tools;
+mod seat_ids;
+#[cfg(feature = "test-seams")]
+pub mod seams;
+pub mod settings;
+pub mod state;
+pub mod decisions;
+pub mod schedules;
+pub mod store;
+pub mod teams;
+mod team_context;
+pub mod views;
+pub mod workflow;
+
+pub use api::app;
+pub use error::ApiError;
+pub use state::AppState;
+
+pub mod git;
+pub mod monitor;
+
+mod project_visibility;

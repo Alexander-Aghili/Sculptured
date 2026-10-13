@@ -1,0 +1,4 @@
+{"dir":"in","line":{"args":{"options":["Blue","Green"],"question":"Which colour?"},"token":"<redacted>","tool":"request_input"},"t_ms":8238}
+{"dir":"out","line":{"error":null,"ok":true,"result":{"question_id":"probe-q1","text":"Blue","timed_out":false}},"t_ms":8238}
+{"dir":"in","line":{"args":{"summary":"probe"},"token":"<redacted>","tool":"report"},"t_ms":14733}
+{"dir":"out","line":{"error":null,"ok":true,"result":{"text":"Recorded your report."}},"t_ms":14733}

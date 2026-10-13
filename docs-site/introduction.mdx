@@ -1,0 +1,27 @@
+---
+title: Introduction
+description: Compose a team of coding agents, watch their work, and steer them toward a shared goal.
+---
+
+Sculptured is a local workspace for **Codex and Claude Code agents**. Arrange their roles on a board, define how they hand work to one another, and inspect their conversations while they work.
+
+The board remains your main interface. Documentation lives here, separately from the application.
+
+<CardGroup cols={2}>
+  <Card title="Start your first team" icon="play" href="/quickstart">Install, choose a folder, and start a small team.</Card>
+  <Card title="Compose on the board" icon="diagram-project" href="/guides/board">Agents, groups, arrows, input, and reusable blocks.</Card>
+  <Card title="Control live agents" icon="sliders" href="/guides/control">Send guidance, interrupt, wrap up, or stop.</Card>
+  <Card title="Use your community account" icon="users" href="/guides/community">Manage saved blocks and your publications.</Card>
+</CardGroup>
+
+## Design, run, inspect
+
+1. **Structure** is the editable design: planned agents, groups, inputs, and connections.
+2. **Live** shows current sessions, observed communication, and managed child relationships.
+3. **Visual progress** and transcripts expose the evidence behind an agent's updates.
+
+<Note>Reported completion and independently passing checks are different states. An agent saying “done” does not prove its result is correct.</Note>
+
+## Local execution, shared definitions
+
+Projects, files, private Library groups, transcripts, and Git operations stay on your machine. Community accounts and published group definitions live in a separate PostgreSQL service. Downloading a block never starts an agent.

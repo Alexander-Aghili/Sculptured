@@ -1,0 +1,31 @@
+[package]
+name = "hostd"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+model.workspace = true
+drivers.workspace = true
+host-proto.workspace = true
+rusqlite.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+localops.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+tokio-tungstenite.workspace = true
+# The crypto provider for wss:// (rustls picks it automatically when it is the only one).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tracing.workspace = true
+thiserror.workspace = true
+libc.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+async-trait.workspace = true
+
+[lints]
+workspace = true

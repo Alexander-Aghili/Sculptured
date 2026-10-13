@@ -1,0 +1,303 @@
+//! The team graph the builder edits. Ids are assigned once and never change; names are
+//! free text and reach the RigSpec only as labels.
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+/// The group (pod) of agents that have no explicit group.
+pub const DEFAULT_GROUP_ID: &str = "team";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum AgentKind {
+    Claude,
+    Codex,
+    /// Runs the stub driver: no model calls, no cost.
+    Practice,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum PermissionPosture {
+    #[default]
+    Unrestricted,
+    Restricted,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum ResumeBehaviour {
+    #[default]
+    ResumeIfPossible,
+    RelaunchFresh,
+    CheckpointOnly,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct AgentAdvanced {
+    /// This agent's own model, overriding its group's and team's default for its kind. None = inherit.
+    pub model: Option<String>,
+    #[serde(default)]
+    pub permission: PermissionPosture,
+    #[serde(default)]
+    pub resume: ResumeBehaviour,
+    /// Tokens this agent may use in one run; reaching it soft-stops the agent. None = no limit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub token_limit: Option<TokenLimit>,
+    /// A shell command Sculptured runs in the agent's folder after each turn it finishes (exit 0 =
+    /// passed). None = no check.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub check: Option<String>,
+}
+
+/// A per-agent token limit for one run (since the team started).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct TokenLimit {
+    #[ts(type = "number")]
+    pub tokens: u64,
+    #[serde(default)]
+    pub counts: TokenCount,
+    /// Count the agents it spawns (and theirs) toward this agent's limit.
+    #[serde(default = "yes")]
+    pub include_subagents: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// Which reported tokens count toward a limit.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum TokenCount {
+    /// Input, output, cache reads and cache writes.
+    #[default]
+    All,
+    /// Everything except cache reads.
+    New,
+    Output,
+}
+
+impl TokenCount {
+    /// The counted share of `[input, output, cache_read, cache_write]`.
+    pub fn of(self, t: [u64; 4]) -> u64 {
+        match self {
+            TokenCount::All => t.iter().sum(),
+            TokenCount::New => t[0] + t[1] + t[3],
+            TokenCount::Output => t[1],
+        }
+    }
+}
+
+/// Per-provider model defaults for a team or a group. None = inherit (group, then team, then the
+/// CLI's own default). An agent keeps its Claude-or-Codex kind and may override with `AgentAdvanced.model`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct ModelDefaults {
+    /// For Claude agents: an alias (`opus`, `sonnet`) or a full model id.
+    #[serde(default)]
+    pub claude: Option<String>,
+    /// For Codex agents: a model slug (e.g. `gpt-6-sol`).
+    #[serde(default)]
+    pub codex: Option<String>,
+}
+
+impl ModelDefaults {
+    /// The default for one kind of agent; Practice agents never have one.
+    pub fn for_kind(&self, kind: AgentKind) -> Option<&str> {
+        match kind {
+            AgentKind::Claude => self.claude.as_deref(),
+            AgentKind::Codex => self.codex.as_deref(),
+            AgentKind::Practice => None,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.claude.is_none() && self.codex.is_none()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct DraftAgent {
+    /// Immutable; becomes the RigSpec member id.
+    pub id: String,
+    /// None = the default group (`DEFAULT_GROUP_ID`).
+    pub group_id: Option<String>,
+    pub name: String,
+    pub kind: AgentKind,
+    /// Plain-language instructions, sent as the agent's first message at start.
+    #[serde(default)]
+    pub job: String,
+    /// Absolute path. Practice agents may leave it empty (they use the home folder).
+    pub folder: Option<String>,
+    pub x: i32,
+    pub y: i32,
+    #[serde(default)]
+    pub advanced: AgentAdvanced,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct DraftGroup {
+    /// Immutable; becomes the RigSpec pod id.
+    pub id: String,
+    pub label: String,
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+    /// This group's model per provider; absent = inherit the team's.
+    #[serde(default, skip_serializing_if = "ModelDefaults::is_empty")]
+    #[ts(as = "Option<ModelDefaults>", optional)]
+    pub models: ModelDefaults,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum ConnectionKind {
+    /// `delegates_to`: the giver starts before the receiver.
+    HandsWorkTo,
+    /// `escalates_to`: design intent, not enforced.
+    ReportsTo,
+    /// `can_observe`: design intent, not enforced.
+    Watches,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct DraftConnection {
+    pub id: String,
+    pub from: String,
+    pub to: String,
+    pub kind: ConnectionKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct TeamDraft {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub workflow: Option<crate::Workflow>,
+    /// Default working folder for agents without their own override.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub folder: Option<String>,
+    /// Immutable; becomes the rig name.
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub groups: Vec<DraftGroup>,
+    #[serde(default)]
+    pub agents: Vec<DraftAgent>,
+    #[serde(default)]
+    pub connections: Vec<DraftConnection>,
+    /// The team's model per provider; absent = the CLI's own default.
+    #[serde(default, skip_serializing_if = "ModelDefaults::is_empty")]
+    #[ts(as = "Option<ModelDefaults>", optional)]
+    pub models: ModelDefaults,
+    /// Messages sent to an agent every N minutes while the team runs (Advanced).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<Schedule>>", optional)]
+    pub schedules: Vec<Schedule>,
+    /// People keep a decision log that agents read with read_decisions (Advanced).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub decision_log: bool,
+    /// Server-assigned save counter for optimistic concurrency.
+    #[ts(type = "number")]
+    pub revision: u64,
+}
+
+impl TeamDraft {
+    pub fn effective_folder<'a>(&'a self, a: &'a DraftAgent) -> Option<&'a str> {
+        a.folder.as_deref().map(str::trim).filter(|s| !s.is_empty())
+            .or_else(|| self.folder.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    }
+
+    pub fn agent(&self, id: &str) -> Option<&DraftAgent> {
+        self.agents.iter().find(|a| a.id == id)
+    }
+
+    /// The pod id an agent compiles into.
+    pub fn pod_of<'a>(&self, a: &'a DraftAgent) -> &'a str {
+        a.group_id.as_deref().unwrap_or(DEFAULT_GROUP_ID)
+    }
+
+    /// The model an agent runs with: its own, else its group's for its kind, else the team's.
+    /// None = the CLI's own default. Practice agents inherit nothing.
+    pub fn effective_model(&self, a: &DraftAgent) -> Option<String> {
+        let clean = |m: Option<&str>| m.map(str::trim).filter(|m| !m.is_empty()).map(str::to_string);
+        let group = self.groups.iter().find(|g| Some(g.id.as_str()) == a.group_id.as_deref());
+        clean(a.advanced.model.as_deref())
+            .or_else(|| clean(group.and_then(|g| g.models.for_kind(a.kind))))
+            .or_else(|| clean(self.models.for_kind(a.kind)))
+    }
+
+    /// `pod.member@rig` for an agent, from ids only.
+    pub fn seat_id(&self, agent_id: &str) -> Option<String> {
+        let a = self.agent(agent_id)?;
+        Some(format!("{}.{}@{}", self.pod_of(a), a.id, self.id))
+    }
+
+    /// The design's agent that runs as `seat` (`pod.member@rig`).
+    pub fn agent_for_seat(&self, seat: &str) -> Option<&DraftAgent> {
+        self.agents.iter().find(|a| self.seat_id(&a.id).as_deref() == Some(seat))
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum ElementKind {
+    Team,
+    Group,
+    Agent,
+    Connection,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct ElementRef {
+    pub kind: ElementKind,
+    pub id: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum IssueSeverity {
+    /// Blocks Start team.
+    Error,
+    /// Shown, does not block.
+    Warning,
+}
+
+/// One validation finding, pinned to a draft element, in plain words.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct DraftIssue {
+    pub element: ElementRef,
+    pub severity: IssueSeverity,
+    /// Stable machine code, e.g. `folder-missing`.
+    pub code: String,
+    /// Plain-language sentence naming the element.
+    pub message: String,
+    /// Technical message, shown only under Advanced.
+    pub detail: Option<String>,
+    /// RigSpec path the detail refers to, shown only under Advanced.
+    pub spec_path: Option<String>,
+}
+
+/// A message sent to `agent` every `every_minutes` while the team runs; skipped when the agent is busy.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct Schedule { pub id: String, pub agent: String, pub every_minutes: u32, pub message: String }

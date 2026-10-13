@@ -1,0 +1,22 @@
+import { expect, it } from 'vitest';
+import { activityLines } from './progress/sentences';
+import { deriveProcess } from './visual/process';
+import { conversationItems, HANDOFF_ACTOR, parseHandoff } from './conversation';
+import { splitTeamMessage } from './teamMessage';
+import { ev } from './test-fixtures';
+it('retains captured instructions without breaking handoff presentation', () => {
+  const briefing = 'Team architecture (operator configuration): Project\nYour role: Reviewer';
+  const work = "Handed over by Builder\n\nReview it\n\n--- Builder's result ---\nBuilt";
+  const raw = `${briefing}\n\n--- Current message ---\n${work}`;
+  expect(splitTeamMessage(raw)).toEqual({ briefing, text: work });
+  expect(parseHandoff(raw)).toEqual(parseHandoff(work));
+  const event = ev(1, { type: 'message-queued', message_id: 'm', intent: 'inform', text: raw });
+  event.actor = { kind: 'system', id: HANDOFF_ACTOR };
+  expect(conversationItems([event])[0]).toMatchObject({ text: raw, handoff: { job: 'Review it', from: ['Builder'] } });
+  const plain = { ...event, body: { ...event.body, text: work } } as typeof event;
+  expect(activityLines([event], () => 'Reviewer')).toEqual(activityLines([plain], () => 'Reviewer'));
+  const consumed = ev(2, { type: 'message-consumed', message_id: 'm', turn_id: 't' });
+  const process = deriveProcess([event, consumed]);
+  expect(process.phases[0].triggers[0]).toMatchObject({ firstLine: 'Handed over by Builder', text: raw });
+  expect(splitTeamMessage('ordinary message')).toEqual({ text: 'ordinary message' });
+});

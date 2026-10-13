@@ -1,0 +1,136 @@
+import { act, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { api } from '../api';
+import type { RigSnapshot } from '../generated/RigSnapshot';
+import { compiledRig, draftAgent, FakeEventSource, seatView, teamDraft, teamRecord } from '../test-fixtures';
+import { forgetViewports } from '../shell/viewport';
+import { ALL_TEAMS_STREAM } from '../useTeams';
+import { fakeTeam, renderAt, resetApi, where } from './harness';
+import { startConfirmation } from './StartConfirm';
+
+vi.mock('../api', async (orig) => {
+  const m = await orig<typeof import('../api')>();
+  const names = ['getTeam', 'saveTeam', 'listTeams', 'templates', 'createTeam', 'startTeam', 'stopTeam', 'listFolders', 'listRigs', 'latestSeatEvents', 'stopRig'];
+  return { ...m, api: { ...m.api, ...Object.fromEntries(names.map((n) => [n, vi.fn()])) } };
+});
+
+const WEB = '/home/me/projects/web-shop';
+const claude = (id: string, over = {}) => draftAgent(id, { kind: 'claude', folder: WEB, ...over });
+/** Lead hands work to Builder and Tester; Builder hands work to Reviewer (Codex). */
+const realTeam = () =>
+  teamDraft({
+    agents: [claude('lead', { x: 40 }), claude('builder', { x: 300 }), claude('tester', { x: 560 }), draftAgent('reviewer', { kind: 'codex', folder: '/home/me/notes', x: 820 })],
+    connections: [
+      { id: 'c1', from: 'lead', to: 'builder', kind: 'hands-work-to' },
+      { id: 'c2', from: 'lead', to: 'tester', kind: 'hands-work-to' },
+      { id: 'c3', from: 'builder', to: 'reviewer', kind: 'hands-work-to' },
+    ],
+  });
+
+beforeEach(() => {
+  resetApi();
+  FakeEventSource.reset();
+  forgetViewports();
+  localStorage.clear();
+});
+
+describe('startConfirmation', () => {
+  it('is null for a team of Practice agents only: those start without asking', () => {
+    expect(startConfirmation(teamDraft(), '/home/me')).toBeNull();
+    expect(startConfirmation(undefined, '/home/me')).toBeNull();
+  });
+
+  it('says how many real agents start, where, on whose account, and who goes first', () => {
+    const d = teamDraft({ agents: [claude('lead'), claude('builder'), draftAgent('helper')], connections: [{ id: 'c', from: 'lead', to: 'builder', kind: 'hands-work-to' }] });
+    expect(startConfirmation(d, '/home/me')).toEqual({
+      title: 'Start 2 Claude agents?',
+      // The Practice helper has no upstream either, so it starts first too.
+      body: 'They run in ~/projects/web-shop and use your Claude account. First to start: Lead and Helper.',
+    });
+  });
+
+  it('names Codex too, every folder, and ignores connections that do not hand work over', () => {
+    const d = realTeam();
+    d.connections.push({ id: 'c4', from: 'reviewer', to: 'lead', kind: 'reports-to' });
+    expect(startConfirmation(d, '/home/me')).toEqual({
+      title: 'Start 3 Claude agents and 1 Codex agent?',
+      body: 'They run in 2 folders (~/projects/web-shop and ~/notes) and use your Claude and Codex accounts. First to start: Lead.',
+    });
+    // Without a known home folder the full path is shown.
+    expect(startConfirmation(teamDraft({ agents: [claude('solo')], connections: [] }), null)?.body).toBe(
+      `They run in ${WEB} and use your Claude account. First to start: Solo.`,
+    );
+  });
+});
+
+describe('Start team asks first when the team has real agents', () => {
+  it('on the Structure board: Cancel starts nothing, Start team in the dialog starts it', async () => {
+    fakeTeam(teamRecord({ draft: realTeam() }));
+    vi.mocked(api.startTeam).mockResolvedValue({ rig: 't', warnings: [] });
+    renderAt('/team/t/structure');
+    const user = userEvent.setup();
+    const start = await screen.findByRole('button', { name: 'Start team' });
+    await waitFor(() => expect(start).toBeEnabled());
+    await user.click(start);
+    const dialog = screen.getByRole('alertdialog', { name: 'Start 3 Claude agents and 1 Codex agent?' });
+    expect(dialog).toHaveAccessibleDescription(
+      'They run in 2 folders (~/projects/web-shop and ~/notes) and use your Claude and Codex accounts. First to start: Lead.',
+    );
+    // The safe choice has focus, and board keys do not fire behind the dialog.
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await user.keyboard('g');
+    expect(screen.queryByRole('dialog', { name: 'Go to agent' })).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(api.startTeam).not.toHaveBeenCalled();
+    expect(start).toHaveFocus();
+
+    await user.click(start);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(api.startTeam).not.toHaveBeenCalled();
+
+    await user.click(start);
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Start team' }));
+    await waitFor(() => expect(api.startTeam).toHaveBeenCalledWith('t', expect.any(Number), expect.any(String)));
+    await waitFor(() => expect(where()).toBe('/rig/t'));
+  });
+
+  it('a Practice-only team starts at once, with no dialog', async () => {
+    fakeTeam();
+    vi.mocked(api.startTeam).mockResolvedValue({ rig: 't', warnings: [] });
+    renderAt('/team/t/structure');
+    const start = await screen.findByRole('button', { name: 'Start team' });
+    await waitFor(() => expect(start).toBeEnabled());
+    await userEvent.setup().click(start);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await waitFor(() => expect(api.startTeam).toHaveBeenCalled());
+  });
+
+  it('on the Live board of a stopped team too', async () => {
+    const draft = realTeam();
+    fakeTeam(teamRecord({ draft, started_revision: 1, live: false }));
+    const summary = { name: 't', desired: 'stopped' as const, seat_count: 4, running_count: 0, attention_count: 0 };
+    vi.mocked(api.listRigs).mockResolvedValue([summary]);
+    vi.mocked(api.listTeams).mockResolvedValue([{ id: 't', name: draft.name, agent_count: 4, updated_at_ms: 1, started: summary }]);
+    vi.mocked(api.startTeam).mockResolvedValue({ rig: 't', warnings: [] });
+    renderAt('/rig/t');
+    await waitFor(() => expect(FakeEventSource.instances.some((i) => i.url === ALL_TEAMS_STREAM)).toBe(true));
+    const base = compiledRig();
+    const seat = (m: string) => ({ ...base.seats[0], id: `team.${m}@t`, pod: 'team', member: m, runtime: m === 'reviewer' ? ('codex' as const) : ('claude-code' as const) });
+    const snap: RigSnapshot = {
+      rig: { ...base, name: 't', pods: [{ id: 'team', label: 'team' }], seats: ['lead', 'builder', 'tester', 'reviewer'].map(seat), edges: [], launch_layers: [] },
+      desired: 'stopped',
+      seats: ['lead', 'builder', 'tester', 'reviewer'].map((m) => ({ ...seatView(m), id: `team.${m}@t`, rig: 't', pod: 'team', lifecycle: 'stopped' as const })),
+      last_seq: 3,
+    };
+    act(() => FakeEventSource.instances.filter((i) => i.url === ALL_TEAMS_STREAM).at(-1)!.emit('snapshot', snap));
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Start team' }));
+    expect(screen.getByRole('alertdialog')).toHaveAccessibleName('Start 3 Claude agents and 1 Codex agent?');
+    expect(api.startTeam).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Start team' }));
+    await waitFor(() => expect(api.startTeam).toHaveBeenCalledWith('t', 1, expect.any(String)));
+  });
+});

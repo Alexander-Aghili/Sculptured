@@ -1,0 +1,14 @@
+import { useEffect,useRef,useState } from 'react';
+import { WebGPUEngine } from './WebGPUEngine';
+import { curve,surface,DEFAULT_CAMERA } from './geometry';
+/** Actual engine consumer and smoke-test scene; mathematical explanation stays available. */
+export function EnginePreview(){
+  const canvas=useRef<HTMLCanvasElement>(null),engine=useRef<WebGPUEngine|null>(null);
+  const [yaw,setYaw]=useState(DEFAULT_CAMERA.yaw),[pitch,setPitch]=useState(DEFAULT_CAMERA.pitch),[span,setSpan]=useState(5),[status,setStatus]=useState('Initializing WebGPU…'),[retry,setRetry]=useState(0);
+  useEffect(()=>{let active=true;let observer:ResizeObserver|undefined;let owned:WebGPUEngine|undefined;
+    WebGPUEngine.create(canvas.current!,message=>{if(active)setStatus(message)}).then(e=>{if(!active){e.dispose();return;}owned=e;engine.current=e;e.setScene([surface((u,v)=>[u,v,0],[-1.5,1.5],[-1.5,1.5],16,[.12,.32,.5,1]),surface((u,v)=>[u,v,.35*u],[-1,1],[-1,1],16,[.7,.35,.15,1]),curve(t=>[Math.cos(t),Math.sin(t),t/8-.8],[0,4*Math.PI],180,[.3,.95,.72,1])]);e.setCamera({...DEFAULT_CAMERA,span:5});observer=new ResizeObserver(()=>e.render());observer.observe(canvas.current!);setStatus('WebGPU scene submitted · inspect occlusion and controls below.');}).catch(e=>{if(active)setStatus(String(e))});
+    return()=>{active=false;observer?.disconnect();owned?.dispose();engine.current=null;};
+  },[retry]);
+  useEffect(()=>{engine.current?.setCamera({...DEFAULT_CAMERA,yaw,pitch,span})},[yaw,pitch,span]);
+  return <section aria-label="Shared WebGPU engine preview"><h2>A shared mathematical 3D engine</h2><p role="status">{status}</p><canvas ref={canvas} aria-label="Spatial helix crossing two opaque planes" style={{width:'100%',height:340,display:'block',background:'#0b1020'}}/><div style={{display:'flex',gap:16,flexWrap:'wrap'}}>{[{name:'Orbit',value:yaw,set:setYaw,min:-3.14,max:3.14},{name:'Tilt',value:pitch,set:setPitch,min:-1.5,max:1.5},{name:'View span',value:span,set:setSpan,min:2,max:10}].map(c=><label key={c.name}>{c.name} {c.value.toFixed(2)}<input type="range" min={c.min} max={c.max} step="0.02" value={c.value} onChange={e=>c.set(Number(e.target.value))}/></label>)}<button onClick={()=>{setYaw(DEFAULT_CAMERA.yaw);setPitch(DEFAULT_CAMERA.pitch);setSpan(5)}}>Reset camera</button><button onClick={()=>{setYaw(DEFAULT_CAMERA.yaw);setPitch(DEFAULT_CAMERA.pitch);setSpan(5);setStatus('Initializing WebGPU…');setRetry(n=>n+1)}}>Recreate renderer</button></div><p>Illustrative scene: helix (cos t, sin t, t/8 − 0.8), 0 ≤ t ≤ 4π; blue plane z = 0; orange plane z = 0.35x. World units are arbitrary. Opaque surfaces should hide farther geometry. The helix rises by π/2 over two revolutions. This sampled picture is not a proof.</p><p>Engine API and extension workflow: <code>src/engine/README.md</code>. Orbit, tilt and span are keyboard-accessible. If WebGPU is unavailable, the equations and controls remain readable; no successful GPU check is implied.</p></section>
+}

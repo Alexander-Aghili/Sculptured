@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in Sculptured does not work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Create a team from the Builder and reviewer template\n2. …"
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: "`sculptured --version`, or the commit you built"
+    validations: { required: true }
+  - type: dropdown
+    id: agents
+    attributes:
+      label: Agents involved
+      multiple: true
+      options: [Claude Code, Codex, Practice agents, None]
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04, macOS 15, …
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Remove tokens, keys and anything private before pasting.

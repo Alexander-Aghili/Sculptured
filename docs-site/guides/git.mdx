@@ -1,0 +1,18 @@
+---
+title: Git workflows
+description: Inspect and commit changes in a project's inherited working folder.
+---
+
+Open **Git changes** from the project menu. The repository must be rooted at the selected project folder inside the allowed local workspace.
+
+## Review before committing
+
+1. Initialize Git if the folder is not already a repository.
+2. Inspect changed files and their diffs.
+3. Select files to stage or unstage.
+4. Review the staged diff and write a commit message.
+5. Commit the staged changes, or create and switch to a new branch.
+
+Git actions reject stale snapshots; refresh if another process changes the index while you are reviewing. Agents do not automatically commit or push.
+
+<Note>Fetch, pull, push, merges, custom hooks, and signed commits remain terminal operations. UI commits disable hooks and signing.</Note>

@@ -1,0 +1,9 @@
+.git
+**/target
+**/node_modules
+web/dist
+web/community-dist
+**/.env
+**/*.env
+**/playwright-report
+**/test-results

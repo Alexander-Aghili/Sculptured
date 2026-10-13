@@ -1,0 +1,44 @@
+---
+title: CS2680 pattern catalog
+description: Eight original, reusable groups illustrating the course's multi-agent architectures.
+---
+
+Open **Community → Browse blocks** and search for `cs2680`. Inspect a block to read the complete jobs, then save a pinned version to your account or download and import it into your private Library.
+
+These are original Sculptured exercises inspired by Juncheng Yang's [Agent Design II slides](https://cs2680.com/slides/5_agent_design_2.pdf), not copied course code or an endorsement from the course.
+
+| Block | Slide | What to try |
+| --- | --- | --- |
+| Supervisor & workers | 9 | Parallel benefit and budget analyses, integrated by one supervisor. |
+| Hierarchical feature team | 10 | A feature manager, two leads, and four specialists design a reading list. |
+| Pipeline with feedback | 11 | Extract a fictional invoice, check arithmetic, summarize, and allow one correction. |
+| Shared workspace blackboard | 12 | Three peers communicate findings through separate versioned files. |
+| Independent review committee | 13 | Two independent reviewers send evidence to an editor. |
+| Capability bidding exercise | 14 | Fictional workers bid in toy cost/time units; one receives the task. |
+| Peer negotiation swarm | 15 | Three peers agree on simulated task ownership without a permanent coordinator. |
+| Dynamic specialist dispatch | 16 | A coordinator creates at most two managed specialists for a fictional support ticket. |
+
+## Before running
+
+Every block is portable: no machine-specific folder, provider model override, or inherited session is included. Select a project folder and review the jobs first. Starting real Codex agents uses your configured provider; browsing and saving do not start agents.
+
+Handoff arrows use the scheduler. Reports-to and watch links express design intent; the role instructions use managed messages and artifacts to coordinate. Intended connections are not proof of observed communication. The dynamic block contains only the coordinator until it actually spawns children in Live.
+
+<Note>The market and swarm blocks are bounded teaching protocols, not hardware provisioning, payments, distributed consensus, or fault-tolerant infrastructure. The blackboard uses single-writer files, not a transactional shared-memory service.</Note>
+
+## Maintain the local catalog
+
+The source definitions are in `crates/community/src/starter_catalog.rs`. The Rust `seed_catalog` example writes only to the local `rigcommunity_local` database. It adds immutable versions for changes, skips unchanged blocks, preserves saved versions, and respects unpublished or moderated blocks.
+
+From the repository root:
+
+```bash
+cargo build --manifest-path crates/community/Cargo.toml --example seed_catalog
+# Load the private local service environment for this command only.
+set -a
+. ~/.sculptured/community-local/service.env
+set +a
+./crates/community/target/debug/examples/seed_catalog
+```
+
+Do not set `COMMUNITY_TEST_DATABASE_URL` to this persistent demo database; integration tests use their own disposable database.

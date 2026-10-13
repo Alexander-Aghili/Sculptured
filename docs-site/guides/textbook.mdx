@@ -1,0 +1,27 @@
+---
+title: Live textbook teams
+description: Dispatch mathematical topics through reusable research, visualization, and review groups.
+---
+
+The Textbook Creator template accepts a general source: notes, a course page, a PDF, local materials, or a rough learning goal. No particular MIT course is required.
+
+## Compose the team
+
+- **Curriculum dispatcher:** inspect the source, choose coherent topic boundaries, and prepare self-contained assignments.
+- **Visualization group:** research references, build interactions, check mathematics, and review usability.
+- **3D Engine Creator group:** maintain a general documented WebGPU rendering API, test its contract, and support missing capabilities.
+- **Textbook frontend:** assemble accepted modules into the book and run integration checks.
+
+These groups are reusable Library blocks. Source references and mathematical/visual verification remain inspectable alongside the outputs.
+
+## Dispatch dynamically
+
+The dispatcher chooses a bounded number of tasks. Independent topics can run concurrently on configured workers. Dependent tasks wait for required accepted artifacts; reading order alone does not require serial execution.
+
+Routes may return a visualization for revision or send a missing capability to the engine group. Bounded steps prevent endless retries. Final assembly waits for all required items to be accepted.
+
+<Note>Acceptance is an agent report. The frontend must inspect revision-specific evidence and run integration checks before calling the book ready.</Note>
+
+## Verify rendering honestly
+
+CPU tests and successful builds do not establish correct WebGPU rendering. Inspect the actual browser output; if no adapter is available, record rendering as unverified. Never substitute a reconstructed UI recording for an actual interaction capture.

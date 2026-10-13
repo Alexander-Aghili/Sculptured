@@ -1,0 +1,32 @@
+import {render,screen,fireEvent,within} from '@testing-library/react';
+import {MemoryRouter} from 'react-router-dom';
+import {it,expect,vi} from 'vitest';
+import {CommunicationDashboard} from './CommunicationDashboard';
+import {ev,snapshot} from '../test-fixtures';
+import {api} from '../api';
+import {emptyState} from '../useRigStream';
+vi.mock('../api',async orig=>{const m=await orig<typeof import('../api')>();return {...m,api:{...m.api,communications:vi.fn()}}});
+it('filters captured routes, exposes content and preserves paused evidence while live events arrive',async()=>{
+ const e=ev(1,{type:'message-queued',message_id:'m',intent:'inform',text:'Inspect geometry at revision abc'},'dev.b@r');e.actor={kind:'seat',id:'dev.a@r'};
+ vi.mocked(api.communications).mockResolvedValue([e]);const close=vi.fn();const state={...emptyState,snapshot:snapshot()};
+ const props={rig:'r',state,connected:true,names:{},onClose:close};
+ const {rerender}=render(<MemoryRouter><CommunicationDashboard {...props}/></MemoryRouter>);
+ await screen.findByRole('table');await vi.waitFor(()=>expect(within(screen.getByRole('table')).getByRole('button',{name:'a → b'})).toBeVisible());fireEvent.click(within(screen.getByRole('table')).getByRole('button',{name:'a → b'}));
+ const list=screen.getByRole('heading',{name:'Messages · 1'}).nextElementSibling!;
+ expect(list.textContent).toContain('Inspect geometry');fireEvent.click(screen.getByRole('button',{name:'Pause updates'}));
+ const next=ev(2,{type:'message-queued',message_id:'n',intent:'inform',text:'new'},'dev.b@r');next.actor={kind:'seat',id:'dev.a@r'};
+ rerender(<MemoryRouter><CommunicationDashboard {...props} state={{...state,feed:{'dev.b@r':[next]}}}/></MemoryRouter>);
+ expect(screen.getByRole('heading',{name:'Messages · 1'})).toBeVisible();fireEvent.click(screen.getByRole('button',{name:'Resume updates'}));expect(screen.getByRole('heading',{name:'Messages · 2'})).toBeVisible();
+ fireEvent.keyDown(screen.getByRole('region',{name:'Communication analytics'}),{key:'Escape'});expect(close).toHaveBeenCalled();
+ expect(within(screen.getByRole('region',{name:'Communication analytics'})).getByText(/Older or unmanaged activity/)).toBeVisible();
+});
+it('sender, recipient and pair buttons select outbound, inbound and both directions',async()=>{
+ const messages=[['a','b'],['b','a'],['a','c'],['c','b']].map(([from,to],i)=>{const e=ev(i+1,{type:'message-queued',message_id:`m${i}`,intent:'inform',text:`${from} says ${i}`},`dev.${to}@r`);e.actor={kind:'seat',id:`dev.${from}@r`};return e;});
+ vi.mocked(api.communications).mockResolvedValue(messages);
+ render(<MemoryRouter><CommunicationDashboard rig="r" state={emptyState} connected names={{}} onClose={()=>{}}/></MemoryRouter>);
+ await screen.findByRole('heading',{name:'Messages · 4'});
+ fireEvent.click(within(screen.getByRole('table')).getAllByRole('button',{name:'Outbound from a'})[0]);expect(screen.getByRole('heading',{name:'Messages · 2'})).toBeVisible();expect(screen.getByRole('status')).toHaveTextContent('Outbound from a');
+ fireEvent.click(screen.getByRole('button',{name:'Clear communication filter'}));fireEvent.click(within(screen.getByRole('table')).getAllByRole('button',{name:'Inbound to b'})[0]);expect(screen.getByRole('heading',{name:'Messages · 2'})).toBeVisible();
+ fireEvent.click(within(screen.getByRole('table')).getByRole('button',{name:'a → b'}));expect(screen.getByRole('heading',{name:'Messages · 1'})).toBeVisible();
+ fireEvent.change(screen.getByLabelText('Communication direction'),{target:{value:'two-way'}});expect(screen.getByRole('heading',{name:'Messages · 2'})).toBeVisible();expect(screen.getByRole('status')).toHaveTextContent('a ↔ b');
+});

@@ -1,0 +1,20 @@
+---
+title: Context and communication
+description: Inspect agent evidence where the work happens.
+---
+
+## Agent context
+
+Open an agent's **Visual progress** view to inspect reported context usage and captured instructions, messages, workflow assignments, tool input/results, and replies. Categories use labels and colors; open entries to read the source evidence.
+
+Captured character counts and characters-divided-by-four token estimates are distinct from CLI-reported window usage. Hidden instructions, compaction, unmanaged helpers, and uncaptured material remain unknown. A path or URL appearing in text does not prove it was read.
+
+## Team communication
+
+Open **Communications** on Live to inspect directed messages, delivery/read state, traffic over time, payload sizes, and reported token usage. Filter routes and inspect message content before drawing conclusions about overhead.
+
+The dashboard uses bounded loaded history, not necessarily lifetime totals. Queue-to-delivery latency is not model completion time. Prompt overhead estimates are not measured network or compute costs.
+
+## Evidence and outcomes
+
+Preserve the distinction between planned work, work in progress, agent-reported completion, independently verified checks, and blockers. Tool success and file existence alone do not establish correctness.

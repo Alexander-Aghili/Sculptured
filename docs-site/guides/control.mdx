@@ -1,0 +1,31 @@
+---
+title: Control live agents
+description: Guide agents during work and distinguish activity from an open session.
+---
+
+## Send guidance
+
+Open an agent from the board. Write a message in its conversation; inspect whether it was queued, delivered, or consumed. Delivery means the runner acknowledged the message, not that the agent completed the requested work.
+
+## Interrupt or stop
+
+Open **Details & controls** in the agent conversation to reveal its runtime controls.
+
+| Control | Behavior |
+| --- | --- |
+| Interrupt | Interrupt the current turn so you can redirect the agent. |
+| Soft stop · ~5K | Ask for a quick wrap-up, summary, and appropriate handoff, then stop. |
+| Hard stop | Stop the process without another wrap-up turn, including managed descendants. |
+| Stop team | Stop all running team agents and retain their history. |
+
+Soft stop observes approximately 5,000 additional output tokens, completion of the wrap-up turn, or five minutes. Delayed usage reports can overshoot the estimate.
+
+## Read the state accurately
+
+An open idle session is not actively working. A disconnected runner means status is unknown, not definitely stopped. Live omits stopped and planned agents; Structure retains the complete design.
+
+## Managed subagents
+
+Agents may use `spawn_agent`, `send_agent_message`, and `team_status`. Managed children inherit the parent's folder, runtime/model, and permissions. Their parent relationship and current session appear in Live.
+
+The runtime bounds a project to 64 agents and four child levels. Native CLI delegation and arbitrary detached processes are not managed children. Restarting a project restores the saved team design; prior child events remain evidence.

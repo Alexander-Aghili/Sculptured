@@ -1,0 +1,32 @@
+import {render,screen,fireEvent,within} from '@testing-library/react';
+import {MemoryRouter} from 'react-router-dom';
+import {it,expect,vi} from 'vitest';
+import {DeploymentHistoryView} from './DeploymentHistoryView';
+import {api} from '../api';
+import {ev} from '../test-fixtures';
+import type {DeploymentHistory} from '../generated/DeploymentHistory';
+vi.mock('../api',async orig=>{const m=await orig<typeof import('../api')>();return {...m,api:{...m.api,deployments:vi.fn(),deployment:vi.fn(),deploymentEvents:vi.fn()}}});
+it('opens a stopped historical subtree and its run-scoped evidence, and switches deployments',async()=>{
+ const run={start_seq:20,started_ms:200,initial_agents:1};
+ const data:DeploymentHistory={run,has_snapshot:false,stopped_ms:250,summary_truncated:false,agents:[{id:'a',name:'Leader',parent:null,runtime:'stub',lifecycle:'stopped',launched_ms:201,last_ms:250,output_tokens:12},{id:'b',name:'Removed child',parent:'a',runtime:'stub',lifecycle:'stopped',launched_ms:203,last_ms:249,output_tokens:15}]};
+ vi.mocked(api.deployments).mockResolvedValue([run,{...run,start_seq:10}]);vi.mocked(api.deployment).mockResolvedValue(data);vi.mocked(api.deploymentEvents).mockResolvedValueOnce({events:[ev(24,{type:'agent-text',turn_id:null,text:'Recorded result'})],has_more:true}).mockResolvedValue({events:[],has_more:false});
+ render(<MemoryRouter><DeploymentHistoryView rig="r"/></MemoryRouter>);
+ fireEvent.click(await screen.findByRole('button',{name:'Inspect historical Removed child'}));
+ const evidence=await screen.findByRole('complementary',{name:'Historical agent evidence'});expect((await within(evidence).findAllByText(/agent-text/)).length).toBeGreaterThan(0);expect(api.deploymentEvents).toHaveBeenCalledWith('r',20,'b');
+ fireEvent.click(screen.getByRole('button',{name:'Load older events'}));await vi.waitFor(()=>expect(api.deploymentEvents).toHaveBeenCalledWith('r',20,'b',24));
+ fireEvent.change(screen.getByLabelText('Historical subtree'),{target:{value:'b'}});expect(screen.queryByRole('button',{name:'Inspect historical Leader'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Whole deployment'}));expect(screen.getByRole('button',{name:'Inspect historical Leader'})).toBeVisible();
+ fireEvent.click(screen.getByRole('button',{name:'List'}));expect(screen.getByText('Parent: Leader')).toBeVisible();
+ fireEvent.change(screen.getByLabelText('Historical deployment'),{target:{value:'10'}});await vi.waitFor(()=>expect(api.deployment).toHaveBeenCalledWith('r',10));expect(screen.queryByRole('complementary')).toBeNull();
+});
+it('offers the selected run as a download and labels imported runs',async()=>{
+ const live={start_seq:20,started_ms:200,initial_agents:1};const imported={start_seq:-3,started_ms:300,initial_agents:1,source:'imported:claude-code'};
+ const data:DeploymentHistory={run:imported,has_snapshot:false,stopped_ms:350,summary_truncated:false,agents:[{id:'a',name:'Leader',parent:null,runtime:'claude-code',lifecycle:'stopped',launched_ms:301,last_ms:350,output_tokens:12}]};
+ vi.mocked(api.deployments).mockResolvedValue([imported,live]);vi.mocked(api.deployment).mockResolvedValue(data);
+ render(<MemoryRouter><DeploymentHistoryView rig="r"/></MemoryRouter>);
+ const select=await screen.findByLabelText('Historical deployment');
+ await vi.waitFor(()=>expect(within(select).getByRole('option',{name:/Imported · Claude Code/})).toBeInTheDocument());
+ const link=await screen.findByRole('link',{name:'Download run'});
+ expect(link).toHaveAttribute('href','/api/teams/r/deployments/-3/session');expect(link).toHaveAttribute('download');
+ expect(await screen.findByText(/Imported from a file/)).toBeVisible();
+});

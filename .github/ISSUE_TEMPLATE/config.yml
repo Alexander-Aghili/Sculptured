@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/Alexander-Aghili/sculptured/security/advisories/new
+    about: Please report vulnerabilities privately.
+  - name: Documentation
+    url: https://docs.usesculptured.com
+    about: Guides for designing, running and inspecting agent teams.

@@ -1,0 +1,198 @@
+//! Checks that need the draft's structure, in plain words. Pure: no filesystem access.
+use super::names::{display_name, name_of, verb};
+use super::{GENERIC_AGENT, GENERIC_GROUP, GENERIC_TEAM};
+use model::{
+    valid_segment, AgentKind, ConnectionKind, DraftAgent, DraftConnection, DraftIssue, ElementKind, ElementRef,
+    IssueSeverity, TeamDraft,
+};
+use std::collections::{HashMap, HashSet, VecDeque};
+use ElementKind::{Agent, Connection, Group, Team};
+use IssueSeverity::Error;
+
+fn issue(kind: ElementKind, id: &str, severity: IssueSeverity, code: &str, message: impl Into<String>) -> DraftIssue {
+    DraftIssue {
+        element: ElementRef { kind, id: id.to_string() },
+        severity,
+        code: code.to_string(),
+        message: message.into(),
+        detail: None,
+        spec_path: None,
+    }
+}
+
+fn with_detail(mut i: DraftIssue, detail: String) -> DraftIssue {
+    i.detail = Some(detail);
+    i
+}
+
+/// Checks that need the draft's structure, in plain words. Pure: no filesystem access.
+pub fn check_draft(d: &TeamDraft) -> Vec<DraftIssue> {
+    let mut out = Vec::new();
+    check_team(d, &mut out);
+    check_groups(d, &mut out);
+    check_agents(d, &mut out);
+    check_connections(d, &mut out);
+    out.extend(loop_issues(d));
+    out
+}
+
+fn check_team(d: &TeamDraft, out: &mut Vec<DraftIssue>) {
+    if d.name.trim().is_empty() {
+        out.push(issue(Team, &d.id, Error, "team-name-missing", "Give the team a name"));
+    }
+    if !valid_segment(&d.id) {
+        let i = issue(Team, &d.id, Error, "team-id-invalid", GENERIC_TEAM);
+        out.push(with_detail(i, format!("team id {:?} must use letters, digits, '_' or '-'", d.id)));
+    }
+    if d.agents.is_empty() {
+        out.push(issue(Team, &d.id, Error, "team-empty", "Add at least one agent to start the team"));
+    }
+}
+
+fn check_groups(d: &TeamDraft, out: &mut Vec<DraftIssue>) {
+    let mut group_ids = HashSet::new();
+    for g in &d.groups {
+        if !valid_segment(&g.id) || !group_ids.insert(g.id.as_str()) {
+            let i = issue(Group, &g.id, Error, "group-id-invalid", GENERIC_GROUP);
+            out.push(with_detail(i, format!("group id {:?} is not a valid segment or is used twice", g.id)));
+        }
+        if g.label.trim().is_empty() {
+            out.push(issue(Group, &g.id, Error, "group-name-missing", "A group needs a name"));
+        }
+    }
+}
+
+fn check_agents(d: &TeamDraft, out: &mut Vec<DraftIssue>) {
+    let mut agent_ids = HashSet::new();
+    let mut names: HashMap<String, usize> = HashMap::new();
+    for a in &d.agents {
+        if !valid_segment(&a.id) || !agent_ids.insert(a.id.as_str()) {
+            let i = issue(Agent, &a.id, Error, "agent-id-invalid", GENERIC_AGENT);
+            out.push(with_detail(i, format!("agent id {:?} is not a valid segment or is used twice", a.id)));
+        }
+        check_agent_name(a, &mut names, out);
+        check_agent_place(d, a, out);
+    }
+}
+
+/// A name is required and unique (ignoring case and outer spaces); `names` counts those seen.
+fn check_agent_name(a: &DraftAgent, names: &mut HashMap<String, usize>, out: &mut Vec<DraftIssue>) {
+    let key = a.name.trim().to_lowercase();
+    if key.is_empty() {
+        out.push(issue(Agent, &a.id, Error, "agent-name-missing", "An agent needs a name"));
+        return;
+    }
+    let seen = names.entry(key).or_insert(0);
+    *seen += 1;
+    if *seen > 1 {
+        let who = display_name(a);
+        out.push(issue(Agent, &a.id, Error, "agent-name-duplicate", format!("Two agents are called {who}; give each its own name")));
+    }
+}
+
+/// The agent's group exists, and it has a full-path folder unless it is a Practice agent.
+fn check_agent_place(d: &TeamDraft, a: &DraftAgent, out: &mut Vec<DraftIssue>) {
+    let who = display_name(a);
+    if let Some(g) = &a.group_id
+        && !d.groups.iter().any(|x| &x.id == g)
+    {
+        out.push(issue(Agent, &a.id, Error, "agent-group-missing", format!("{who} is in a group that no longer exists")));
+    }
+    match d.effective_folder(a) {
+        None if a.kind != AgentKind::Practice => {
+            out.push(issue(Agent, &a.id, Error, "folder-missing", format!("{who} needs a folder to work in")));
+        }
+        Some(f) if !f.starts_with('/') => {
+            let message = format!("{who}'s folder must be a full path, such as /home/you/project");
+            out.push(issue(Agent, &a.id, Error, "folder-not-absolute", message));
+        }
+        _ => {}
+    }
+}
+
+fn check_connections(d: &TeamDraft, out: &mut Vec<DraftIssue>) {
+    let mut pairs = HashSet::new();
+    for c in &d.connections {
+        check_connection(d, c, &mut pairs, out);
+    }
+}
+
+/// Both ends exist and differ, and the same (from, to, kind) is drawn once; `pairs` holds those seen.
+fn check_connection<'a>(
+    d: &TeamDraft,
+    c: &'a DraftConnection,
+    pairs: &mut HashSet<(&'a str, &'a str, ConnectionKind)>,
+    out: &mut Vec<DraftIssue>,
+) {
+    let (Some(f), Some(t)) = (d.agent(&c.from), d.agent(&c.to)) else {
+        let message = "This connection points to an agent that is no longer in the team";
+        out.push(issue(Connection, &c.id, Error, "connection-dangling", message));
+        return;
+    };
+    if f.id == t.id {
+        out.push(issue(Connection, &c.id, Error, "connection-self", format!("{}'s connection loops back to itself", display_name(f))));
+        return;
+    }
+    if !pairs.insert((c.from.as_str(), c.to.as_str(), c.kind)) {
+        let message = format!("{} already {} {}; remove the extra connection", display_name(f), verb(c.kind), display_name(t));
+        out.push(issue(Connection, &c.id, Error, "connection-duplicate", message));
+    }
+}
+
+/// Shortest hands-work-to path from `start` to `goal`, as agent ids (both ends included).
+fn shortest_path<'a>(next: &HashMap<&'a str, Vec<&'a str>>, start: &'a str, goal: &'a str) -> Option<Vec<&'a str>> {
+    let mut prev: HashMap<&'a str, &'a str> = HashMap::new();
+    let mut seen: HashSet<&'a str> = HashSet::from([start]);
+    let mut queue: VecDeque<&'a str> = VecDeque::from([start]);
+    while let Some(n) = queue.pop_front() {
+        if n == goal {
+            return Some(path_back(&prev, goal));
+        }
+        for &m in next.get(n).map(Vec::as_slice).unwrap_or(&[]) {
+            if seen.insert(m) {
+                prev.insert(m, n);
+                queue.push_back(m);
+            }
+        }
+    }
+    None
+}
+
+/// The path that ends at `goal`, following `prev` back to its start.
+fn path_back<'a>(prev: &HashMap<&'a str, &'a str>, goal: &'a str) -> Vec<&'a str> {
+    let mut path = vec![goal];
+    let mut cur = goal;
+    while let Some(&before) = prev.get(cur) {
+        path.push(before);
+        cur = before;
+    }
+    path.reverse();
+    path
+}
+
+fn loop_issues(d: &TeamDraft) -> Vec<DraftIssue> {
+    let hands: Vec<_> = d
+        .connections
+        .iter()
+        .filter(|c| {
+            c.kind == ConnectionKind::HandsWorkTo && c.from != c.to && d.agent(&c.from).is_some() && d.agent(&c.to).is_some()
+        })
+        .collect();
+    let mut next: HashMap<&str, Vec<&str>> = HashMap::new();
+    for c in &hands {
+        next.entry(c.from.as_str()).or_default().push(c.to.as_str());
+    }
+    let mut out = Vec::new();
+    for c in hands {
+        let Some(back) = shortest_path(&next, c.to.as_str(), c.from.as_str()) else { continue };
+        let ring: Vec<String> = std::iter::once(c.from.as_str()).chain(back).map(|id| name_of(d, id)).collect();
+        let message = format!(
+            "{} → {} is part of a loop ({}); remove one connection so the work has a starting point",
+            name_of(d, &c.from),
+            name_of(d, &c.to),
+            ring.join(" → ")
+        );
+        out.push(issue(Connection, &c.id, Error, "connection-loop", message));
+    }
+    out
+}

@@ -1,0 +1,18 @@
+---
+title: Security boundaries
+description: Separate local execution from public identity and shared definitions.
+---
+
+## Local workspace
+
+The local controller serves the operating-system user on loopback. It can control agents and inspect allowed project files. **Do not reverse-proxy port 4410 onto the public Internet.** CLI provider sign-in stays local.
+
+## Public community
+
+The community service exposes account and shared-block APIs, not runner, transcript, filesystem, or Git APIs. It uses PostgreSQL and managed OpenID Connect authorization-code login with PKCE.
+
+Login validates state, issuer, audience, signature, expiry, and nonce. Sessions use opaque cookies, server-side hashes, idle and absolute expiry, and database-backed revocation. Writes require the configured origin and CSRF token; publication ownership is checked server-side.
+
+Use HTTPS and configure MFA/passkeys in the provider policy. The application does not itself enforce an MFA claim or store passwords. Production credentials belong in a secret manager or private service environment, never in Git or browser builds.
+
+See [run and maintain](/operations) for backups and upgrades.
