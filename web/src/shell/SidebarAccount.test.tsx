@@ -11,7 +11,10 @@ afterEach(() => { session = { kind: 'local' }; });
 it('links to your account by name; signing out lives on the account page', () => {
   session = { kind: 'signed-in', user: { id: 'u', name: 'Ana Lee', email: 'ana@x.com', role: 'admin' }, csrf: 'c' };
   render(<MemoryRouter><SidebarAccount /></MemoryRouter>);
-  expect(screen.getByRole('link', { name: /Ana Lee/ })).toHaveAttribute('href', '/account');
+  const you = screen.getByRole('link', { name: /Ana Lee/ });
+  expect(you).toHaveAttribute('href', '/account');
+  expect(you).toHaveTextContent('AL');
+  expect(you).toHaveTextContent('ana@x.com');
   expect(screen.getByRole('link', { name: 'Computers' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Admin' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();

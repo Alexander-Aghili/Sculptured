@@ -211,6 +211,33 @@ export function TeamLive(p: Props) {
               {mode === 'graph' && <Btn icon="fit" onClick={() => graph.current?.fit()} kbd="f">Fit graph</Btn>}
             </div>
           </details>
+          <details className="team-status">
+            <summary> Status{attention > 0 ? ` · ${attention} need you` : !connected ? ' · reconnecting' : state.gaps > 0 ? ' · history gap' : ''}</summary>
+          <div className="team-info">
+            <span className="rig-counts">
+              {WORDS.desired(snap.desired)} · {WORDS.teamCounts(running, snap.rig.seats.length)}
+              {attention > 0 ? <span className="tone-red"> · {WORDS.needAttention(attention)}</span> : ''}
+              {running > 0 && views.every(s => !s.current_turn && !s.current_tool && s.activity === 'idle') && <span> · No active work; sessions are open. Stop team closes them.</span>}
+            </span>
+            {!connected && (
+              <span role="status" className="tone-amber">
+                {' '}
+                · reconnecting…
+              </span>
+            )}
+            {state.gaps > 0 && (
+              <span className="gap-notice tone-amber" role="status">
+                {plural(state.gaps, 'event')} lost — history has a gap
+              </span>
+            )}
+            {specNotes(snap.rig.diagnostics).length > 0 && (
+              <details className="spec-advanced" data-advanced>
+                <summary>{WORDS.setupNotes}</summary>
+                <SpecNotes diagnostics={snap.rig.diagnostics} />
+              </details>
+            )}
+          </div>
+          </details>
           {canStart && (
             <Btn variant="primary" icon="play" className="start-btn" onClick={() => confirmStart.ask(p.startConfirm ?? null, () => void startTeam())} disabled={startingNow} aria-label="Start team">
               <span>
@@ -244,33 +271,6 @@ export function TeamLive(p: Props) {
       </div>
       <BudgetStatus rig={rig} names={names} />
       <RestoreBanner team={rig} views={views} names={names} />
-      <details className="team-status">
-        <summary> Status{attention > 0 ? ` · ${attention} need you` : !connected ? ' · reconnecting' : state.gaps > 0 ? ' · history gap' : ''}</summary>
-      <div className="team-info">
-        <span className="rig-counts">
-          {WORDS.desired(snap.desired)} · {WORDS.teamCounts(running, snap.rig.seats.length)}
-          {attention > 0 ? <span className="tone-red"> · {WORDS.needAttention(attention)}</span> : ''}
-          {running > 0 && views.every(s => !s.current_turn && !s.current_tool && s.activity === 'idle') && <span> · No active work; sessions are open. Stop team closes them.</span>}
-        </span>
-        {!connected && (
-          <span role="status" className="tone-amber">
-            {' '}
-            · reconnecting…
-          </span>
-        )}
-        {state.gaps > 0 && (
-          <span className="gap-notice tone-amber" role="status">
-            {plural(state.gaps, 'event')} lost — history has a gap
-          </span>
-        )}
-        {specNotes(snap.rig.diagnostics).length > 0 && (
-          <details className="spec-advanced" data-advanced>
-            <summary>{WORDS.setupNotes}</summary>
-            <SpecNotes diagnostics={snap.rig.diagnostics} />
-          </details>
-        )}
-      </div>
-      </details>
       {lost && (
         <div className="bar-note not-running tone-amber" role="status" aria-label="Not running">
           <p>

@@ -1,7 +1,7 @@
 import {DismissibleError} from '../shell/DismissibleError';
 import { RenameProject } from './RenameProject';
 import { errorText } from '../errors';
-import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
+import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import type { AgentKind } from '../generated/AgentKind';
@@ -76,7 +76,7 @@ function SaveStatus({ state, error, onRetry, onReload, onKeepMine }: { state: Sa
 }
 
 /** `[Structure] [Live] [Progress]`: the views of one team. Live needs a team that has been started. */
-export function ModeTabs({ teamId, mode, started, name }: { teamId: string; mode: 'structure' | 'live'; started: boolean; name: string }) {
+export function ModeTabs({ teamId, mode, started, name, title }: { teamId: string; mode: 'structure' | 'live'; started: boolean; name: string; title?: ReactNode }) {
   const ids = useId();
   return (
     <span className="mode-tabs">
@@ -117,7 +117,7 @@ export function ModeTabs({ teamId, mode, started, name }: { teamId: string; mode
       <span className="mode-sep" aria-hidden="true">
         ·
       </span>
-      <span className="team-title">{name}</span>
+      {title ?? <span className="team-title">{name}</span>}
     </span>
   );
 }
@@ -399,12 +399,11 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
     <section className={`panel structure${narrow ? ' narrow-structure' : ''}`} aria-label={`Structure of ${draft.name || 'this team'}`}>
       <div className="panel-bar">
         <span className="panel-title">
-          <ModeTabs teamId={teamId} mode="structure" started={started} name={draft.name || 'Unnamed team'} />
+          <ModeTabs teamId={teamId} mode="structure" started={started} name={draft.name || 'Unnamed team'} title={<RenameProject draft={draft} edit={t.edit} />} />
         </span>
         <span className="panel-rule" aria-hidden="true" />
         <span className="panel-tools">
           {draft.workflow && <Btn onClick={() => setWorkflowTarget('list')}>Workflow list</Btn>}
-          <RenameProject draft={draft} edit={t.edit} />
           <SaveStatus state={t.saveState} error={t.saveError} onRetry={() => void t.retry()} onReload={() => void t.reload()} onKeepMine={() => void t.keepMine()} />
           <Btn
             variant="primary"

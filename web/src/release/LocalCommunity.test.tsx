@@ -44,3 +44,13 @@ it("connects the account here while preserving unrelated workspace settings", as
   expect(screen.getByRole("link", { name: "Browse blocks" })).toHaveAttribute("href", `https://community.example.test/community/explore?workspace=${encodeURIComponent(window.location.origin)}`);
   expect(screen.queryByRole("link", { name: "Settings" })).toBeNull();
 });
+
+it("once connected, shows the address and changes it only when asked", async () => {
+  vi.spyOn(api, "settings").mockResolvedValue({ posture: "restricted", question_timeout_min: 12, community_url: "https://community.example.test" });
+  const user = userEvent.setup();
+  render(<MemoryRouter><LocalCommunity /></MemoryRouter>);
+  expect(await screen.findByText("community.example.test")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Service address")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Change address" }));
+  expect(screen.getByLabelText("Service address")).toHaveValue("https://community.example.test");
+});

@@ -25,18 +25,35 @@ function Settings({ locked = false, override = false }: { locked?: boolean; over
 }
 it('renames without changing identity and gives existing agents the project folder', () => {
   render(<Settings />);
-  fireEvent.click(screen.getByRole('button', { name: 'Rename project' }));
+  fireEvent.doubleClick(screen.getByRole('button', { name: /Rename project/ }));
   fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Renamed project' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+  fireEvent.keyDown(screen.getByLabelText('Project name'), { key: 'Enter' });
+  expect(screen.queryByLabelText('Project name')).toBeNull();
+  expect(screen.getByRole('button', { name: /Rename project/ })).toHaveTextContent('Renamed project');
   expect(screen.getByLabelText('Saved project')).toHaveTextContent('t|Renamed project|');
   fireEvent.click(screen.getByRole('button', { name: 'Choose project folder…' }));
   fireEvent.click(screen.getByRole('button', { name: 'Pick test folder' }));
   expect(screen.getByLabelText('Saved project')).toHaveTextContent('t|Renamed project|/home/me/project');
   expect(screen.getByText(/from project/)).toBeInTheDocument();
 });
+it('renames from the keyboard, and Escape puts the old name back', () => {
+  render(<Settings />);
+  const title = screen.getByRole('button', { name: /Rename project/ });
+  const before = title.textContent;
+  fireEvent.keyDown(title, { key: 'Enter' });
+  fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Oops' } });
+  fireEvent.keyDown(screen.getByLabelText('Project name'), { key: 'Escape' });
+  expect(screen.getByRole('button', { name: /Rename project/ })).toHaveTextContent(before!);
+  expect(screen.getByLabelText('Saved project')).not.toHaveTextContent('Oops');
+});
+it('a single click does not start renaming', () => {
+  render(<Settings />);
+  fireEvent.click(screen.getByRole('button', { name: /Rename project/ }));
+  expect(screen.queryByLabelText('Project name')).toBeNull();
+});
 it('allows renaming a running project but explains the folder lock', () => {
   render(<Settings locked />);
-  expect(screen.getByRole('button', { name: 'Rename project' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /Rename project/ })).toBeEnabled();
   expect(screen.getByRole('button', { name: 'Choose project folder…' })).toBeDisabled();
   expect(screen.getByText('Stop the team to change its folder.')).toBeInTheDocument();
 });

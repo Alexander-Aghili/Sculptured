@@ -13,16 +13,35 @@ import { plural } from '../format';
 import { BrandMark } from './BrandMark';
 import { useHosted } from '../hosted/HostedGate';
 
-/** Your account (Sign out and your usage live there), Computers and Admin when hosted. */
+/** "Ana Lee" → "AL"; one name gives one letter. */
+export const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?';
+
+/** Your account card: who you are (opens Account, where Sign out and your usage live), and buttons for
+ * your Computers and, for admins, Admin. On your own computer: a link to your usage. */
 export function SidebarAccount() {
   const s = useHosted();
-  if (s.kind !== 'signed-in') return <div className="hosted-account"><Link to="/account">Account and usage</Link></div>;
+  if (s.kind !== 'signed-in') {
+    return (
+      <nav className="account-card" aria-label="Account">
+        <Link to="/account" className="account-btn"><Icon name="activity" size={14} />Account and usage</Link>
+      </nav>
+    );
+  }
   return (
-    <div className="hosted-account">
-      <Link to="/account" title={s.user.email}>{s.user.name} · Account</Link>
-      <Link to="/computers" onClick={() => track('open-computers')}>Computers</Link>
-      {s.user.role === 'admin' && <Link to="/admin">Admin</Link>}
-    </div>
+    <nav className="account-card" aria-label="Account">
+      <Link to="/account" className="account-who" title="Your account, usage and sign out">
+        <span className="account-avatar" aria-hidden="true">{initials(s.user.name)}</span>
+        <span className="account-names">
+          <span className="account-name">{s.user.name}</span>
+          <span className="account-email">{s.user.email}</span>
+        </span>
+        <Icon name="chevron-right" size={14} className="account-go" />
+      </Link>
+      <span className="account-actions">
+        <Link to="/computers" className="account-btn" onClick={() => track('open-computers')}><Icon name="monitor" size={14} />Computers</Link>
+        {s.user.role === 'admin' && <Link to="/admin" className="account-btn"><Icon name="shield" size={14} />Admin</Link>}
+      </span>
+    </nav>
   );
 }
 

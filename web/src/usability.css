@@ -6,8 +6,10 @@ button, input, textarea, select { font-family:var(--font-ui); }
 .fld-input, .field { border-radius:9px; padding:9px 11px; line-height:1.5; }
 .panel-title, .team-title, .pane-name { letter-spacing:-.018em; }
 .fld-label, .eyebrow { letter-spacing:.015em; }
-.rename-project { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.rename-project input { width:14rem; max-width:100%; }
+.project-name { cursor:text; padding:1px 5px; margin:0 -5px; border-radius:5px; border:1px solid transparent; }
+.project-name:hover { border-color:var(--line-2); background:var(--hover); }
+.project-name:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.project-name-input { font:inherit; font-weight:600; color:var(--text); background:var(--panel); border:1px solid var(--accent); border-radius:5px; padding:1px 5px; margin:0 -6px; max-width:22rem; box-shadow:0 0 0 3px var(--accent-soft); }
 .folder-path, .side-body, .transcript { user-select:text; }
 @media (prefers-reduced-motion:reduce) { .btn { transition:none; } }
 
@@ -39,11 +41,12 @@ button, input, textarea, select { font-family:var(--font-ui); }
 .workspace-stage .panel-bar .mode-sep { display:none; }
 .team-live { position:relative; }
 .workspace-stage > .team-live > .panel-bar { padding-right:102px; }
-.team-status { position:absolute; right:40px; top:5px; z-index:25; }
-.team-status > summary { cursor:pointer; color:var(--muted); padding:2px 5px; border-radius:5px; list-style:none; }
+.team-status { position:relative; z-index:25; flex:none; }
+.team-status > summary { cursor:pointer; color:var(--muted); padding:4px 9px; border:1px solid var(--line-2); border-radius:6px; list-style:none; white-space:nowrap; }
+.team-status > summary::-webkit-details-marker { display:none; }
 .team-status > summary::after { content:' ⌄'; }
 .team-status > summary:hover { background:var(--hover); color:var(--text); }
-.team-status > .team-info { position:absolute; right:0; top:30px; width:min(430px,calc(100vw - 50px)); padding:12px; border:1px solid var(--line-2); border-radius:8px; background:var(--panel); box-shadow:var(--shadow-pop); line-height:1.6; }
+.team-status > .team-info { position:absolute; right:0; top:calc(100% + 6px); width:min(430px,calc(100vw - 50px)); padding:12px; border:1px solid var(--line-2); border-radius:8px; background:var(--panel); box-shadow:var(--shadow-pop); line-height:1.6; }
 .agent-pane:not(.chat-text-mode) .pane-head { padding:2px 44px 0 6px; gap:2px; flex-shrink:0; }
 .agent-pane:not(.chat-text-mode) .pane-row { gap:6px; min-height:30px; }
 .pane-row .pane-who { flex:0 1 auto; }
