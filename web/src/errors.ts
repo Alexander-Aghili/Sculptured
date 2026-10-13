@@ -85,6 +85,7 @@ export const ERROR_WORDS: Record<string, string> = {
   cancel_timed_out: 'The start did not stop within 15 seconds. The stop is recorded; press Cancel start again to stop the agents that are still starting.',
   restore_pending: 'Sculptured restarted while this team was running. Answer "Resume N agents?" in Needs you first.',
   bad_settings: 'Those settings are out of range. The question timeout is 1 to 1440 minutes.',
+  needs_computer: 'This needs your computer: your folders and agents run there, not on the server. Open Computers and connect your computer, then try again.',
   older_runner:
     "Sculptured's agent runner is from an older version. Stop all teams, then end the old agent runner: its process number is in the file hostd.pid, in the host-local folder of Sculptured's data folder. Sculptured starts the new runner within a minute.",
   // Everything else.
