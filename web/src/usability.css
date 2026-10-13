@@ -174,3 +174,7 @@ button, input, textarea, select { font-family:var(--font-ui); }
 .stall-note { display:grid; gap:8px; max-width:560px; }
 .stall-note p { margin:0; }
 .stall-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px !important; }
+
+.signin-needed { margin:8px 12px; padding:10px 12px; border:1px solid color-mix(in srgb, var(--amber) 45%, transparent); border-radius:9px; background:color-mix(in srgb, var(--amber) 9%, transparent); display:grid; gap:6px; }
+.signin-needed p { margin:0; }
+.signin-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }

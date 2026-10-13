@@ -1,3 +1,4 @@
+import { SignInNeeded } from './SignInNeeded';
 import { useCallback, useId, useRef, useState, type RefObject } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { VisualProgress } from '../visual/VisualProgress';
@@ -148,6 +149,7 @@ export function AgentPane({ a, tab, feed, epoch, onBack, controlsRef, composerRe
           <Detail a={a} />
         </div>
         <HandoffActions key={seat.id} a={a} />
+        <SignInNeeded a={a} feed={feed} />
         <StallNotice seat={seat} />
         {a.waitingFor && a.waitingFor.length > 0 && !a.stuck && (
           <p className="pane-waiting">
