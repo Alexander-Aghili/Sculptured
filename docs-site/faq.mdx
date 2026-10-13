@@ -1,0 +1,118 @@
+---
+title: FAQ
+description: Short answers about what Sculptured is, what it costs to run, where it runs and what happens to your data.
+---
+
+## About Sculptured
+
+<AccordionGroup>
+  <Accordion title="What is Sculptured?">
+    A visual workspace for teams of coding agents. You design a team on a board: which agents, what each one's job is, and who hands work to whom. Then you run it and watch each agent's work, questions and evidence as it happens. See [Introduction](/introduction).
+  </Accordion>
+  <Accordion title="Which agents does it run?">
+    **Claude Code** and **Codex**, the command-line agents from Anthropic and OpenAI, plus **Practice** agents for learning. Practice agents use scripted replies and make no model calls, so they cost nothing.
+  </Accordion>
+  <Accordion title="Do I need to be a developer?">
+    No. You design teams on the board and talk to agents in plain words. You do need Claude Code or Codex installed and signed in on the computer that runs your agents; the Computers page shows whether they are, with a **Sign in** button.
+  </Accordion>
+  <Accordion title="Is it open source?">
+    Yes. The core, which includes the app, the agent runner and these docs, is Apache-2.0. You can [run it yourself](/operations) on one computer with no account.
+  </Accordion>
+  <Accordion title="What's the difference between the hosted beta and running it myself?">
+    Running it yourself, everything is on one computer: the app, its data and the agents. With a Sculptured account, the app runs for you online, so you can open it from any browser, and your agents run on whichever computers you connect. The hosted beta is invite-only.
+  </Accordion>
+</AccordionGroup>
+
+## Cost and limits
+
+<AccordionGroup>
+  <Accordion title="What does running a team cost?">
+    Your agents use your own Claude or ChatGPT plan, or API key, through Claude Code and Codex. Sculptured shows each turn's tokens and an estimated cost at API prices, with its source. If you use a subscription plan, you are not billed that amount; it shows how much of your plan the work used. Teams use many more tokens than a single agent, so start with one agent and split work only when it helps. See [Designing teams](/guides/agent-design).
+  </Accordion>
+  <Accordion title="Can a team run away and use my whole plan?">
+    You can cap it. Give an agent a **Token limit** to soft-stop it, or a team an output budget to hard-stop it. Agents can start at most 10 helpers each and 64 agents per team. Sculptured also holds new work when your plan is at 90% of a usage window. See [Limits](/reference/limits).
+  </Accordion>
+  <Accordion title="Why do the token numbers change after a turn ends?">
+    Claude Code and Codex report tokens when a turn ends, so counts can arrive up to one turn late. Sculptured shows them as the CLI reported them.
+  </Accordion>
+</AccordionGroup>
+
+## Computers
+
+<AccordionGroup>
+  <Accordion title="Which systems can I connect?">
+    The agent runner runs on **Linux** (x86_64 and arm64), **Windows** (natively, no WSL) and **Apple silicon Macs**. The Computers page offers only the systems that have a published build. If it says there is no build for your system yet, connect another computer for now. Intel Macs are not supported yet.
+  </Accordion>
+  <Accordion title="Does the server run my agents?">
+    No. Agents always run on a computer you connect, in folders that computer allows. The server sends instructions; your computer decides whether to accept them. See [Security](/security).
+  </Accordion>
+  <Accordion title="Does my terminal need to stay open?">
+    No. The connect command installs the runner as a background service that starts again whenever you log in. You can close the terminal.
+  </Accordion>
+  <Accordion title="What happens if my laptop sleeps or the Wi-Fi drops?">
+    Agents keep working on the computer. Their tool calls wait for the link to return, open questions stay open, and you can still reply to them. If you stop a team while its computer is offline, it is stopped as soon as the computer reconnects. See [When a computer drops off](/guides/offline).
+  </Accordion>
+  <Accordion title="Can agents read my whole computer?">
+    Agents start only in folders the computer allows; the installer allows your home folder. Once running, what they can do depends on the computer's access level: **Full** (the default) lets them act as you do, and **Sandboxed** restricts Claude Code to asking first and Codex to writing inside its folder. Choose with `sculptured connect … --sandboxed`. See [Security](/security#access-level).
+  </Accordion>
+  <Accordion title="How do I disconnect a computer?">
+    Press **Disconnect** on the Computers page. Its live link is dropped and its key stops working at once, so the runner can't connect again. To remove the background service from that computer as well:
+
+    <Tabs>
+      <Tab title="Linux">
+        ```bash
+        systemctl --user disable --now sculptured-runner
+        ```
+      </Tab>
+      <Tab title="macOS">
+        ```bash
+        launchctl unload -w ~/Library/LaunchAgents/dev.sculptured.runner.plist
+        ```
+      </Tab>
+      <Tab title="Windows">
+        ```powershell
+        Unregister-ScheduledTask -TaskName 'Sculptured runner' -Confirm:$false
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+  <Accordion title="Can I use more than one computer?">
+    Yes. Connect each one. When more than one is connected, choose where a team runs under **Runs on** on the Design board.
+  </Accordion>
+</AccordionGroup>
+
+## Your data
+
+<AccordionGroup>
+  <Accordion title="What does Sculptured record about me?">
+    In the hosted beta: which pages and features you use, the shape of your teams (counts, not names), runs, token totals and errors. Never your prompts, messages, jobs, agent output, file names or file contents. Running it yourself records nothing. See [Privacy](/privacy).
+  </Accordion>
+  <Accordion title="Does my code leave my computer?">
+    Your files stay on your computer. The server sees only what you ask to see, such as a folder listing, Git status or a diff, plus your agents' replies and tool calls so you can follow the run. Claude Code and Codex send what agents read to Anthropic or OpenAI, as they always do.
+  </Accordion>
+  <Accordion title="Can I take my teams with me?">
+    Yes. **Export team file** saves a team as a `.sculptured-team.json` file that you can import into any Sculptured. You can also download a run's history. See [Team files](/guides/team-files).
+  </Accordion>
+</AccordionGroup>
+
+## Working with agents
+
+<AccordionGroup>
+  <Accordion title="An agent said it's done. Is the work correct?">
+    Not necessarily. "Done" is the agent's own report. Sculptured labels it **reported** and keeps it apart from **verified** results, which come from a check Sculptured ran itself, such as your tests. End a team with a step that runs your checks. See [States and evidence](/reference/states#evidence-reported-observed-verified).
+  </Accordion>
+  <Accordion title="Can I change a team while it runs?">
+    You can send agents guidance, rename them, edit jobs and move things. Changing agents' settings, arrows, groups or folders needs the team to be stopped first.
+  </Accordion>
+  <Accordion title="Do agents commit or push my code?">
+    Sculptured doesn't commit or push for them. An agent can run Git itself if its job and access allow it. The Git panel lets you review and commit changes yourself. See [Git workflows](/guides/git).
+  </Accordion>
+  <Accordion title="Where can I find ready-made teams?">
+    In **Community**: examples such as a gstack-style product team and the Coding hospital, plus the CS2680 pattern catalog. See [Examples](/guides/examples) and [the pattern catalog](/guides/pattern-catalog).
+  </Accordion>
+</AccordionGroup>
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">Start your first team.</Card>
+  <Card title="Troubleshooting" icon="life-ring" href="/troubleshooting">Fixes for common problems.</Card>
+</CardGroup>

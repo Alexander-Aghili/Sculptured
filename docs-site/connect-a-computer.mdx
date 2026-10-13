@@ -1,0 +1,222 @@
+---
+title: Connect a computer
+description: Install Sculptured's runner with one command, choose which folders agents may use, and keep it running in the background.
+---
+
+In the hosted beta, your agents run on **your own computer**, never on Sculptured's servers. A small program, the **runner**, starts Claude Code or Codex there, captures what they do and sends it to your account. You install and connect it with one command from the **Computers** page.
+
+```mermaid
+sequenceDiagram
+  participant B as Computers page
+  participant G as Sculptured (your account)
+  participant T as Terminal on your computer
+  B->>G: Copy connect command
+  G-->>B: a one-time key, valid 30 minutes
+  B-->>T: you paste the command
+  T->>G: download the runner, check its SHA-256
+  T->>G: redeem the key
+  G-->>T: this computer's own identity
+  T-->>T: allow your home folder, install the background service
+  T->>G: connect out and stay connected
+```
+
+## Connect
+
+<Steps>
+  <Step title="Open Computers">
+    Sign in at **app.usesculptured.com** and open **Computers** from the account card at the bottom of the sidebar.
+  </Step>
+  <Step title="Pick the system">
+    Under **Connect a computer**, the tab for the system you're browsing from is already selected. Choose another tab if you're connecting a different machine.
+  </Step>
+  <Step title="Copy the command">
+    Choose **Copy connect command**. It contains a one-time key, so the computer connects without a code to approve. If your browser won't copy it, the command appears on the page for you to select.
+  </Step>
+  <Step title="Paste it on that computer">
+    Open a terminal on the computer, paste the command and press Enter. When it finishes, it prints `Connected to https://app.usesculptured.com.` and the folders agents may work in.
+  </Step>
+  <Step title="Check it">
+    Back on the Computers page, the computer shows **Connected**, with its access level, its allowed folders and whether Claude Code and Codex are installed and signed in.
+  </Step>
+</Steps>
+
+<Tabs>
+  <Tab title="Windows">
+    Open **PowerShell** (Start menu, type *PowerShell*, press Enter). Paste with right-click or Ctrl+V, then press Enter. The command looks like this:
+
+    ```powershell
+    $env:SCULPTURED_KEY="<one-time key>"; irm https://app.usesculptured.com/install.ps1 | iex
+    ```
+
+    | | |
+    | --- | --- |
+    | Supported | 64-bit Intel or AMD (x64). Windows on Arm is not supported yet. |
+    | Installs to | `%LOCALAPPDATA%\Programs\Sculptured` (`sculptured.exe` and `sculptured-background.exe`), added to your user PATH. No admin rights needed. |
+    | Keeps running with | A logon task named **Sculptured runner** in Task Scheduler. It starts when you sign in to Windows and restarts if it fails. It runs without a window. |
+    | Runner data | `%USERPROFILE%\.sculptured\runner` |
+
+    Agents run natively on Windows, through the Windows versions of Claude Code and Codex. Folder paths are full Windows paths, such as `C:\Users\you\project`.
+  </Tab>
+  <Tab title="Linux">
+    Open a terminal. Paste with Ctrl+Shift+V, then press Enter. The command looks like this:
+
+    ```bash
+    curl -fsSL https://app.usesculptured.com/install.sh | sh -s -- --key <one-time key>
+    ```
+
+    | | |
+    | --- | --- |
+    | Supported | The processors the Computers page offers a build for. |
+    | Installs to | `~/.local/bin/sculptured`. No `sudo` needed. If `~/.local/bin` isn't on your PATH, the installer says so. |
+    | Keeps running with | A systemd user service, `sculptured-runner`, in `~/.config/systemd/user/`. It starts when you log in and restarts five seconds after a failure. |
+    | Runner data | `~/.sculptured/runner` (owner-only) |
+  </Tab>
+  <Tab title="macOS">
+    The hosted beta does not publish a macOS build yet. The macOS tab on the Computers page says so instead of offering a command. Connect a Windows or Linux computer for now.
+
+    When a build is published, the command is the same as on Linux and runs in Terminal. Only Apple silicon Macs will be supported; the installer refuses Intel Macs. The runner keeps itself running with a LaunchAgent, `~/Library/LaunchAgents/dev.sculptured.runner.plist`.
+
+    Self-hosted Sculptured already runs on Apple silicon Macs: see [Run it yourself](/operations).
+  </Tab>
+</Tabs>
+
+## What the command does
+
+1. Downloads the runner for this system and checks its SHA-256 checksum. If it doesn't match, nothing is installed.
+2. Installs it for your user only, with no admin rights.
+3. Redeems the one-time key, which gives this computer its own identity in your account. The key works once, for 30 minutes.
+4. If no folders are allowed yet, allows your **home folder**.
+5. Installs the background service and starts it, finding Claude Code and Codex on this computer so the service can launch them.
+
+Running the command again is safe. It updates the runner in place, stops the old one first, and reuses the computer's identity while it is still connected, so the computer is not added twice.
+
+### What stays on the computer
+
+The runner keeps its settings in its own owner-only folder:
+
+| File | Holds |
+| --- | --- |
+| `device.json` | This computer's identity: its id and key for your account. The server keeps only a hash of the key. |
+| `runner.json` | Your rules: allowed folders, access level and what else the account may do here. Only you change it, on this computer. |
+| `hostd/` | The runner's working state. |
+
+## Choose where agents may work
+
+The runner refuses to start an agent outside its **allowed folders**, whatever the server asks. By default that's your home folder. To allow another folder:
+
+```bash
+sculptured allow /path/to/folder
+```
+
+Then restart the runner so running agents see it: run the connect command again, or restart the service (`systemctl --user restart sculptured-runner` on Linux).
+
+When you design a project, set **Folder on your computer** to a full path inside an allowed folder, or leave it empty to use the computer's first allowed folder.
+
+### Access level
+
+Allowed folders decide where an agent *starts*. The access level decides what it may do once running.
+
+| Access | What agents may do |
+| --- | --- |
+| **Full access** (default) | Act as you do on this computer, using the CLIs' full-access modes. |
+| **Sandboxed** | Claude asks before risky actions; Codex writes only inside its folder. |
+
+To change it, connect with `--sandboxed` or `--full-access`. The server can lower access for a team but never raise it above this.
+
+### Other things the account may do here
+
+Besides running agents, your account may ask this computer for a few local operations. All are on by default (checks are off when sandboxed):
+
+| Capability | Lets the account |
+| --- | --- |
+| `git` | Show and commit Git changes in project folders. |
+| `copies` | Give agents their own Git working copies. |
+| `checks` | Run a workflow's check commands, such as the tests. |
+| `cli-sign-in` | Start Claude Code or Codex sign-in from the browser. |
+| `plan-usage` | Read your Claude or Codex plan usage. |
+| `generate` | Draft a team with **Describe it**, using one tool-less call to your own CLI. |
+
+Turn one off with `--disable <capability>` (or on with `--enable`) when you run `sculptured connect`.
+
+## Sign in Claude Code and Codex
+
+Agents use the Claude Code and Codex sign-ins **on the computer that runs them**. Install them there first. Sculptured finds them on your PATH and in the usual install places, including when you install one after connecting.
+
+If one isn't signed in, sign it in once:
+
+- On the **Computers** page, choose **Sign in** next to it and open the sign-in page; or
+- On an agent that stopped because it isn't signed in, choose **Sign in to Claude Code** (or Codex), then **Hand over again**; or
+- Run `claude` or `codex` in a terminal on that computer and sign in there.
+
+Every agent on that computer can then use it.
+
+## Disconnect or remove
+
+To disconnect a computer, choose **Disconnect** next to it on the Computers page. Its identity stops working at once. To connect it again later, copy a new command and run it.
+
+There is no uninstall command yet. To remove the runner by hand after disconnecting:
+
+<Tabs>
+  <Tab title="Windows">
+    ```powershell
+    Unregister-ScheduledTask -TaskName 'Sculptured runner' -Confirm:$false
+    $bin = Join-Path $env:LOCALAPPDATA 'Programs\Sculptured'
+    Get-Process sculptured, sculptured-background -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$bin*" } | Stop-Process
+    Remove-Item -Recurse $bin, "$env:USERPROFILE\.sculptured\runner"
+    ```
+  </Tab>
+  <Tab title="Linux">
+    ```bash
+    systemctl --user disable --now sculptured-runner
+    rm ~/.config/systemd/user/sculptured-runner.service ~/.local/bin/sculptured
+    rm -r ~/.sculptured/runner
+    ```
+  </Tab>
+</Tabs>
+
+## Connect without a key
+
+You can also run `sculptured connect https://app.usesculptured.com` yourself. It prints a link and a code such as `WXYZ-2345` and opens your browser. Check that the code matches, then choose **Allow**. Add `--install-service` to keep it running in the background, `--allow <folder>` to choose folders up front, and `--name` to set how it appears on the Computers page. All options are on the [CLI reference](/reference/cli).
+
+<Warning>Only approve a code you just saw on your own computer. Approving a code someone sent you would connect *their* machine to your account.</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="“There's no Sculptured build for … yet”">
+    The Computers page offers a command only for systems with a published build: today, Windows on x64 and Linux. The installers also stop, without installing anything, on an Intel Mac, on Windows on Arm, or on an unsupported Linux processor.
+  </Accordion>
+  <Accordion title="“This connect command was already used or has expired”">
+    Each command works once, for 30 minutes. Choose **Copy connect command** again and paste the new one.
+  </Accordion>
+  <Accordion title="The command finished, but the computer doesn't show Connected">
+    Wait ten seconds; the page refreshes itself. If it still doesn't connect, run the command again. It stops any old runner before replacing it. On Linux, `systemctl --user status sculptured-runner` shows whether the service is running. If the command printed "Wrote …, but could not start it", start the service yourself, or run `sculptured connect https://app.usesculptured.com` to stay connected while the terminal is open.
+  </Accordion>
+  <Accordion title="An agent says Claude Code or Codex isn't signed in">
+    The CLI is installed but has no sign-in on that computer. Choose **Sign in to Claude Code** (or Codex) on the agent, finish signing in, then choose **Hand over again**. See [Sign in Claude Code and Codex](#sign-in-claude-code-and-codex).
+  </Accordion>
+  <Accordion title="Sculptured says Claude Code or Codex isn't installed">
+    Install it on the computer that runs the team, then start the agent again. You don't need to reconnect: the runner looks for the CLI each time an agent starts.
+  </Accordion>
+  <Accordion title="“… is not in a folder this computer allows”">
+    The project's folder is outside the computer's allowed folders. Choose a folder inside one of them, or allow it with `sculptured allow <folder>` and restart the runner. The message lists the allowed folders.
+  </Accordion>
+  <Accordion title="“… does not exist on this computer” or the folder is rejected">
+    Folder paths must be full paths on the computer that runs the team, such as `/home/you/project` or `C:\Users\you\project`. Check the spelling, or choose **Browse…**.
+  </Accordion>
+  <Accordion title="“Live updates for … aren't arriving”">
+    The browser lost its live connection to your account. Your agents are not affected and keep working. Sculptured keeps trying; choose **Try again** to reload. This usually means a dropped network connection, or a network that blocks live connections.
+  </Accordion>
+  <Accordion title="My computer went to sleep or lost Wi-Fi during a run">
+    Nothing is lost. Agents' calls wait for the connection to return, questions stay open, and a **Stop team** you press meanwhile happens as soon as the computer is back. See [When a computer goes offline](/guides/offline).
+  </Accordion>
+</AccordionGroup>
+
+More problems and fixes are on [Troubleshooting](/troubleshooting).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">Run a first team on your computer.</Card>
+  <Card title="Security" icon="shield" href="/security">What the server can and cannot do on your computer.</Card>
+</CardGroup>

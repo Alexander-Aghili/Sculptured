@@ -1,20 +1,97 @@
 ---
 title: Context and communication
-description: Inspect agent evidence where the work happens.
+description: See what an agent saw and did, who talked to whom, and how sure each piece of evidence is.
 ---
 
-## Agent context
+Sculptured records what it can observe about each agent: the messages it read, the tools it called and what they returned, the files it changed and the checks that ran. These views turn that record into pictures. Each picture links back to the raw evidence.
 
-Open an agent's **Visual progress** view to inspect reported context usage and captured instructions, messages, workflow assignments, tool input/results, and replies. Categories use labels and colors; open entries to read the source evidence.
+| View | Where | Answers |
+| --- | --- | --- |
+| **Visual progress** | Agent pane | What did this agent build, run and check? |
+| **Context** | Agent pane, inside Visual progress | What went into this agent's context? |
+| **Communications** | Run board, More | Who talked to whom, and how much? |
+| **Conversation** | Run board, More | What happened in the team, in order? |
+| **Token use** | Run board, More | How many tokens did each agent report? |
 
-Captured character counts and characters-divided-by-four token estimates are distinct from CLI-reported window usage. Hidden instructions, compaction, unmanaged helpers, and uncaptured material remain unknown. A path or URL appearing in text does not prove it was read.
+## How sure is each piece?
+
+Every view keeps these apart, and labels them.
+
+| Label | Meaning | Example |
+| --- | --- | --- |
+| **Captured** | Recorded word for word as it happened | A tool's input and result |
+| **Observed** | Seen by the computer running the agent | The process started or ended |
+| **Agent-reported** | The agent said so | "Done", or findings from `report` |
+| **Heuristic** | Sculptured's inference | "Stalled", a stale agent, an estimate |
+| **Verified check** | A command Sculptured ran itself, with its real exit status | Your test command passed |
+
+<Note>A file existing, a tool succeeding or an agent saying "done" does not make the work correct. Only a check that ran shows a check passed, and only for what that check tests.</Note>
+
+## Visual progress
+
+Open an agent and choose **Visual progress**.
+
+- **Summary**: tool calls, files changed, commands, checks and last activity.
+- **Built and changed**: the files the agent wrote or edited. Open one to read it.
+- **Checks**: commands that ran, each with its result. "What the agent said" is kept next to it, labelled as reported.
+- **Process**: the agent's work over time. **Process as a list** gives the same steps as text.
+
+Pick any item to jump to that moment in the **Transcript**. The Transcript then offers a way back to Visual progress.
+
+## An agent's context
+
+The **Context** section of Visual progress shows what Sculptured captured going into the agent, by category:
+
+| Category | What it holds |
+| --- | --- |
+| Team & job instructions | The team briefing and the agent's Job |
+| Your messages | What you sent it |
+| Assignments & handoffs | Work handed to it by other agents or a workflow |
+| Tool inputs | What it asked tools to do |
+| Tool results | What tools gave back |
+| Agent replies | What it wrote |
+
+Each category shows records, characters, and **≈ tokens**, estimated as characters ÷ 4. Open a category with **Inspect captured content**, or list the files and links mentioned with **Inspect referenced paths and URLs**.
+
+Above the categories is the **last reported context usage**, labelled "CLI-reported usage" or "CLI-derived estimate", with its time. If the CLI has not reported yet, it says so.
+
+<Warning>Captured content is not the whole context. Hidden system instructions, the CLI's own compaction, helpers the CLI starts by itself, and anything Sculptured did not capture stay unknown. A path or URL appearing in text does not prove the agent read it.</Warning>
 
 ## Team communication
 
-Open **Communications** on Live to inspect directed messages, delivery/read state, traffic over time, payload sizes, and reported token usage. Filter routes and inspect message content before drawing conclusions about overhead.
+On the Run board, open **More → Communications**.
 
-The dashboard uses bounded loaded history, not necessarily lifetime totals. Queue-to-delivery latency is not model completion time. Prompt overhead estimates are not measured network or compute costs.
+| Part | What it shows |
+| --- | --- |
+| **Filters** | One participant or **Everyone**, the window (**Loaded history** or **Last hour**), and direction |
+| **Totals** | Messages, read and failed counts, captured payload size |
+| **Who talks to whom** | The routes messages actually took, as a picture |
+| **Message traffic** | Messages over time |
+| **Reported model usage** | Tokens the CLIs reported |
+| **Routes** | Each sender and receiver pair, with messages, payload, and read or failed |
+| **Messages** | Each message, with **Open receiving transcript** |
 
-## Evidence and outcomes
+An arrow on the Design board is a plan. This view shows only captured messages. A planned arrow with no traffic means nothing went along it.
 
-Preserve the distinction between planned work, work in progress, agent-reported completion, independently verified checks, and blockers. Tool success and file existence alone do not establish correctness.
+<Info>The numbers come from the loaded history, not necessarily the team's whole lifetime. The time from queued to delivered is not the model's thinking time. Payload sizes are characters captured, not network or compute cost.</Info>
+
+## The team conversation
+
+**More → Conversation** puts the team's updates, messages, handoffs, questions and reported results on one timeline. Filter it to **All communication**, **Updates**, **Messages & handoffs**, **Questions** or **Reported results**, or to one agent. Each row opens the agent's conversation, the work evidence, or the captured event behind it.
+
+## Token use
+
+**More → Token use** charts the tokens each agent reported over time: output, cached input read, and context now, with each agent's last report. Usage arrives when the CLI reports it, often at the end of a turn, so the chart can lag the work.
+
+## Raw events
+
+Every view above is built from the **Events** tab of each agent. It lists the recorded events in order, with who recorded each one. When something in a picture looks wrong, read the events.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Run a team" icon="play" href="/guides/running">The Run board and its panels.</Card>
+  <Card title="Agent states" icon="list" href="/reference/states">States, and the evidence behind each.</Card>
+  <Card title="Workflows" icon="diagram-project" href="/guides/workflows">Stages, checks and verified outcomes.</Card>
+  <Card title="Privacy" icon="lock" href="/privacy">What stays on your computer.</Card>
+</CardGroup>

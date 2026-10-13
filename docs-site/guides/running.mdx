@@ -1,0 +1,115 @@
+---
+title: Run a team
+description: Start a team, follow its work on the Run board, and pass work along again when you need to.
+---
+
+You design a team on the **Design** board and watch it work on the **Run** board. Starting a team launches one Claude Code, Codex or Practice agent per card. Each agent gets its Job, and finished work moves along the **hands work to** arrows.
+
+```mermaid
+flowchart LR
+  D["Design board"] -- "Start team" --> C["Checks: Ready or Needs setup"]
+  C -- "Start Claude and Codex agents?" --> L["Agents launch, givers first"]
+  L -- "Job as first message" --> W["Agents work"]
+  W -- "finished turn" --> H["Handoff to the next agent"]
+  H --> W
+  W -- "Stop team" --> S["Stopped, history kept"]
+```
+
+## Before you start
+
+The status button next to **Start team** on the Design board reads **Ready**, **Needs setup** or **Running**. Open it to see what is left to do.
+
+- **Needs setup** lists the things to fix, such as an agent with no name, a missing folder or an arrow that loops. Start team stays off until they are fixed. Warnings do not block a start.
+- **Ready** says what happens next: "Each agent gets its job as its first message." In a team with a workflow, the dispatcher reads Input first and the workers wait for assignments.
+- In the hosted app the team runs on a connected computer. If none is connected, Start says "This needs your computer: your folders and agents run there, not on the server." See [Connect a computer](/connect-a-computer).
+
+## Start the team
+
+<Steps>
+  <Step title="Press Start team">It sits at the top right of the Design board.</Step>
+  <Step title="Confirm real agents">If the team has Claude or Codex agents, Sculptured first asks "Start …?". It names where they run, whose accounts they use and which agent starts first. Practice agents make no model calls and need no confirmation.</Step>
+  <Step title="Watch the launch">Agents launch in order, givers before the agents they hand work to. Each one shows <em>launching</em>, then <em>running</em>.</Step>
+  <Step title="Open the Run board">The **Run** tab opens once the team has started. Before then it reads "Run opens once the team has started".</Step>
+</Steps>
+
+If something goes wrong, the board says "Could not start:" and lists the issues, with a link back to the Design board. While a team runs you can still rename agents, edit their Jobs and move cards. To add, remove or reconnect agents, stop the team first.
+
+## The Run board
+
+The Run board shows the agents that are running. Switch between **Graph** and **List** at the top, or press <kbd>l</kbd>. List shows every agent, including stopped and planned ones.
+
+| Part | What it shows |
+| --- | --- |
+| **Agent card** | Name, state, its latest reply ("› …"), tokens, and the time since its last activity. A card that needs you has an **Answer** button. |
+| **Status** | "set to run · 2 of 3 sessions open", how many agents need you, and notices such as "reconnecting" or "history has a gap". |
+| **More → Conversation** | One timeline of updates, messages, handoffs, questions and reported results, with a **Needs You** row. |
+| **More → Token use** | Tokens each agent has used over time: output, cached input read, and context now. |
+| **More → Communications** | Who talks to whom, message traffic, delivery and read state, and captured payload sizes. See [Context and communication](/guides/context). |
+| **More → History** | Earlier runs of this team, with **Download run**. Switch back with **Current**. |
+| **More → Work evidence** | For a team with a workflow: each item, its stage, its history, and decisions waiting for you. |
+
+Open an agent to read its **Transcript**, **Visual progress** and **Events**, and to send it messages. See [Control live agents](/guides/control).
+
+## What the states mean
+
+Each card shows its state as a symbol and a word, so nothing relies on color alone.
+
+| State | Meaning |
+| --- | --- |
+| ⚙ working | A turn is in progress. |
+| ◉ needs you | It is waiting for your answer, or it needs attention. |
+| ▲ stuck | Its handoffs cannot go on by themselves. The reason says why. |
+| ✓ done | A turn finished since you last looked. |
+| ○ idle | Its session is open but it is doing nothing. |
+| ∅ unknown | Sculptured cannot see it right now, for example while its computer is offline. |
+
+"No active work; sessions are open. Stop team closes them." means every agent is idle. An open session is not working. The full list of states and what moves an agent between them is in [Agent states](/reference/states).
+
+## How work moves along
+
+Only **hands work to** arrows move work. **Reports to** and **watches** describe intent and send nothing.
+
+- **The first handoff waits for everyone upstream.** An agent that receives from two agents starts when both have a result. Its card shows "starts when they have all finished; their results are passed along".
+- **A finished turn is the result.** When an agent's turn completes after it read its work, its last reply goes to the next agent. A turn that was interrupted or failed does not hand anything over. The agent shows as stuck until a later turn finishes.
+- **More work moves in waves.** After the first round, each finished work turn sends one message to every agent downstream. Each of them runs once per wave.
+- **A reply to you is not a handoff.** If you chat with an agent, its answer to you stays with you.
+
+<Note>An agent that says "done" has reported that it finished. That is not proof that the work is correct. End a team with a step that runs your tests, and read the [evidence](/guides/context).</Note>
+
+## Pass work along again
+
+The agent pane shows handoff actions when they apply:
+
+| Button | When it shows | What it does |
+| --- | --- | --- |
+| **Hand over again** | A running agent with agents downstream | Sends its latest finished turn to the agents it hands work to. Each agent downstream runs once. |
+| **Resend handoff** | A handoff or Job never reached a running agent | Sends what it is owed again. |
+| **Restart this agent** | The agent needs attention, failed or stopped while the team runs | Relaunches only this agent. It then gets what it is owed. |
+
+If the downstream agents are real Claude or Codex agents, **Hand over again** first asks "Re-run N agents downstream of …?". Each one runs once and uses your account.
+
+<Tip>When Claude Code or Codex is not signed in on the computer, the agent pane says so and offers **Sign in to Claude Code** or **Sign in to Codex**. After you sign in, press **Hand over again** or **Restart this agent** so the agent tries again.</Tip>
+
+## Cost and limits
+
+- Each card and agent pane shows tokens in and out. "tokens unknown" means the CLI has not reported usage yet.
+- If agents have a **token limit**, the Run board shows "Token limits · N reached" once one is hit. An agent at its limit is asked to wrap up and stop.
+- Usage reports can arrive late, so an agent may go a little past a limit.
+
+See [Limits and usage](/reference/limits) for the numbers.
+
+## Finish or start again
+
+- **Stop team…** asks you to confirm, then stops every running agent. "Their history is kept."
+- An agent that could not be stopped is listed with its computer's reason. The others still stop.
+- When no agent runs, **Start team** appears on the Run board. Every agent gets its Job again as its first message.
+- If Sculptured restarted while the team ran, the board asks "N agents stopped mid-work. Resume them where they left off?" Choose **Resume**, **Start fresh** or **Leave stopped**. Nothing relaunches until you answer.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Answer questions" icon="circle-question" href="/guides/questions">What happens when an agent asks you something.</Card>
+  <Card title="Control live agents" icon="sliders" href="/guides/control">Send guidance, interrupt, wrap up or stop.</Card>
+  <Card title="When the computer drops off" icon="wifi" href="/guides/offline">What survives a lost connection mid-run.</Card>
+  <Card title="Agent states" icon="list" href="/reference/states">Every state and what moves an agent between them.</Card>
+</CardGroup>

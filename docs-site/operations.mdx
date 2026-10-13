@@ -1,39 +1,140 @@
 ---
-title: Run and maintain
-description: Start Sculptured, build it from source, back up your data and upgrade safely.
+title: Run it yourself
+description: Build Sculptured from source, run it on your own computer, and back up, upgrade and roll back your data.
 ---
 
-Sculptured runs on your own computer: `sculptured serve` listens on loopback port 4410 and starts a local runner (`hostd`) that drives your Codex and Claude Code agents. Projects, transcripts, Git work and settings stay in `~/.sculptured/`. Do not expose port 4410 to the Internet.
+Sculptured is open source (Apache-2.0). You can run the whole thing on one computer, with no account: `sculptured serve` runs the app on port 4410 and starts a local agent runner that drives your Claude Code and Codex agents. Everything stays in `~/.sculptured/`.
 
-## Start an installed copy
+<Tabs>
+  <Tab title="On your own computer">
+    One program, one computer, no account. The app, its database and the agents all run on your machine. Nothing is recorded or sent anywhere except what Claude Code and Codex send to their providers.
+  </Tab>
+  <Tab title="With a Sculptured account">
+    The hosted beta runs your Sculptured for you, and your agents run on the computers you connect. See [Connect a computer](/connect-a-computer). You don't need anything on this page.
+  </Tab>
+</Tabs>
 
-```bash
-~/.sculptured/bin/sculptured serve --port 4410 --web-dir ~/.sculptured/web
+```mermaid
+flowchart LR
+  B["Your browser"] -- "http://127.0.0.1:4410" --> S["sculptured serve: app, API, database"]
+  S -- "loopback link, host token" --> R["Local runner"]
+  R -- "starts, sends messages, stops" --> A["Claude Code / Codex"]
+  A -- "reads and writes" --> F[("Your project folders")]
+  S -- "reads and writes" --> D[("~/.sculptured/")]
 ```
 
-If it is already running, open http://127.0.0.1:4410 instead of starting a second copy. The runner may outlive the server; stop teams in the app before upgrading. Sign in to Codex or Claude Code as your own OS user; Sculptured uses their existing sign-in.
+## Before you start
 
-## Build from source
+| You need | Why |
+| --- | --- |
+| Linux or macOS | `sculptured serve` runs on Linux and macOS. On Windows, Sculptured runs only as a connected computer for a Sculptured account. |
+| Rust (stable) and Node.js | To build the program and the web app. |
+| Claude Code or Codex, signed in as your own user | Sculptured uses their existing sign-in and never stores provider credentials. |
+| Git | For agents' own copies of a repository and the Git panel. |
 
-```bash
-cd web
-npm ci
-npm run build
-cd ..
-cargo build --locked --release -p sculptured
-./target/release/sculptured serve --port 4410 --web-dir web/dist
-```
+<Tip>You can try every screen without any CLI installed: **Practice** agents use scripted replies and make no model calls.</Tip>
 
-## Back up your data
+## Build and start
 
-Everything lives in `~/.sculptured/`. The databases use SQLite's write-ahead log, so copying only `controld.sqlite` while Sculptured runs is not a reliable backup. Either stop Sculptured and copy the folder, or snapshot the database while it runs:
+<Steps>
+  <Step title="Build the web app">
+    ```bash
+    cd web
+    npm ci
+    npm run build
+    cd ..
+    ```
+  </Step>
+  <Step title="Build the program">
+    ```bash
+    cargo build --locked --release -p sculptured
+    ```
+  </Step>
+  <Step title="Start it">
+    ```bash
+    ./target/release/sculptured serve --port 4410 --web-dir web/dist
+    ```
+    Open http://127.0.0.1:4410. If Sculptured is already running, open that address instead of starting a second copy.
+  </Step>
+</Steps>
 
-```bash
-sqlite3 ~/.sculptured/controld.sqlite ".backup '/path/to/backup/controld.sqlite'"
-```
+### `serve` options
 
-Agents' own copies of your repositories (`~/.sculptured/copies/`) can hold unmerged work: merge or copy it out before deleting them.
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--port` | `4410` | Port on `127.0.0.1`. |
+| `--data-dir` | `~/.sculptured` | Where everything is kept. Also read from `SCULPTURED_DATA_DIR`. |
+| `--web-dir` | `web/dist` | The built web app. |
+| `--claude-program` | found on `PATH` | Full path to Claude Code, if it is not on `PATH`. |
+| `--codex-program` | found on `PATH` | Full path to Codex, if it is not on `PATH`. |
 
-## Upgrade and roll back
+Sculptured logs to the terminal. Set `RUST_LOG=debug` for more detail. See the [CLI reference](/reference/cli) for every command.
 
-Stop running teams, replace the binary and web folder, then start `sculptured serve` again; it upgrades its database on start. Keep the previous binary until you have checked the new one. Database upgrades are not reversed automatically, so restore your backup if you need to go back to an older version.
+<Warning>Do not expose port 4410 to the Internet or put it behind a public reverse proxy. The local app controls your agents and reads your project files. It accepts only requests addressed to `127.0.0.1` or `localhost`, so a public proxy would either fail or defeat that protection.</Warning>
+
+## What's in `~/.sculptured/`
+
+| Path | What it holds |
+| --- | --- |
+| `controld.sqlite` (with `-wal` and `-shm`) | Your teams, runs, messages, questions, transcripts and the event history. |
+| `host-token` | The secret the local runner uses to connect to the app. Private to your user. |
+| `host-local/` | The local runner's own state: its journal, its lock and the address of the running app. |
+| `copies/` | Agents' own copies of your repositories, when a team uses them. They can hold work not yet merged. |
+| `runner/` | Only on a computer connected to a Sculptured account: its identity and the folders it allows. |
+
+The runner can outlive the app. If you restart `serve`, the running runner finds the new app on its own, and running agents keep going.
+
+## Back up
+
+The database uses SQLite's write-ahead log, so copying only `controld.sqlite` while Sculptured runs is not a reliable backup. Pick one:
+
+<Tabs>
+  <Tab title="While it runs">
+    ```bash
+    sqlite3 ~/.sculptured/controld.sqlite ".backup '/path/to/backup/controld.sqlite'"
+    ```
+  </Tab>
+  <Tab title="Stopped">
+    Stop Sculptured, then copy the whole `~/.sculptured/` folder.
+  </Tab>
+</Tabs>
+
+Agents' copies in `~/.sculptured/copies/` are separate Git working folders. Merge or copy out their work before you delete them.
+
+You can also keep a team outside the database: **Export team file** saves it as a `.sculptured-team.json` file, and **Import** loads one. See [Team files](/guides/team-files).
+
+## Upgrade
+
+<Steps>
+  <Step title="Stop running teams">Stop every team in the app, so no agent is left working unwatched.</Step>
+  <Step title="Back up">Take a backup as above.</Step>
+  <Step title="Replace the program and web app">Build or copy the new `sculptured` and the new web folder. Keep the old program until you have checked the new one.</Step>
+  <Step title="Start again">Run `sculptured serve`. It upgrades its database when it starts.</Step>
+</Steps>
+
+## Roll back
+
+Database upgrades are not reversed automatically. To go back to an older version, stop Sculptured, restore the backup you took before upgrading, and start the older program.
+
+## After a restart
+
+Sculptured keeps teams, runs, messages and questions in its database. After a restart:
+
+- Agents whose process is still alive return to **running**.
+- Agents whose process ended show **needs attention** with a reason, and the team offers **Resume** (the agent's own session, when it can be resumed), **Start fresh** or **Leave stopped**. Nothing relaunches until you choose.
+- Questions that were waiting inside an agent's tool call are withdrawn, because the call ended with the restart. The agent can ask again.
+
+See [States and evidence](/reference/states).
+
+## Other computers
+
+A self-hosted Sculptured runs agents on the computer it runs on. To run agents on other computers, such as a Windows PC or a second laptop, connect them to a Sculptured account. See [Connect a computer](/connect-a-computer).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">Create and start your first team.</Card>
+  <Card title="Security" icon="lock" href="/security">What the app and the runner can and cannot do.</Card>
+  <Card title="CLI reference" icon="terminal" href="/reference/cli">Every command and option.</Card>
+  <Card title="Troubleshooting" icon="life-ring" href="/troubleshooting">Fixes for common problems.</Card>
+</CardGroup>

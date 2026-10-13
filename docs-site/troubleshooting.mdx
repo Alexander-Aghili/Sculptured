@@ -1,0 +1,143 @@
+---
+title: Troubleshooting
+description: Fixes for the problems people run into most, grouped by where they show up.
+---
+
+Find the message or symptom you see, then open it. Each fix says what causes it and what to do. If nothing here matches, an agent's pane usually says in plain words why it stopped: open the agent and read the top of its pane first.
+
+<CardGroup cols={3}>
+  <Card title="Connecting a computer" icon="plug" href="#connecting-a-computer">Install, keys, reconnecting.</Card>
+  <Card title="Starting a team" icon="play" href="#starting-a-team">Things to fix, computers, folders, plan limits.</Card>
+  <Card title="While a team runs" icon="wave-pulse" href="#while-a-team-runs">Sign-in, stuck agents, live updates.</Card>
+</CardGroup>
+
+## Connecting a computer
+
+<AccordionGroup>
+  <Accordion title="“There's no Sculptured build for … yet”">
+    The Computers page offers only the systems the server has a build for, and the installer stops before installing anything if there is none. Today the builds are Linux (x86_64 and arm64) and Windows. Apple silicon Macs are supported by the installer once a macOS build is published; Intel Macs are not supported yet. Connect a computer with another system for now.
+  </Accordion>
+  <Accordion title="“checksum mismatch” or “could not download”">
+    The download was cut off or changed on the way. Nothing was installed. Copy a new connect command from the Computers page and run it again.
+  </Accordion>
+  <Accordion title="The command worked once, but now it says the key is invalid">
+    A connect key works **once**, for **30 minutes**. Copy a new command from **Computers → Connect a computer** each time you connect.
+  </Accordion>
+  <Accordion title="“This computer was disconnected from its Sculptured account”">
+    Someone pressed **Disconnect** for this computer, or its key was revoked. The runner stops instead of retrying. Copy a new connect command from the Computers page and run it on this computer: it notices the old key no longer works and connects with the new one.
+  </Accordion>
+  <Accordion title="I ran the Windows command again and it still doesn't connect">
+    The Windows installer stops the previous runner before replacing its files, then starts the new one. If an older copy is still running from before that fix, stop it first:
+
+    1. Open **Task Scheduler**, find **Sculptured runner**, and choose **End**, then **Disable**.
+    2. In Task Manager, end any `sculptured.exe` and `sculptured-background.exe`.
+    3. Run the connect command again in PowerShell.
+
+    The runner is installed in `%LOCALAPPDATA%\Programs\Sculptured`.
+  </Accordion>
+  <Accordion title="The computer shows as not connected after a restart">
+    The runner starts again when you log in, not when the computer boots: a systemd user service on Linux, a LaunchAgent on macOS, or the **Sculptured runner** logon task on Windows. Log in to the computer. If it still doesn't appear, run the connect command again; running it again restarts the service.
+  </Accordion>
+</AccordionGroup>
+
+## Starting a team
+
+<AccordionGroup>
+  <Accordion title="The Start button says “Needs setup”">
+    The team has something to fix before it can start. Open the list under the button: each item is pinned to the agent, group or arrow it is about. Errors block starting; warnings don't.
+  </Accordion>
+  <Accordion title="“Connect a computer first: Computers → Connect a computer.”">
+    With a Sculptured account, agents run on a computer you connect, and none is connected now. Open **Computers**, copy the connect command, and run it on the computer that has Claude Code or Codex. See [Connect a computer](/connect-a-computer).
+  </Accordion>
+  <Accordion title="“Choose which computer: more than one is connected.”">
+    Several computers are connected, so Sculptured doesn't guess. Choose one under **Runs on** in the project panel on the Design board.
+  </Accordion>
+  <Accordion title="“… is not connected. Open Computers to connect it.”">
+    The team is set to run on a computer that is offline. Turn that computer on and log in, or choose another computer under **Runs on**.
+  </Accordion>
+  <Accordion title="“…'s folder must be a full path”">
+    A folder must start from the top of the disk: `/home/you/project` on Linux, `/Users/you/project` on macOS, or `C:\Users\you\project` on Windows. A path such as `project` or `~/project` is not full.
+  </Accordion>
+  <Accordion title="“… is not in a folder this computer allows”">
+    The computer only lets agents start inside the folders its owner allowed. The installer allows your home folder. On that computer, run:
+
+    ```bash
+    sculptured allow /path/to/folder
+    ```
+
+    Or choose a folder inside one it already allows; **Browse…** shows only those.
+  </Accordion>
+  <Accordion title="“… does not exist on this computer”">
+    The folder is typed for the wrong computer, or was moved. A team's folder is a path on the computer that runs it, not on the computer you're browsing from. Use **Browse…** to pick it.
+  </Accordion>
+  <Accordion title="Start says my plan is near its limit">
+    Claude Code or Codex reported that your Claude or ChatGPT plan is at 90% or more of a usage window. Sculptured holds new work so a team doesn't stop halfway. Wait for the reset time shown, or press **Start anyway**. See [Limits](/reference/limits#plan-usage-holds).
+  </Accordion>
+  <Accordion title="I can't edit agents or arrows">
+    A running team's structure is locked: agents' settings, arrows, groups and folders. Names, jobs and positions can still change. Stop the team to change the rest.
+  </Accordion>
+  <Accordion title="Someone else saved this team">
+    The team changed in another tab or window since you opened it. Sculptured keeps your version on screen and asks: **Reload** to take the other version, or **Keep mine** to save yours over it.
+  </Accordion>
+</AccordionGroup>
+
+## While a team runs
+
+<AccordionGroup>
+  <Accordion title="“Claude Code isn't signed in on the computer that runs …”">
+    Claude Code (or Codex) is installed on that computer but not signed in, so the agent stopped at its first turn. Press **Sign in to Claude Code** in the agent's pane: it starts Claude Code's own sign-in on that computer and opens the sign-in page. After signing in, press **Hand over again** (or **Restart**) so the agent tries again.
+
+    You can also sign in by hand: run `claude` (or `codex login`) in a terminal on that computer as the same user. On Windows, if `claude` is not on your PATH, run `& "$env:USERPROFILE\.local\bin\claude.exe"`.
+  </Accordion>
+  <Accordion title="Claude Code or Codex shows “not installed”">
+    The computer couldn't find the program. Install it as the same user that runs Sculptured. Sculptured looks on your PATH, then in the usual install folders: `~/.local/bin`, npm's, Bun's and Volta's folders, and Homebrew's on macOS; on Windows, `%USERPROFILE%\.local\bin` and `%APPDATA%\npm`. It looks again each time an agent starts, so you don't need to restart the runner.
+  </Accordion>
+  <Accordion title="“Live updates for … aren't arriving”">
+    The board couldn't receive live updates for 8 seconds. Sculptured keeps trying in the background, and your agents are not affected. This is usually a dropped network connection, or a network or proxy that blocks live connections. Press **Try again**, or **Open the Design board** in the meantime.
+  </Accordion>
+  <Accordion title="An agent shows “stale” or “unknown”">
+    Its computer's link was lost, so what you see is the last known state. Agents keep working on the computer while it's offline. When it reconnects, Sculptured catches up. See [When a computer drops off](/guides/offline).
+  </Accordion>
+  <Accordion title="An agent is “stuck”">
+    It is idle and its handoffs can't go on by themselves. The pane says why: often an upstream agent hasn't produced a result, or its turn was interrupted. Use **Hand over again** to resend the work it is owed, **Resend handoff**, or send it guidance.
+  </Accordion>
+  <Accordion title="An agent “needs attention”">
+    It stopped when it shouldn't have, couldn't start, or was lost in a restart. Read the reason in its pane. Then **Restart this agent**, or answer the team's restore offer: **Resume**, **Start fresh** or **Leave stopped**.
+  </Accordion>
+  <Accordion title="An agent stopped saying a limit was reached">
+    Its token limit, the team's output budget, or your provider's limit was reached. The first two are set on the team; see [Limits](/reference/limits). For a provider limit, Sculptured shows the reset time when the CLI gives one and never retries by itself: send "continue" after the reset.
+  </Accordion>
+  <Accordion title="Stop says “Stops as soon as its computer reconnects”">
+    You stopped a team while its computer was offline. The agents stay **stopping** until the computer comes back, and are stopped then. If the computer is off, they aren't running anyway.
+  </Accordion>
+  <Accordion title="A question disappeared before I answered">
+    Questions wait 10 minutes by default. After that the agent decides for itself and records what it decided; an answer you send later reaches it as an overriding instruction. A question is withdrawn only when it can no longer reach the agent, for example after the agent stopped.
+  </Accordion>
+</AccordionGroup>
+
+## Running it yourself
+
+<AccordionGroup>
+  <Accordion title="The port is already in use">
+    Sculptured is probably already running. Open http://127.0.0.1:4410 instead of starting a second copy, or pass `--port` to use another port.
+  </Accordion>
+  <Accordion title="The page is blank or says it can't find the app">
+    `--web-dir` must point at the built web app. Build it with `npm ci && npm run build` in `web/`, then start with `--web-dir web/dist`. See [Run it yourself](/operations).
+  </Accordion>
+  <Accordion title="Opening Sculptured through another hostname is refused">
+    The local app accepts only requests addressed to `127.0.0.1` or `localhost`. This is on purpose: it stops other websites from driving your agents. Don't put it behind a public proxy.
+  </Accordion>
+  <Accordion title="Agents keep running after I stop the server">
+    The local runner can outlive the app, so restarting the app doesn't stop your agents. Stop teams in the app first if you want them stopped.
+  </Accordion>
+</AccordionGroup>
+
+## Still stuck?
+
+- Open the agent's **Visual progress** and transcript: the raw events are the evidence of what happened. See [Context and communication](/guides/context).
+- Report a bug on the [Sculptured GitHub repository](https://github.com/Alexander-Aghili/sculptured/issues). Leave out prompts, file contents and keys.
+
+<CardGroup cols={2}>
+  <Card title="FAQ" icon="circle-question" href="/faq">Common questions.</Card>
+  <Card title="States and evidence" icon="list-check" href="/reference/states">What every state means.</Card>
+</CardGroup>

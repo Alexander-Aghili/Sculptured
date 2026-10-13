@@ -16,7 +16,7 @@ try {
     assert.ok(fs.existsSync(file), `${page}.html is built`);
     const html = fs.readFileSync(file, 'utf8');
     assert.match(html, /<title>[^<]+ · Sculptured docs<\/title>/, `${page} has a title`);
-    assert.doesNotMatch(html, /<(Card|CardGroup|Steps|Step|Note|Tip|Warning)[\s>]/, `${page} has no raw components`);
+    assert.doesNotMatch(html, /<(Card|CardGroup|Steps|Step|Note|Tip|Info|Check|Warning|Tabs|Tab|AccordionGroup|Accordion|Frame)[\s>]/, `${page} has no raw components`);
     for (const other of pages) assert.ok(html.includes(`href="/${other}"`), `${page} links to ${other} in the sidebar`);
     assert.ok(html.includes(`aria-current="page" href="/${page}"`), `${page} marks itself current`);
   }
@@ -27,6 +27,16 @@ try {
   assert.match(quick, /<ol class="steps">/, 'steps are an ordered list');
   assert.equal(fs.readFileSync(path.join(out, 'index.html'), 'utf8'), intro, 'the home page is the introduction');
   assert.ok(fs.existsSync(path.join(out, 'images/sculptured-coastal-emblem.png')), 'images are copied');
+  const llms = fs.readFileSync(path.join(out, 'llms.txt'), 'utf8');
+  for (const page of pages) {
+    assert.ok(llms.includes(`(/${page}.md)`), `llms.txt lists ${page}`);
+    assert.ok(fs.existsSync(path.join(out, `${page}.md`)), `${page}.md is published for agents`);
+  }
+  assert.ok(fs.readFileSync(path.join(out, 'llms-full.txt'), 'utf8').includes('# Quickstart'), 'llms-full.txt holds every page');
+  for (const page of pages) {
+    const html = fs.readFileSync(path.join(out, `${page}.html`), 'utf8');
+    if (html.includes('class="tabs"')) assert.match(html, /<section class="tab" data-title="[^"]+">/, `${page}'s tabs have titles`);
+  }
   for (const f of ['team-v1.json', 'session-v1.json']) {
     assert.ok(JSON.parse(fs.readFileSync(path.join(out, 'schema', f), 'utf8')).$schema, `the ${f} schema is published`);
   }

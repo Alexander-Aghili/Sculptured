@@ -1,37 +1,114 @@
 ---
 title: Quickstart
-description: Run the workspace and create your first local agent team.
+description: Sign in, connect your computer and run a first team of agents, in about ten minutes.
 ---
 
-## Start an installed workspace
+This guide takes you from nothing to a running team. You'll start with **Practice agents**, which behave like agents but never call a model, so the first run costs nothing. Then you'll switch the same team to Claude Code or Codex.
 
-```bash
-~/.sculptured/bin/sculptured serve --port 4410 --web-dir ~/.sculptured/web
-```
+<Tabs>
+  <Tab title="Hosted beta">
 
-Open `http://127.0.0.1:4410`. If it is already running, use that instance. The local agent runner starts automatically.
+## Before you start
 
-## Build from source
-
-Use Rust and Node.js. Install and sign in to Codex or Claude Code separately; Sculptured does not replace their provider sign-in.
-
-```bash
-cd web
-npm ci
-npm run build
-cd ..
-cargo build --locked --release -p sculptured
-./target/release/sculptured serve --port 4410 --web-dir web/dist
-```
+- An invite link to the Sculptured beta (the beta is invite-only).
+- A computer running **Windows** (64-bit Intel or AMD) or **Linux**. The [Computers page](/connect-a-computer) shows which systems have a build.
+- For real agents: [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) installed on that computer. You can also sign them in later from Sculptured.
 
 <Steps>
-  <Step title="Create a project">Open the workspace menu and Projects. Create a blank project or choose a template.</Step>
-  <Step title="Choose a folder">Set the project folder. Every agent inherits it unless you set an explicit override.</Step>
-  <Step title="Define the goal">Write each role's job. If the project has Input, add links, source notes, ideas, and constraints there.</Step>
-  <Step title="Review the board">Arrange agents and connect handoffs. Resolve every item under “Things to fix.”</Step>
-  <Step title="Start and inspect">Start the team, open Live, and open an agent to read its transcript or send guidance.</Step>
+  <Step title="Create your account">
+    Open your invite link. On **Join the Sculptured beta**, enter your name, email and a password of at least 12 characters, then choose **Create account**. Next time, sign in at **app.usesculptured.com** with your email and password, or with Google or GitHub where they are offered.
+  </Step>
+  <Step title="Connect your computer">
+    In the sidebar, open **Computers**. Under **Connect a computer**, your system is already selected. Choose **Copy connect command**, open a terminal on that computer (PowerShell on Windows), paste the command and press Enter.
+
+    The command installs Sculptured's runner without admin rights, connects it to your account, and keeps it running in the background, even after a restart. Agents may then work anywhere in your home folder. The details are in [Connect a computer](/connect-a-computer).
+
+    Back on the Computers page, your computer shows **Connected** within a few seconds.
+  </Step>
+  <Step title="Create a project">
+    Choose **New project** in the sidebar. In **New project · Start from…**, set **agents run on** to **Practice agent**, then pick a template, for example **Builder → Reviewer**: one agent builds, then hands the work to a second that reviews it.
+
+    Other templates include **Solo agent**, **Planner → 2 Builders**, **Independent reviewers** and **Blank canvas**. Larger examples, such as the **gstack-style product team** and the **Coding hospital**, are in [Community](/guides/community).
+  </Step>
+  <Step title="Choose the folder">
+    The project opens on its **Design** board. In **Folder on your computer**, type a full path on the computer that will run the team, such as `/home/you/project` or `C:\Users\you\project`, or choose **Browse…**. Leave it empty to use the computer's first allowed folder.
+
+    If you have more than one computer, pick one under **Run on**. With one connected computer, **Automatic** uses it.
+  </Step>
+  <Step title="Check the design">
+    The status in the board's toolbar says **Needs setup** while something is missing and **Ready** when the team can start. Open it to see what to fix. Click an agent to read or edit its **Job**, the first message it gets.
+  </Step>
+  <Step title="Start the team">
+    Choose **Start team**. Sculptured starts each agent on your computer, in order, and opens the **Run** view. Each agent appears with what it is doing now.
+  </Step>
+  <Step title="Watch and steer">
+    Click an agent to open its conversation: its messages, tool calls and files. Type in its composer to send it guidance. Open **Conversation** to follow every update, handoff and question in the team.
+  </Step>
+  <Step title="Answer a question">
+    When an agent needs a decision, it shows **needs you**, and the conversation lists it under **Needs You**. Choose **Answer** next to its name. To reply right away, open **⋯** next to the message box, choose **Instruct**, tick **Interrupt current turn**, then send your reply. A plain message waits until the question times out (10 minutes by default). See [Questions and approvals](/guides/questions).
+  </Step>
+  <Step title="Stop the team">
+    Choose **Stop team** in the toolbar and confirm. Every agent stops and its history is kept, so you can read it later or start the team again.
+  </Step>
 </Steps>
 
-<Tip>Practice agents exercise the local control system without model requests. Their scripted replies demonstrate behavior, not reasoning.</Tip>
+  </Tab>
+  <Tab title="Self-hosted">
 
-Continue with [the board](/guides/board) and [agent controls](/guides/control).
+## Before you start
+
+- Linux or an Apple silicon Mac.
+- [Rust](https://rustup.rs/) 1.95 or newer, [Node.js](https://nodejs.org/) 24 and Git.
+- For real agents: Claude Code or Codex installed and signed in as your own user. Practice agents need neither.
+
+<Steps>
+  <Step title="Build and start Sculptured">
+    ```bash
+    git clone https://github.com/Alexander-Aghili/sculptured.git
+    cd sculptured
+    npm --prefix web ci && npm --prefix web run build
+    cargo run --release -p sculptured -- serve
+    ```
+
+    Open `http://127.0.0.1:4410`. The local runner starts with the server, so there is nothing to connect.
+  </Step>
+  <Step title="Create a project">
+    Choose **New project**, set **agents run on** to **Practice agent** and pick **Builder → Reviewer**.
+  </Step>
+  <Step title="Choose the project folder">
+    On the **Design** board, choose the **Project folder**. Every agent uses it unless you give one its own folder.
+  </Step>
+  <Step title="Start, watch, answer, stop">
+    When the toolbar says **Ready**, choose **Start team**. Open agents from the **Run** view, answer anything that **needs you**, and choose **Stop team** when you're done.
+  </Step>
+</Steps>
+
+<Warning>The server listens on `127.0.0.1` only. Don't expose port 4410 to a network: anyone who reaches it can control your agents. See [Security](/security).</Warning>
+
+  </Tab>
+</Tabs>
+
+## Switch to real agents
+
+When the practice run looks right, use Claude Code or Codex instead:
+
+1. Stop the team.
+2. Click an agent and change what it runs on to **Claude** or **Codex**. Each agent can use a different one; the **Builder → Reviewer** template, for example, has Claude build and Codex review.
+3. Start the team again.
+
+<Warning>Claude Code and Codex agents use your own sign-in and may cost money once started. Each agent's token use is shown live under **Token use**. You can set a token limit per agent: see [Limits and usage](/reference/limits).</Warning>
+
+If an agent stops at once with a message that Claude Code or Codex **isn't signed in on the computer**, choose **Sign in to Claude Code** (or Codex) on that agent, finish signing in, then choose **Hand over again**. [Troubleshooting](/troubleshooting) covers this and other first-run problems.
+
+## Practice agents
+
+Practice agents follow a script. They take their jobs, hand work along the arrows, ask questions and report results, so you can learn the controls and test a design safely. Their replies show how the team moves, not real reasoning, and they never call a model.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Concepts" icon="book" href="/concepts">The words Sculptured uses and what each status means.</Card>
+  <Card title="Design a team" icon="diagram-project" href="/guides/agent-design">Pick the right shape for the work.</Card>
+  <Card title="Compose on the board" icon="pen-ruler" href="/guides/board">Add agents, draw handoffs and use Input.</Card>
+  <Card title="Run a team" icon="play" href="/guides/running">Everything the Run view shows.</Card>
+</CardGroup>

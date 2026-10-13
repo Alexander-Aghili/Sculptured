@@ -1,0 +1,66 @@
+---
+title: Changelog
+description: What changed in Sculptured, newest first.
+---
+
+Changes you can see or use, by date. The open-source core's full history is on [GitHub](https://github.com/Alexander-Aghili/sculptured/commits/main).
+
+## 13 October 2026
+
+### Connect a computer with one command
+
+- **One copied command** connects a computer on macOS, Linux or Windows. The Computers page picks your system, copies a command with a one-time key, and that's it: no code to approve. See [Connect a computer](/connect-a-computer).
+- **Runs in the background.** The runner installs as a service and starts again whenever you log in, so the terminal can be closed.
+- **Your home folder by default.** Agents may work anywhere in your home folder unless you choose other folders with `sculptured allow`.
+- **Windows runs natively.** The runner, Claude Code and Codex run on Windows with no WSL. The installer needs no admin rights and installs to `%LOCALAPPDATA%\Programs\Sculptured`.
+- **Reconnecting** a disconnected computer works with a freshly copied command; the old key is noticed and replaced.
+- **Reinstalling on Windows** stops the previous runner before replacing its files.
+- The installer says plainly when there is no build for your computer, instead of failing halfway.
+
+### Runs survive a dropped connection
+
+- When a computer drops off mid-run (Wi-Fi, sleep, a server update), agents keep working. Their tool calls wait and are answered when the computer is back.
+- Questions stay open while a computer is offline, and you can answer them.
+- **Stop** works while a computer is offline: the team shows **Stops as soon as its computer reconnects**, and it does.
+- Actions wait up to 45 seconds for a computer that just dropped off before saying it is not connected.
+
+See [When a computer drops off](/guides/offline).
+
+### Signing in and finding the CLIs
+
+- **Sign in to Claude Code / Codex from the agent that needs it.** An agent that stopped because its CLI isn't signed in shows a **Sign in** button that runs the sign-in on that computer.
+- Claude Code and Codex are found when an agent starts, not only when the runner starts, so installing one doesn't need a runner restart. Common install folders are searched as well as your PATH.
+- Windows folders such as `C:\Users\you\project` count as full paths in a team's design, and match a computer's allowed folders.
+
+### Board and app
+
+- **Live updates:** when they aren't arriving, the board says so after a few seconds, with **Try again**, instead of showing "Connecting…" forever.
+- **Rename a project** by double-clicking its name.
+- **Team status** sits in the toolbar and no longer overlaps **Stop team**; **Runs on** fits its panel.
+- A new **account card** in the sidebar, and **Back to Sculptured** from Computers, Account and What we record.
+- **Account page:** sign out there, and see your usage across every team.
+- A hosted team with no connected computer shows **Needs setup**, and the app says "connect your computer" instead of a bare error.
+- Nicer **Reusable groups** library and Community connect card.
+
+### Teams and Community
+
+- **Team files name their JSON Schema** (`sculptured.team/v1`), published at `docs.usesculptured.com/schema/team-v1.json`, so editors can check and complete them. See [Team file reference](/reference/team-file).
+- **Example teams in Community:** a gstack-style product team and the Coding hospital, published as Sculptured examples. See [Examples](/guides/examples).
+
+### Docs
+
+- Many new pages: concepts, connecting computers, workflows, running teams, questions, offline behaviour, a CLI and agent-tools reference, states, limits, security, privacy, troubleshooting and this FAQ.
+- `llms.txt` and per-page Markdown, for coding agents that read docs.
+
+## 12 October 2026
+
+### First public release
+
+Sculptured's core is open source under Apache-2.0.
+
+- **Design a team on a board:** agents, groups, inputs and "hands work to" arrows, with things to fix pinned to the part they are about.
+- **Run it and watch it:** each agent's live state, transcript, tool calls, questions and handoffs, with reported, observed and verified evidence kept apart.
+- **Steer it:** send guidance, interrupt, soft stop, hard stop, restart, and resume after a restart.
+- **Claude Code, Codex and Practice agents**, with token limits, output budgets, plan-usage holds and cost estimates that name their source.
+- **Reusable groups**, Community blocks and the CS2680 pattern catalog.
+- **Hosted beta (invite-only):** accounts with Google, GitHub or password sign-in, connected computers, an admin console and a **What we record** page listing everything recorded.

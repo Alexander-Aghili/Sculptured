@@ -1,0 +1,132 @@
+---
+title: Workflows
+description: Move a batch of work items through stages, with review loops, commands Sculptured runs itself, people's decisions and merges, each bounded by round limits.
+---
+
+A plain team passes work forward along arrows, once. A **workflow** is for work that comes in pieces and needs to go round: a dispatcher agent splits the goal into **items**, and each item moves through **stages** until it is accepted. A stage can be an agent, a review panel, a check command, a person's decision or a merge. Its **outcome** picks the next stage, so an item can go back for rework.
+
+<CardGroup cols={3}>
+  <Card title="The parts" icon="diagram-project" href="#how-a-workflow-runs">Input, dispatcher, stages, assembly.</Card>
+  <Card title="Stage types" icon="layer-group" href="#stage-types">Agent, panel, check, person, merge.</Card>
+  <Card title="Bound the loops" icon="rotate" href="#bound-the-loops">Round limits, hand-over, step limits.</Card>
+</CardGroup>
+
+## When to use one
+
+| Use a plain team when | Use a workflow when |
+| --- | --- |
+| The work is one piece, or a fixed set of roles in order | The number of pieces is known only once an agent reads the goal |
+| Work only ever goes forward | Work must go back for changes after a review |
+| An agent's "done" is enough to move on | A command, a person or several reviewers must decide |
+
+A team is one or the other: a workflow uses stage routes instead of arrows, and the board asks you to remove ordinary connections first.
+
+## Where workflows come from
+
+- The **Textbook creator** template is a workflow. See [the textbook example](/guides/textbook).
+- Importing a team file that has one, such as the **Coding hospital**. See [examples](/guides/examples).
+- Adding a saved group with stages from your [Library](/guides/groups). In the group editor, **Add workflow stage** adds a stage to a group that has agents and no ordinary arrows.
+
+## How a workflow runs
+
+```mermaid
+flowchart LR
+  IN["Input"] -- "links, notes, goals" --> D["Dispatcher"]
+  D -- "a batch of items" --> S1["First stage"]
+  S1 -- "outcome" --> S2["Next stage"]
+  S2 -- "changes" --> S1
+  S2 -- "accepted" --> DONE(("item complete"))
+  DONE -- "every item complete" --> AS["Assembly"]
+```
+
+1. **Input.** Drop links, notes, questions and goals into the Input box on the board. It is saved with the project, up to 64 KB. Nothing runs until you start the team.
+2. **Dispatcher.** When the team starts, only the dispatcher gets a start message, with the Input. It creates one batch of items (1 to the **Maximum items** you set, at most 64). Each item is **independent** or **dependent** on others, which then wait for it.
+3. **Stages.** Each item enters the **First stage**. An idle agent gets one item at a time. It reports an outcome with Sculptured's `complete_work` tool; a plain chat reply never moves an item.
+4. **Assembly.** Once every item is complete, the **Assembly** agent gets one last assignment to put the results together.
+
+Open **Workflow settings & composition** on the board to choose the **Dispatcher**, the **Assembly**, the **First stage**, **Maximum items** and **Maximum steps per item**, and to **Add reusable stage** (up to 16). **Workflow list** in the board's bar lists everything as text.
+
+## Stage types
+
+Select a stage on the board to edit it. The **Stage type** sits under **Advanced**.
+
+| Stage type | Who decides | Outcomes | Labelled in the run |
+| --- | --- | --- | --- |
+| **Agent** | The **Responsible agent**, or any idle one of its parallel workers | Any you add, up to 8 | agent-reported |
+| **Review panel** | 2–6 reviewers, all on the same item | `approved`, `changes`, and any you add | agent-reported, with each vote |
+| **Check (Sculptured runs a command)** | Sculptured runs the **Command**, with a **Time limit in seconds** (600 by default, at most 3600) | exactly `passed`, `failed` | verified check |
+| **Person decides** | A person, from a decision card | `approve`, `rework`, and any you add (2–6) | person's decision |
+| **Merge the item's branch** | Sculptured merges the item's branch, **Merge into branch** (the current branch by default) | exactly `merged`, `conflict` | Sculptured |
+
+- **Review panel.** **Decide when** is **every reviewer approves** (the default: the worst vote wins once all have voted) or **the first reviewer approves**.
+- **Check.** The command runs in the item's folder, or in the project folder, on the computer that runs the team. A check that could not run at all blocks the item; it is never recorded as a failed check.
+- **Person decides.** Write the **Question for the person**. Items waiting here appear as decision cards; see [questions and approvals](/guides/questions).
+- **Merge.** Needs **Give each item its own copy and branch** (below). A conflict routes `conflict` and the item keeps its copy. Sculptured never undoes a merge or rebase you have in progress.
+- **Parallel workers.** On an agent stage, tick other agents, or **Create parallel worker**, so independent items can be worked at the same time. Each worker takes one item at a time.
+
+## Routes and outcomes
+
+Each outcome has a route: **When** *outcome* **→** a stage, or **Accept this item**. Type a name in **New outcome** and press **Add branch** to add one (lower-case letters, digits and dashes). Every stage can also report `blocked`, which stops the item with the agent's reason.
+
+When you turn a stage into a check, person, merge or panel stage, its "go back" outcome (`failed`, `rework`, `conflict` or `changes`) points to the previous stage, never to **Accept this item**, so a failure can't accept work by accident.
+
+## Bound the loops
+
+Every loop needs a limit, or a stuck item can run for ever.
+
+| Setting | Where | What it does |
+| --- | --- | --- |
+| **Most rounds per item** (1–20) | Stage, Advanced | After this many rounds at the stage, the item goes to **After the last round, go to** instead. With nowhere to go, it is blocked with "Round limit (N) reached". |
+| **Hand over after this many rounds** and **Hand over to** | Agent stage, Advanced | From that round on, only the chosen agent works the item, for example a stronger model. |
+| **Maximum steps per item** (1–32) | Workflow settings | A backstop on every loop. An item that reaches it is blocked with "Step limit reached; needs operator review." |
+
+A blocked item waits for you. In the Run view, read its problem and evidence, then press **Retry this stage after inspecting the issue**. A retry after a round limit grants one more round.
+
+## Long-running teams
+
+Under **Advanced** in the workflow settings:
+
+| Setting | What it does |
+| --- | --- |
+| **Give each item its own copy and branch** | Each item gets its own git branch and folder in the project's repository, used by its agents, checks and merge stage. Needs a project folder with git. |
+| **Guard command** | A command (for example `npm test`) run in the project folder every 5–1440 minutes. While it fails, no new work goes out; work under way finishes. It resumes when the guard passes, or when a person presses **Resume anyway**. |
+| **Keep a decision log** | Precedents people write and agents read with `read_decisions`. Agents can't write to it. |
+| **Schedules** | Up to 8 messages sent to an agent every 5–1440 minutes, for example a status round. A busy or stopped agent's turn is skipped and recorded, never queued. |
+
+## Read a run honestly
+
+In the Run view, each item lists its steps, newest first. Every step says who settled it: **agent-reported**, **verified check**, **person's decision** or **Sculptured**. An agent's "approved" is a report; a check's "passed" is verified. The item board also shows items waiting for a person, blocked items, tokens per done item as the CLIs reported them, and an estimated cost.
+
+<Note>Assembly reported complete means the assembly agent said so. Inspect its evidence, and add a check stage or a guard when you need proof.</Note>
+
+## Worked example: the coding hospital
+
+The **Coding hospital** example uses every stage type. A person admits each issue, a Fellow plans and fixes it, `npm test` checks it, a two-reviewer panel reviews it, a person signs off, and Sculptured merges it.
+
+```mermaid
+flowchart TD
+  AD{{"Admit? (person)"}} -- admit --> WU["Workup (Fellow)"]
+  AD -- "not-a-bug, wont-fix" --> DONE(("item complete"))
+  WU -- plan --> PR["Plan review (Review Attending)"]
+  PR -- changes --> WU
+  PR -- approved --> TR["Treatment (Fellow)"]
+  TR -- done --> TS[["Tests (check: npm test)"]]
+  TS -- failed --> TR
+  TS -- passed --> CR["Code review (panel of 2)"]
+  CR -- changes --> TR
+  CR -- approved --> SO{{"Sign-off (person)"}}
+  SO -- rework --> TR
+  SO -- ship --> MG[["Merge into main"]]
+  MG -- conflict --> TR
+  MG -- merged --> DONE
+  TR -. "after 4 rounds" .-> ES{{"Escalation (person)"}}
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Examples" icon="flask" href="/guides/examples">The coding hospital and other complete teams.</Card>
+  <Card title="Questions and approvals" icon="circle-question" href="/guides/questions">Decision cards and what agents ask you.</Card>
+  <Card title="Agent tools" icon="wrench" href="/reference/agent-tools">dispatch_work, complete_work and the rest.</Card>
+  <Card title="Item states" icon="list-check" href="/reference/states">Queued, assigned, waiting, blocked, complete.</Card>
+</CardGroup>

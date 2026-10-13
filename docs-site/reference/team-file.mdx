@@ -1,0 +1,229 @@
+---
+title: Team file format
+description: Field-by-field reference for sculptured.team/v1, the JSON file that holds a whole team.
+---
+
+A team file holds every structural detail of a team: its agents, groups, arrows, workflow and settings. It is what **Export team file** writes, what import reads, and what Sculptured's examples are stored as. For how to export, import and share one, see [Team files](/guides/team-files).
+
+| | |
+| --- | --- |
+| Format string | `sculptured.team/v1` |
+| File name | `<team>.sculptured-team.json` |
+| JSON Schema | [`https://docs.usesculptured.com/schema/team-v1.json`](/schema/team-v1.json) (JSON Schema 2020-12) |
+| Run files | `sculptured.session/v1`, schema at [`/schema/session-v1.json`](/schema/session-v1.json) |
+
+The schema is generated from the same types Sculptured reads and writes, so it matches what import accepts. Unknown top-level fields are refused.
+
+```mermaid
+erDiagram
+  TeamFile ||--|| TeamDraft : team
+  TeamFile ||--o| PortableSettings : settings
+  TeamDraft ||--o{ DraftGroup : groups
+  TeamDraft ||--o{ DraftAgent : agents
+  TeamDraft ||--o{ DraftConnection : connections
+  TeamDraft ||--o| Workflow : workflow
+  TeamDraft ||--o{ Schedule : schedules
+  DraftAgent }o--o| DraftGroup : group_id
+  DraftAgent ||--|| AgentAdvanced : advanced
+  Workflow ||--|{ WorkflowStage : stages
+  Workflow ||--o| Guard : guard
+```
+
+## A minimal file
+
+```json
+{
+  "$schema": "https://docs.usesculptured.com/schema/team-v1.json",
+  "format": "sculptured.team/v1",
+  "team": {
+    "id": "review-loop",
+    "name": "Review loop",
+    "revision": 0,
+    "agents": [
+      { "id": "builder", "name": "Builder", "kind": "claude", "job": "Build the feature", "x": 40, "y": 40,
+        "advanced": { "check": "npm test" } },
+      { "id": "reviewer", "name": "Reviewer", "kind": "codex", "job": "Review each change", "x": 300, "y": 40 }
+    ],
+    "connections": [{ "id": "c1", "from": "builder", "to": "reviewer", "kind": "hands-work-to" }]
+  },
+  "settings": { "posture": "restricted", "own_copies": true }
+}
+```
+
+## Top level
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `$schema` | string or null | no | The file's JSON Schema, for editors that validate and complete it. Written on export; any value is accepted on import. |
+| `format` | string | yes | Always `"sculptured.team/v1"`. A different version fails validation. |
+| `team` | [TeamDraft](#teamdraft) | yes | The team itself. |
+| `settings` | [PortableSettings](#portablesettings) | no | The settings that travel with the team. Default `{ "own_copies": false }`. |
+
+## TeamDraft
+
+| Field | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | string | yes | | The team's id. On import a new id is made from the name, so ids never clash. |
+| `name` | string | yes | | The team's name. |
+| `revision` | integer ≥ 0 | yes | | A save counter. Always `0` in a file; the importing Sculptured assigns its own. |
+| `agents` | [DraftAgent](#draftagent)[] | no | `[]` | The agents. |
+| `groups` | [DraftGroup](#draftgroup)[] | no | `[]` | Boxes that group agents on the board. |
+| `connections` | [DraftConnection](#draftconnection)[] | no | `[]` | The arrows between agents. A team with a workflow uses stage routes instead, and has none. |
+| `folder` | string or null | no | | The default working folder for agents without their own. Kept only when exported with **Include folders**. |
+| `models` | [ModelDefaults](#modeldefaults) | no | | The team's model per provider. Absent means each CLI's own default. |
+| `workflow` | [Workflow](#workflow) or null | no | | Stages that items of work move through. |
+| `schedules` | [Schedule](#schedule)[] | no | | Messages sent to an agent every N minutes while the team runs. At most 8. |
+| `decision_log` | boolean | no | | People keep a decision log that agents read with [`read_decisions`](/reference/agent-tools#read_decisions). |
+
+## DraftAgent
+
+| Field | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | string | yes | | The agent's id, unique in the team. It never changes. |
+| `name` | string | yes | | The name on its card. |
+| `kind` | `claude`, `codex` or `practice` | yes | | Which CLI runs it. `practice` runs a scripted stand-in: no model calls, no cost. |
+| `x`, `y` | integer | yes | | Its position on the board. |
+| `job` | string | no | `""` | Plain-language instructions, sent as the agent's first message when the team starts. |
+| `group_id` | string or null | no | | The group it belongs to. Null means none. |
+| `folder` | string or null | no | | Its own working folder, as an absolute path. Null means the team's folder. Practice agents may leave it empty. |
+| `advanced` | [AgentAdvanced](#agentadvanced) | no | see below | Per-agent options. |
+
+### AgentAdvanced
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `model` | string or null | `null` | This agent's own model, overriding its group's and team's default for its kind. |
+| `permission` | `unrestricted` or `restricted` | `unrestricted` | Restricted Claude Code agents ask you before tools run; restricted Codex agents use Codex's approvals. |
+| `resume` | `resume-if-possible`, `relaunch-fresh` or `checkpoint-only` | `resume-if-possible` | What happens to its session when the team starts again. |
+| `token_limit` | [TokenLimit](#tokenlimit) or null | | Tokens it may use in one run. Reaching the limit soft-stops it. |
+| `check` | string or null | | A shell command run in the agent's folder after each turn it finishes. Exit code 0 means passed. |
+
+### TokenLimit
+
+| Field | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `tokens` | integer ≥ 0 | yes | | The limit, counted since the team started. |
+| `counts` | `all`, `new` or `output` | no | `all` | Which reported tokens count. `all` is input, output, cache reads and cache writes; `new` is everything except cache reads. |
+| `include_subagents` | boolean | no | `true` | Count the agents it spawns, and theirs, toward this limit. |
+
+## DraftGroup
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `id` | string | yes | The group's id. It never changes. |
+| `label` | string | yes | The name shown on the group. |
+| `x`, `y`, `w`, `h` | integer | yes | Its box on the board. |
+| `models` | [ModelDefaults](#modeldefaults) | no | The group's model per provider. Absent means the team's. |
+
+## DraftConnection
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `id` | string | yes | The arrow's id. |
+| `from`, `to` | agent id | yes | The two ends. |
+| `kind` | see below | yes | What the arrow means. |
+
+| `kind` | Meaning |
+| --- | --- |
+| `hands-work-to` | The giver starts before the receiver, and hands its work on. |
+| `reports-to` | Design intent: who reports to whom. Not enforced. |
+| `watches` | Design intent: who keeps an eye on whom. Not enforced. |
+
+## ModelDefaults
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `claude` | string or null | `null` | For Claude agents: an alias such as `opus` or `sonnet`, or a full model id. |
+| `codex` | string or null | `null` | For Codex agents: a model slug. |
+
+Each level inherits from the next: agent, then group, then team, then the CLI's own default.
+
+## PortableSettings
+
+The team settings that are part of its design. Which computer runs the team is not part of the file.
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `posture` | `unrestricted`, `restricted` or null | | The team's permission default. Null means your global setting. |
+| `own_copies` | boolean | `false` | Each Claude Code and Codex agent works in its own Git copy. |
+| `question_timeout_min` | integer or null | | How long agents' questions wait for you, in minutes (1 to 1440). Null means the global setting, 10 minutes by default. |
+
+## Workflow
+
+A workflow moves a batch of items through stages. The dispatcher agent creates the batch, each stage settles an item with an outcome, and the collector assembles the result once every item is complete. See [Workflows](/guides/workflows).
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `dispatcher` | agent id | yes | The only agent that may call `dispatch_work`. When the team starts, only it gets a start message. |
+| `entry` | stage id | yes | The first stage of every item. |
+| `collector` | agent id | yes | The assembly agent. It must differ from the dispatcher. |
+| `max_tasks` | integer | yes | Items per batch, 1 to 64. |
+| `max_steps` | integer | yes | Stage entries per item, 1 to 32: a backstop on every loop. |
+| `stages` | [WorkflowStage](#workflowstage)[] | yes | 1 to 16 stages with unique ids. |
+| `input` | string | no | The Input block: links, notes and goals sent to the dispatcher, under 64 KB. |
+| `input_position` | `{x, y}` or null | no | Where the Input block sits on the board. |
+| `guard` | [Guard](#guard) or null | no | A project check that pauses new work while it fails. |
+| `copies` | `shared` or `per-item` | no | `per-item` gives each item its own Git branch and folder. Default `shared`. |
+
+### WorkflowStage
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `id` | string | yes | The stage's id. `assembly` is reserved. |
+| `name` | string | yes | Its name. |
+| `routes` | object | yes | Outcome name → next stage id, or `null` to complete the item. 1 to 8 routes. `blocked` is reserved and always available. |
+| `kind` | `agent`, `check`, `human` or `merge` | no | Who settles the stage. Default `agent`. |
+| `agent` | agent id | no | The agent for an `agent` stage. Empty for the other kinds. |
+| `workers` | agent ids | no | More interchangeable agents for items at this stage, up to 8 in all. |
+| `reviewers` | agent ids | no | A review panel of 2 to 6 agents who all take the same item, instead of `agent`. |
+| `join` | `all` or `any` | no | How a panel decides: every reviewer, or the first approval. |
+| `priority` | outcome names | no | Which panel outcome wins, worst first. Default: `blocked`, then any outcome other than `approved`, then `approved`. |
+| `max_rounds` | integer or null | no | How often one item may enter this stage, 1 to 20. |
+| `on_limit` | stage id or null | no | Where an item goes when `max_rounds` is reached. Without one, the item is blocked. |
+| `escalate` | `{after_rounds, agent}` or null | no | After `after_rounds` rounds (1 to 20, fewer than `max_rounds`), hand the item to another agent. Single-agent stages only. |
+| `command` | string or null | no | `check` stages: the shell command, run in the team's folder. |
+| `timeout_s` | integer or null | no | `check` stages: seconds before the command is stopped. Default 600, at most 3600. |
+| `prompt` | string or null | no | `human` stages: what the person decides, up to 2 KB. |
+| `into` | string or null | no | `merge` stages: the branch to merge into. Default: the project's current branch. |
+| `position` | `{x, y}` or null | no | Where the stage's own box sits on the board. |
+
+Each kind has fixed rules:
+
+| `kind` | Settled by | Routes |
+| --- | --- | --- |
+| `agent` | the stage's agent, workers or review panel, with [`complete_work`](/reference/agent-tools#complete_work) | any 1 to 8 names |
+| `check` | Sculptured running `command` | exactly `passed` and `failed` |
+| `human` | you, choosing an outcome | 2 to 6 names |
+| `merge` | Sculptured merging the item's branch | exactly `merged` and `conflict`; needs `copies: per-item` |
+
+Every stage must have a route to completion.
+
+### Guard
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `command` | string | yes | The check to run in the team's folder, 1 to 2000 bytes. |
+| `every_minutes` | integer | yes | How often, 5 to 1440 minutes. |
+| `timeout_s` | integer or null | no | Seconds before the command is stopped. Default 600, at most 3600. |
+
+## Schedule
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `id` | string | yes | The schedule's id. |
+| `agent` | agent id | yes | Who receives the message. |
+| `every_minutes` | integer | yes | How often, 5 to 1440 minutes. |
+| `message` | string | yes | The message, up to 4 KB. It is skipped when the agent is busy. |
+
+## What import refuses and what it warns about
+
+A file is **refused** only when it does not hold together: the wrong `format`, a field of the wrong type, duplicate or dangling ids and arrows, an unknown group, or an invalid workflow. The error names the field and the reason, and nothing is created.
+
+Anything else is imported, and listed as a **warning** to fix before starting, as the board shows for any team: a Claude agent without a folder, an empty team, a missing name.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Team files" icon="file-json" href="/guides/team-files">Export, import and share team and group files.</Card>
+  <Card title="Workflows" icon="route" href="/guides/workflows">How stages, outcomes and review loops run.</Card>
+</CardGroup>

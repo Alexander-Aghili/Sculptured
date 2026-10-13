@@ -1,31 +1,94 @@
 ---
 title: Control live agents
-description: Guide agents during work and distinguish activity from an open session.
+description: Send guidance, interrupt a turn, ask an agent to wrap up, or stop it, and read what each state really means.
 ---
+
+Open an agent from the Run board to see its pane. The pane shows the agent's work and holds every control for that one agent. Team-wide controls, **Start team** and **Stop team…**, sit at the top of the Run board.
+
+## The agent pane
+
+| Part | What it holds |
+| --- | --- |
+| **Header** | Claude, Codex or Practice agent, its name, and its state. **Back** (<kbd>Esc</kbd>) returns to the team. |
+| **Transcript** | The conversation: your messages, the agent's replies, its tool calls and their results. |
+| **Visual progress** | Tool calls, files changed, commands, checks and context, as a picture. See [Context and communication](/guides/context). |
+| **Events** | The raw recorded events, the evidence behind everything else. |
+| **Details & controls** (the **⋯** button) | Wrap-up and stop controls, its check, folder, session number, tokens in and out, and the evidence for its latest status. |
+| **Message box** | Send the agent a message. <kbd>⏎</kbd> sends, <kbd>⇧⏎</kbd> adds a line. |
+
+Notices appear under the header when they apply: handoff actions such as **Hand over again**, "isn't signed in on the computer", a stall warning, whom it is waiting for, and the reason for its last status change.
 
 ## Send guidance
 
-Open an agent from the board. Write a message in its conversation; inspect whether it was queued, delivered, or consumed. Delivery means the runner acknowledged the message, not that the agent completed the requested work.
+Type in the message box and press <kbd>⏎</kbd>. The **⋯** next to it sets the message's intent:
 
-## Interrupt or stop
-
-Open **Details & controls** in the agent conversation to reveal its runtime controls.
-
-| Control | Behavior |
+| Intent | What happens |
 | --- | --- |
-| Interrupt | Interrupt the current turn so you can redirect the agent. |
-| Soft stop · ~5K | Ask for a quick wrap-up, summary, and appropriate handoff, then stop. |
-| Hard stop | Stop the process without another wrap-up turn, including managed descendants. |
-| Stop team | Stop all running team agents and retain their history. |
+| **Inform** (default) | Waits for the current turn to end. The agent reads it on its next turn. |
+| **Instruct** | May interrupt. With **Interrupt current turn** ticked, the current turn is cut off and the agent reads your message next. |
 
-Soft stop observes approximately 5,000 additional output tokens, completion of the wrap-up turn, or five minutes. Delayed usage reports can overshoot the estimate.
+Each message shows whether it was queued, delivered or read. **Delivered** means the agent's computer accepted the message. **Read** means a turn read it. Neither means the agent did what you asked.
+
+Messages can only go to a running agent. Otherwise the box says why, for example "Status: stopped; messages can only be sent to a running agent."
+
+<Tip>The first agent of a team without a Job shows "Your next message is this agent's work and starts the team's handoffs." Whatever you send it is the team's work.</Tip>
+
+## Interrupt, wrap up or stop
+
+Open **Details & controls** (**⋯** in the pane header).
+
+| Control | What it does |
+| --- | --- |
+| **Interrupt** (<kbd>i</kbd>) | Cuts off the current turn so you can redirect the agent. It is off when no turn is in progress, or when this kind of agent can't be interrupted. |
+| **Soft stop · ~5K** | Asks the agent to finish the current task, summarize and hand off, then stop. Sculptured stops the session after the wrap-up turn, about 5,000 more output tokens, or 5 minutes, whichever comes first. The button reads **Wrapping up…** meanwhile. |
+| **Hard stop…** | Stops the agent's process after you confirm, with no wrap-up turn. Agents it started stop too. "Messages it has not read yet will be marked as not delivered." |
+| **Stop team…** (Run board) | Stops every running agent in the team. "Their history is kept." |
+
+<Warning>Usage reports can arrive late, so a soft stop can go past 5,000 output tokens. The wrap-up message tells the agent never to claim success to finish faster. Still read its summary as agent-reported.</Warning>
+
+After a soft stop the pane says "Wrap-up finished; session stopped." When an output budget stopped it, the pane says "Output budget reached; session stopped."
+
+## Stalled agents
+
+If an agent keeps hitting the same error, the pane may show **Stalled (heuristic)** with the reason. This is a guess from the agent's recent events, not a fact. Nothing happens on its own. You can:
+
+- **Nudge**: interrupt the agent with a message asking it to stop, summarize what it tried, and try a different approach;
+- **Soft stop**: ask it to wrap up.
 
 ## Read the state accurately
 
-An open idle session is not actively working. A disconnected runner means status is unknown, not definitely stopped. Live omits stopped and planned agents; Structure retains the complete design.
+- **An open, idle session is not working.** "No active work; sessions are open" means nothing is in progress.
+- **Unknown is not stopped.** While an agent's computer is unreachable, the agent is *stale*: its activity is the last known one, and it may still be running. See [When the computer drops off](/guides/offline).
+- **Run shows the running agents.** Switch to **List** for every agent, including stopped and planned ones. The Design board keeps the full design.
+- **Each status has evidence.** Under Details & controls, "status" names who said so, such as observed by the computer or inferred by Sculptured.
 
-## Managed subagents
+The full table is in [Agent states](/reference/states).
 
-Agents may use `spawn_agent`, `send_agent_message`, and `team_status`. Managed children inherit the parent's folder, runtime/model, and permissions. Their parent relationship and current session appear in Live.
+## Agents that start agents
 
-The runtime bounds a project to 64 agents and four child levels. Native CLI delegation and arbitrary detached processes are not managed children. Restarting a project restores the saved team design; prior child events remain evidence.
+Agents can create helpers with `spawn_agent`, message each other with `send_agent_message`, and read the team with `team_status`. These helpers are **managed children**:
+
+- they inherit their parent's folder, model and permissions;
+- they run on the same computer as their parent;
+- they appear on the Run board with their parent. **Focus selected subtree** shows one branch, **Up to parent** widens it, and **Whole tree** goes back.
+
+| Limit | Value |
+| --- | --- |
+| Direct children per agent, per run | 10 |
+| Agents in a project, children included | 64 |
+| Levels of children | 4 |
+
+A hard stop of a parent stops its descendants first. Helpers that a CLI starts by itself, and other processes an agent launches, are not managed children. Sculptured does not track or stop them.
+
+## Text Mode
+
+**Text Mode** expands the whole conversation, transcript and message box, to fill the page. Use it for long reading or writing. **Exit Text Mode** returns to the board.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Run a team" icon="play" href="/guides/running">The Run board, handoffs and Hand over again.</Card>
+  <Card title="Questions and approvals" icon="circle-question" href="/guides/questions">When an agent waits for you.</Card>
+  <Card title="Context and communication" icon="eye" href="/guides/context">What an agent saw, and who talked to whom.</Card>
+  <Card title="Limits and usage" icon="gauge" href="/reference/limits">Token limits and budgets.</Card>
+</CardGroup>

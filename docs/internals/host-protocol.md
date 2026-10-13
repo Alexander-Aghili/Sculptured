@@ -149,11 +149,11 @@ There is one version number, `PROTOCOL_VERSION = 1`, and it must match exactly. 
 
 ## 8. The seat-tools socket
 
-The seat-tools socket is not part of the WebSocket, but it is defined in `host_proto::seat_tools`. An agent's MCP shim sends one JSON line on a Unix socket and gets one line back:
+The seat-tools socket is not part of the WebSocket, but it is defined in `host_proto::seat_tools`. An agent's MCP shim sends one JSON line on a local socket and gets one line back. On Linux and macOS it is a Unix socket; on Windows it is a loopback TCP address, written into the socket-path file (`hostd::seat_tools::socket`):
 - **The request:** `ToolRequest {token, tool, args}`.
 - **The reply:** `ToolReply {ok, result, error}`.
 - **The environment:** the shim finds the socket and its token in `SCULPTURED_SEAT_SOCKET` and `SCULPTURED_SEAT_TOKEN`. `SCULPTURED_SEAT_APPROVE=1` is set when the `approve` tool is offered.
-- **Relaying:** hostd relays the call to controld as `FromHost::SeatTool` and answers the agent with the `SeatToolReply`. If the link drops, waiting calls fail.
+- **Relaying:** hostd relays the call to controld as `FromHost::SeatTool` and answers the agent with the `SeatToolReply`. If the link drops, waiting calls stay pending: hostd sends them again on reconnect (`link::forward_pending`), and controld answers each `(host, call_id)` once (`HostRegistry::begin_call`), so a resent call is never asked or run twice.
 
 ## Architecture invariants
 
