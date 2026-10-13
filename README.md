@@ -1,6 +1,14 @@
-# Sculptured
+<p align="center"><img src="docs/images/banner.png" alt="Sculptured: design, run and steer teams of coding agents" width="100%"></p>
 
-**Design a team of coding agents on a board, start it, and watch and steer it while it works.**
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-2f6f73"></a>
+  <a href="https://docs.usesculptured.com"><img alt="Documentation" src="https://img.shields.io/badge/docs-docs.usesculptured.com-2f6f73"></a>
+  <img alt="Rust 1.95 or newer" src="https://img.shields.io/badge/rust-1.95%2B-2f6f73">
+  <img alt="Node.js 24" src="https://img.shields.io/badge/node.js-24-2f6f73">
+  <img alt="Platforms: Linux and Apple silicon macOS" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20(Apple%20silicon)-2f6f73">
+</p>
+
+# Sculptured
 
 Sculptured runs teams of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Codex](https://github.com/openai/codex) agents on your own computer, with your own sign-in. You give each agent a role and a folder, draw who hands work to whom, and press **Start**. Then you see what every agent is doing, read its transcript, answer its questions, and step in when it needs you.
 
