@@ -127,6 +127,8 @@ export const api = {
   hosts: () => get<{ id: string; drivers: string[]; policy: import('./generated/HostPolicyInfo').HostPolicyInfo | null }[]>('/api/hosts'),
   planUsage: () => get<import('./generated/PlanUsageView').PlanUsageView[]>('/api/plan-usage'),
   teamUsage: (id: string) => get<import('./generated/TeamUsage').TeamUsage>(`${teamUrl(id)}/usage`),
+  /** Your own use across every team: tokens, costs, by day, by CLI and by team. */
+  accountUsage: () => get<import('./generated/AccountUsage').AccountUsage>('/api/account/usage'),
   cliLogin: (name: string, host?: string) => post<import('./generated/LoginStarted').LoginStarted>(`/api/clis/${name}/login${host ? `?host=${encodeURIComponent(host)}` : ''}`, newRequestId()),
   deployments: (id:string,before?:number) => get<import('./generated/DeploymentRun').DeploymentRun[]>(`${teamUrl(id)}/deployments${before ? `?before=${before}` : ''}`),
   deployment: (id:string,seq:number) => get<import('./generated/DeploymentHistory').DeploymentHistory>(`${teamUrl(id)}/deployments/${seq}`),

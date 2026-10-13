@@ -12,19 +12,16 @@ import { Badge, Btn, Icon, StateMark, VendorMark, WaitingMark } from './ui';
 import { plural } from '../format';
 import { BrandMark } from './BrandMark';
 import { useHosted } from '../hosted/HostedGate';
-import { gw } from '../hosted/session';
 
-/** Hosted beta: who is signed in, Admin (admins only) and Sign out. Nothing in local mode. */
-function HostedAccount() {
+/** Your account (Sign out and your usage live there), Computers and Admin when hosted. */
+export function SidebarAccount() {
   const s = useHosted();
-  if (s.kind !== 'signed-in') return null;
+  if (s.kind !== 'signed-in') return <div className="hosted-account"><Link to="/account">Account and usage</Link></div>;
   return (
     <div className="hosted-account">
-      <span className="muted" title={s.user.email}>{s.user.name}</span>
+      <Link to="/account" title={s.user.email}>{s.user.name} · Account</Link>
       <Link to="/computers" onClick={() => track('open-computers')}>Computers</Link>
       {s.user.role === 'admin' && <Link to="/admin">Admin</Link>}
-      <Link to="/what-we-record">What we record</Link>
-      <button type="button" className="link-btn" onClick={() => void gw('POST', '/logout').finally(() => window.location.assign('/login'))}>Sign out</button>
     </div>
   );
 }
@@ -193,7 +190,7 @@ export function Sidebar({ teams, selected, currentAgent, currentRig, project, no
       </div>
       <div className="side-accounts">
         <CliAccounts />
-        <HostedAccount />
+        <SidebarAccount />
       </div>
     </nav>
   );

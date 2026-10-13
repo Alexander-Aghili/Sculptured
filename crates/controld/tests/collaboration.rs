@@ -312,3 +312,44 @@ async fn team_usage_reports_running_totals_and_the_latest_context_fill() {
     assert_eq!((a["context"]["used_tokens"].as_u64(),a["context"]["estimated"].as_bool()),(Some(900),Some(false)));
     controld::reconciler::stop_rig(s.st.clone(),id).await.unwrap();
 }
+
+/// The account page's summary: every team's tokens and costs together, by day, by CLI and by team,
+/// with costs only where the CLI reported one or a list price applies (the rest counted, not guessed).
+#[tokio::test]
+async fn account_usage_sums_every_teams_tokens_costs_and_activity() {
+    use model::pricing::{Cost, CostSource};
+    let (s,_sup,_dir)=with_tools().await;
+    let (a,b)=(practice_team(&s,"solo").await, practice_team(&s,"builder-reviewer").await);
+    let seat_of=|id:&str| s.st.store.lock().unwrap().rig_snapshot(id).unwrap().unwrap().seats[0].id.clone();
+    let (sa,sb)=(seat_of(&a),seat_of(&b));
+    // The Practice agents' own first turns report tokens too: settle them, then measure what we add.
+    let usage=|| async { get(&s.router,"/api/account/usage").await.1 };
+    let mut before=usage().await;
+    for _ in 0..50 { tokio::time::sleep(std::time::Duration::from_millis(100)).await; let now=usage().await; if now==before { break } before=now; }
+    let n=|v:&serde_json::Value,p:&str| v.pointer(p).and_then(|x|x.as_u64()).unwrap_or(0);
+    let team_tokens=|v:&serde_json::Value,id:&str| v["top_teams"].as_array().unwrap().iter().find(|t|t["team"]==id).map(|t|t["tokens"].as_u64().unwrap()).unwrap_or(0);
+    let put=|seat:&str,body:EventBody|{s.st.local_event(Actor::System("fixture".into()),model::Subject::Seat(seat.to_string()),model::Provenance::ProtocolObserved,body).unwrap();};
+    put(&sa,EventBody::UsageReported{turn_id:None,input_tokens:100,output_tokens:10,cache_read_tokens:1000,cache_write_tokens:50,cost:Some(Cost{usd:0.25,source:CostSource::ClaudeCode})});
+    put(&sa,EventBody::UsageReported{turn_id:None,input_tokens:20,output_tokens:5,cache_read_tokens:0,cache_write_tokens:0,cost:None});
+    put(&sb,EventBody::UsageReported{turn_id:None,input_tokens:300,output_tokens:30,cache_read_tokens:0,cache_write_tokens:0,cost:Some(Cost{usd:1.0,source:CostSource::OpenaiListPrices})});
+    put(&sb,EventBody::TurnEnded{turn_id:"t1".into(),status:model::TurnStatus::Completed});
+
+    let (status,u)=get(&s.router,"/api/account/usage").await;
+    assert_eq!(status.as_u16(),200,"{u}");
+    for (p,added) in [("/totals/input",420),("/totals/output",45),("/totals/cache_read",1000),("/totals/cache_write",50),("/totals/reports",3),("/cost/reports_without_cost",1),("/activity/turns_completed",1)] {
+        assert_eq!(n(&u,p)-n(&before,p),added,"{p}: {u}");
+    }
+    let usd=|v:&serde_json::Value| v["cost"]["usd"].as_f64().unwrap();
+    assert!((usd(&u)-usd(&before)-1.25).abs()<1e-9,"{u}");
+    let by_source:std::collections::BTreeMap<String,f64>=u["cost"]["by_source"].as_array().unwrap().iter().map(|x|(x["source"].as_str().unwrap().to_string(),x["usd"].as_f64().unwrap())).collect();
+    assert_eq!(by_source,[("claude-code".to_string(),0.25),("openai-list-prices".to_string(),1.0)].into(),"Practice agents report no cost");
+    let days=u["by_day"].as_array().unwrap();
+    assert_eq!(days.len(),30,"the last 30 days, empty ones included");
+    assert_eq!(days[29]["tokens"].as_u64().unwrap()-before["by_day"][29]["tokens"].as_u64().unwrap(),1515,"today: {}",days[29]);
+    assert_eq!(days[0]["tokens"],0);
+    assert_eq!(team_tokens(&u,&a)-team_tokens(&before,&a),1185);
+    assert_eq!(team_tokens(&u,&b)-team_tokens(&before,&b),330);
+    assert_eq!(u["top_teams"][0]["team"],a.as_str(),"most tokens first");
+    assert!(u["top_teams"][0]["name"].as_str().is_some_and(|n|!n.is_empty()));
+    assert!(n(&u,"/activity/teams")>=2);
+}

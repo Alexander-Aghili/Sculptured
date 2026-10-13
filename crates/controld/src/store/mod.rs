@@ -11,6 +11,7 @@ mod workflow;
 mod collaboration;
 mod decisions;
 mod schedules;
+pub mod account;
 
 use crate::views::{Receipt, SeatView, StreamItem};
 use host_proto::HostEvent;

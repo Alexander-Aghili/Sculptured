@@ -63,6 +63,7 @@ fn routes() -> Router<AppState> {
         .merge(crate::clis::routes())
         .merge(crate::plan_usage::routes())
         .merge(crate::usage::routes())
+        .merge(crate::account::routes())
         .merge(crate::copies::routes())
         .merge(crate::checks::routes())
         .merge(crate::portable::routes())
