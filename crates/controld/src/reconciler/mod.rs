@@ -3,7 +3,8 @@
 mod jobs;
 mod seats;
 
-use seats::{stop_on_host, stoppable};
+pub(crate) use seats::stop_on_host;
+use seats::stoppable;
 
 use crate::error::ApiError;
 use crate::hosts::controld;
@@ -269,6 +270,8 @@ pub(crate) async fn launch_one(st: &AppState, seat: &rigspec::CompiledSeat, spec
         store.parent(seat_id).ok().flatten().and_then(|p| store.seat(&p).ok().flatten()).and_then(|v| v.host)
     };
     let host = parent_host.unwrap_or_else(|| crate::launch::team_host(st, rig));
+    // A computer whose link just dropped gets a moment to come back before the agent needs attention.
+    st.hosts.wait_connected(&host).await;
     let Some(driver) = local_driver(st, seat, &host) else { return false };
     let params = match launch_params(st, &host, rig, seat, spec_dir) {
         Ok(p) => p,

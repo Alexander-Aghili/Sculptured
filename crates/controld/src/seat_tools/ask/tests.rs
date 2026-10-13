@@ -4,7 +4,6 @@ use super::*;
 use crate::store::Store;
 use model::DecisionSource;
 use std::time::Duration;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
 type Call = tokio::task::JoinHandle<Result<Outcome, ToolError>>;
 
@@ -27,13 +26,12 @@ async fn raised(st: &AppState, seat: &str) -> String {
     }
 }
 
-/// Starts an approve call for `seat`; returns it, its connection's far end and the question it raised.
-async fn approve_call(st: &AppState, seat: &str) -> (Call, UnboundedReceiver<ToHost>, String) {
-    let (tx, rx) = unbounded_channel();
+/// Starts an approve call for `seat`; returns it and the question it raised.
+async fn approve_call(st: &AppState, seat: &str) -> (Call, String) {
     let args = json!({ "tool_name": "Bash", "input": { "command": "rm -rf build" }, "tool_use_id": "toolu_1" });
     let (st2, seat2) = (st.clone(), seat.to_string());
-    let call = tokio::spawn(async move { approve(&st2, &seat2, &args, &tx).await });
-    (call, rx, raised(st, seat).await)
+    let call = tokio::spawn(async move { approve(&st2, &seat2, &args).await });
+    (call, raised(st, seat).await)
 }
 
 async fn behaviour(call: Call) -> Value {
@@ -44,10 +42,10 @@ async fn behaviour(call: Call) -> Value {
 #[tokio::test]
 async fn approve_answers_in_claudes_words() {
     let st = state();
-    let (call, _link, q) = approve_call(&st, "team.a@t").await;
+    let (call, q) = approve_call(&st, "team.a@t").await;
     crate::questions::answer(&st, &q, Answer::Deny { reason: Some("not today".into()) }).await.unwrap();
     assert_eq!(behaviour(call).await, json!({ "behavior": "deny", "message": "not today" }));
-    let (call, _link, q) = approve_call(&st, "team.b@t").await;
+    let (call, q) = approve_call(&st, "team.b@t").await;
     crate::questions::answer(&st, &q, Answer::Allow).await.unwrap();
     assert_eq!(behaviour(call).await, json!({ "behavior": "allow", "updatedInput": { "command": "rm -rf build" } }));
 }
@@ -56,7 +54,7 @@ async fn approve_answers_in_claudes_words() {
 #[tokio::test]
 async fn an_unanswered_approve_is_allowed_on_timeout() {
     let st = state();
-    let (call, _link, q) = approve_call(&st, "team.a@t").await;
+    let (call, q) = approve_call(&st, "team.a@t").await;
     crate::questions::expire(&st, &q).await;
     assert_eq!(behaviour(call).await, json!({ "behavior": "allow", "updatedInput": { "command": "rm -rf build" } }));
     let row = question(st.store.lock().unwrap().connection(), &q).unwrap().unwrap();

@@ -3,18 +3,17 @@ use super::{invalid, record, record_system, string_arg, current_turn, Outcome, S
 use crate::projections::questions::question;
 use crate::state::AppState;
 use crate::store::is_live;
-use host_proto::ToHost;
 use model::{timeout_instruction, Answer, EventBody, Provenance, QuestionOption, QuestionPrompt, QuestionSource, QuestionState, SeatActivity, Subject};
 use serde_json::{json, Value};
 use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::{mpsc::UnboundedSender, oneshot};
+use tokio::sync::oneshot;
 
 /// Why a question raised through a seat tool is withdrawn when its host connection drops.
 const LINK_DROPPED: &str = "the connection to the agent's runner dropped; the agent was told the question failed";
 /// Why an answer handed to a call whose host connection dropped is recorded as failed.
 const ANSWER_LOST: &str = "the connection to the agent's runner dropped before the answer reached the agent";
 
-pub(super) async fn request_input(st: &AppState, seat: &str, args: &Value, reply: &UnboundedSender<ToHost>) -> Result<Outcome, ToolError> {
+pub(super) async fn request_input(st: &AppState, seat: &str, args: &Value) -> Result<Outcome, ToolError> {
     let text = string_arg(args, "question")?.to_string();
     let options = match args.get("options") {
         None | Some(Value::Null) => vec![],
@@ -23,7 +22,7 @@ pub(super) async fn request_input(st: &AppState, seat: &str, args: &Value, reply
     };
     let header = args.get("header").and_then(Value::as_str).map(str::to_string);
     let prompt = QuestionPrompt { header, text, options, allow_other: true, tool: None, tool_input: None };
-    let (id, answer) = ask(st, seat, QuestionSource::RequestInput, prompt, reply).await?;
+    let (id, answer) = ask(st, seat, QuestionSource::RequestInput, prompt).await?;
     let (text, timed_out) = match &answer {
         Answer::Expired => (expired_text(st, seat, &id), true),
         Answer::Text { text } => (text.clone(), false),
@@ -65,12 +64,12 @@ fn option_of(v: &Value) -> Result<QuestionOption, ToolError> {
 
 /// Claude's permission-prompt tool: `{tool_name, input, tool_use_id}` in, Claude's behaviour JSON out.
 /// D8: a prompt nobody answers in time is allowed (`questions::expire` records that decision).
-pub(super) async fn approve(st: &AppState, seat: &str, args: &Value, reply: &UnboundedSender<ToHost>) -> Result<Outcome, ToolError> {
+pub(super) async fn approve(st: &AppState, seat: &str, args: &Value) -> Result<Outcome, ToolError> {
     let tool_name = string_arg(args, "tool_name")?.to_string();
     let input = args.get("input").cloned().filter(Value::is_object).ok_or_else(|| invalid("input must be an object"))?;
     let text = format!("Allow {tool_name} to run?");
     let prompt = QuestionPrompt { header: None, text, options: vec![], allow_other: false, tool: Some(tool_name), tool_input: Some(input.clone()) };
-    let (id, answer) = ask(st, seat, QuestionSource::NativePermission, prompt, reply).await?;
+    let (id, answer) = ask(st, seat, QuestionSource::NativePermission, prompt).await?;
     let behaviour = match &answer {
         Answer::Allow | Answer::Expired => json!({ "behavior": "allow", "updatedInput": input }),
         Answer::Deny { reason } => {
@@ -85,18 +84,18 @@ pub(super) async fn approve(st: &AppState, seat: &str, args: &Value, reply: &Unb
 /// Raises a question with a waiter and waits for the answer, the expiry or a withdrawal. While it
 /// waits the agent is `waiting-input` (spec §4.2), as for a native question; afterwards it is
 /// `working` again once no question of it is open, unless it stopped meanwhile.
-async fn ask(st: &AppState, seat: &str, source: QuestionSource, prompt: QuestionPrompt, reply: &UnboundedSender<ToHost>) -> Result<(String, Answer), ToolError> {
+async fn ask(st: &AppState, seat: &str, source: QuestionSource, prompt: QuestionPrompt) -> Result<(String, Answer), ToolError> {
     let id = format!("q-{}", uuid::Uuid::new_v4().simple());
     let (tx, rx) = oneshot::channel();
     // The waiter exists before the question does, so an answer or expiry always finds it.
-    st.seat_waits.lock().unwrap().insert(id.clone(), SeatWait { answer: tx, link: reply.clone() });
+    st.seat_waits.lock().unwrap().insert(id.clone(), SeatWait { answer: tx });
     let body = EventBody::QuestionRaised { question_id: id.clone(), source, prompt: prompt.capped(), turn_id: current_turn(st, seat) };
     if let Err(e) = record(st, seat, Provenance::AgentReported, body) {
         st.seat_waits.lock().unwrap().remove(&id);
         return Err(e);
     }
     set_activity(st, seat, SeatActivity::WaitingInput);
-    let out = wait_for_answer(st, seat, &id, rx, reply).await;
+    let out = wait_for_answer(st, seat, &id, rx).await;
     let back_to_work = st.store.lock().unwrap().seat(seat).ok().flatten().is_some_and(|v| {
         v.activity == SeatActivity::WaitingInput && v.open_questions == 0 && is_live(v.lifecycle)
     });
@@ -111,9 +110,9 @@ fn set_activity(st: &AppState, seat: &str, activity: SeatActivity) {
     record_system(st, seat, Provenance::ProtocolObserved, EventBody::SeatActivityChanged { activity });
 }
 
-/// Waits for the answer (or expiry), the call's host connection to close, or the question's withdrawal
-/// (its turn or process ended), whichever comes first.
-async fn wait_for_answer(st: &AppState, seat: &str, id: &str, mut rx: oneshot::Receiver<Answer>, reply: &UnboundedSender<ToHost>) -> Result<Answer, ToolError> {
+/// Waits for the answer (or expiry) or the question's withdrawal (its turn or process ended), whichever
+/// comes first. A dropped link is not an end: the computer's runner keeps the call and sends it again.
+async fn wait_for_answer(st: &AppState, seat: &str, id: &str, mut rx: oneshot::Receiver<Answer>) -> Result<Answer, ToolError> {
     // Subscribed before the first check, so a withdrawal recorded in between is not missed.
     let mut events = st.hub.subscribe();
     if let Some(e) = withdrawn(st, id) {
@@ -127,8 +126,6 @@ async fn wait_for_answer(st: &AppState, seat: &str, id: &str, mut rx: oneshot::R
                 Ok(a) => return Ok(a),
                 Err(_) => break,
             },
-            // hostd already failed the agent's call (LINK_DROPPED) and the agent carried on.
-            _ = reply.closed() => break,
             item = events.recv() => {
                 let concerns_agent = match item {
                     Ok(item) => matches!(&item.event.subject, Subject::Seat(s) if s == seat),

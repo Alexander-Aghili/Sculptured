@@ -593,9 +593,10 @@ async fn spec_path_at_a_secret_file_does_not_echo_or_store_it() {
     }
 }
 
-/// I7a: stop rig reports each seat it could not stop, with the reason.
+/// Stopping while the runner is offline is not a failure: each agent waits in `stopping` and is
+/// stopped when the runner reconnects (`offline_computer.rs`).
 #[tokio::test]
-async fn stop_rig_reports_seats_it_could_not_stop() {
+async fn stop_rig_with_the_runner_offline_leaves_its_agents_stopping() {
     let (st, router) = setup();
     let rig = rigspec::compile(GOOD).unwrap();
     st.store.lock().unwrap().upsert_rig(&rig, &controld::store::RigSource::File { path: "/specs/r.yaml".into() }, model::Desired::Running).unwrap();
@@ -608,16 +609,15 @@ async fn stop_rig_reports_seats_it_could_not_stop() {
         )
         .unwrap();
     }
-    // No host is connected, so neither stop can reach a process.
+    // No host is connected, so neither stop can reach a process yet.
     let (status, body) = call(&router, "POST", "/api/rigs/r/stop", Some(json!({ "request_id": "stop-1" }))).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(
-        body,
-        json!({ "failed": [
-            { "seat": "dev.b@r", "reason": "Sculptured's agent runner is not connected" },
-            { "seat": "dev.a@r", "reason": "Sculptured's agent runner is not connected" },
-        ] })
-    );
+    assert_eq!(body, json!({ "failed": [] }));
+    for seat in ["dev.a@r", "dev.b@r"] {
+        let v = st.store.lock().unwrap().seat(seat).unwrap().unwrap();
+        assert_eq!(v.lifecycle, SeatLifecycle::Stopping);
+        assert_eq!(v.lifecycle_reason.as_deref(), Some("Stops as soon as its computer reconnects"));
+    }
 }
 
 #[tokio::test]

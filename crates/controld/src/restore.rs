@@ -45,6 +45,9 @@ pub fn on_hello(st: &AppState, host: &str, live_seats: &[String], launching_seat
     for s in seats {
         let launching = launching_seats.contains(&s.id);
         let live = live_seats.contains(&s.id) || launching;
+        if stop_owed(st, &s, live) {
+            continue;
+        }
         if let Some((provenance, lifecycle, reason)) = after_hello(st, host, &s, live, launching) {
             let lost = lifecycle == SeatLifecycle::Attention && !live;
             record_lifecycle(st, s.id.clone(), provenance, lifecycle, reason.clone());
@@ -53,6 +56,29 @@ pub fn on_hello(st: &AppState, host: &str, live_seats: &[String], launching_seat
             }
         }
     }
+}
+
+/// An agent stopped while its computer was offline: stopped now that it is back. True when that
+/// settles the seat (nothing else to reattach).
+fn stop_owed(st: &AppState, s: &SeatView, live: bool) -> bool {
+    let team_stopped = st.store.lock().unwrap().rig_snapshot(&s.rig).ok().flatten().is_some_and(|r| r.desired == Desired::Stopped);
+    let owed = s.lifecycle == SeatLifecycle::Stopping || (team_stopped && s.lifecycle == SeatLifecycle::Stale);
+    if !owed {
+        return false;
+    }
+    if !live {
+        let reason = "Its computer reconnected; the agent had already ended".to_string();
+        record_lifecycle(st, s.id.clone(), Provenance::ProtocolObserved, SeatLifecycle::Stopped, reason);
+        return true;
+    }
+    record_lifecycle(st, s.id.clone(), Provenance::Operator, SeatLifecycle::Stopping, "Its computer reconnected; stopping the agent".into());
+    let (st, host, seat) = (st.clone(), s.host.clone().unwrap_or_default(), s.id.clone());
+    tokio::spawn(async move {
+        if let Err(e) = crate::reconciler::stop_on_host(&st, &host, &seat).await {
+            tracing::warn!(%seat, error = %e, "the stop owed on reconnect failed");
+        }
+    });
+    true
 }
 
 /// A lost agent in a team still set to run waits for the team's restore answer. It can be resumed

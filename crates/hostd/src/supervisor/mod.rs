@@ -14,7 +14,7 @@ use tokio::sync::{broadcast, oneshot, watch};
 use tokio::task::JoinHandle;
 use tools::{sweep_config_files, Grant};
 
-pub use tools::{SeatToolsHost, LINK_DROPPED, NOT_CONNECTED, TOO_BUSY};
+pub use tools::{SeatToolsHost, CALL_ENDED};
 
 type SharedSession = Arc<tokio::sync::Mutex<Box<dyn Session>>>;
 
@@ -61,8 +61,8 @@ struct Inner {
     tokens: Mutex<HashMap<String, Grant>>,
     /// Seat-tool calls on their way to controld; the link subscribes and forwards them.
     tool_out: broadcast::Sender<FromHost>,
-    /// Calls waiting for controld's reply, by call id.
-    tool_pending: Mutex<HashMap<String, oneshot::Sender<Result<Value, String>>>>,
+    /// Calls waiting for controld's reply, by call id: the call (sent again on every new link) and its waiter.
+    tool_pending: Mutex<HashMap<String, (FromHost, oneshot::Sender<Result<Value, String>>)>>,
 }
 
 /// Owns the live seat sessions on this host. Every event goes to the journal

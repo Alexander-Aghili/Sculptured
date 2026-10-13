@@ -29,6 +29,9 @@ pub static CLAIM_WAIT_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::Atom
 /// When non-zero, how long (ms) controld waits for a host to reply to a command (default 30 s).
 pub static HOST_REPLY_TIMEOUT_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// When non-zero, how long (ms) work waits for a host whose link just dropped (default 45 s).
+pub static HOST_RECONNECT_GRACE_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// A duration override from one of the statics above, if set.
 pub(crate) fn override_ms(v: &std::sync::atomic::AtomicU64) -> Option<std::time::Duration> {
     match v.load(std::sync::atomic::Ordering::SeqCst) {

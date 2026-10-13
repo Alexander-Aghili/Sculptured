@@ -20,18 +20,13 @@ use tokio::sync::{mpsc::UnboundedSender, oneshot};
 /// A `request_input` or `approve` call waiting for its answer (`AppState::seat_waits`).
 pub struct SeatWait {
     answer: oneshot::Sender<Answer>,
-    /// The host connection the call came in on.
-    link: UnboundedSender<ToHost>,
 }
 
 impl SeatWait {
-    /// Hands the answer to the waiting call. Err (with the answer) when the call can no longer reply:
-    /// its host connection has closed or it stopped waiting. `questions::deliver` then records the
-    /// answer as not sent.
+    /// Hands the answer to the waiting call. Err (with the answer) when the call stopped waiting.
+    /// `questions::deliver` then records the answer as not sent. A computer that is offline is no
+    /// reason: the reply waits for it (the runner sends the call again when it reconnects).
     pub fn send(self, answer: Answer) -> Result<(), Answer> {
-        if self.link.is_closed() {
-            return Err(answer);
-        }
         self.answer.send(answer)
     }
 }
@@ -107,7 +102,7 @@ type Outcome = (Value, Option<(String, Answer)>);
 
 /// Handles one call and sends its reply on `reply`, the host connection it came in on.
 pub async fn handle_call(st: AppState, reply: UnboundedSender<ToHost>, call_id: String, seat: String, tool: String, args: Value) {
-    let (ok, result, error, asked) = match dispatch(&st, &seat, &tool, &args, &reply).await {
+    let (ok, result, error, asked) = match dispatch(&st, &seat, &tool, &args).await {
         Ok((result, asked)) => (true, result, None, asked),
         Err(ToolError::Invalid(reason)) => {
             let body = EventBody::ReportRejected { tool: cut(&tool, 200), reason: reason.clone(), raw: raw_evidence(&args) };
@@ -126,13 +121,12 @@ pub async fn handle_call(st: AppState, reply: UnboundedSender<ToHost>, call_id: 
     }
 }
 
-/// `reply` is the host connection the call came in on; a waiting question watches it (see `ask`).
-async fn dispatch(st: &AppState, seat: &str, tool: &str, args: &Value, reply: &UnboundedSender<ToHost>) -> Result<Outcome, ToolError> {
+async fn dispatch(st: &AppState, seat: &str, tool: &str, args: &Value) -> Result<Outcome, ToolError> {
     match tool {
         "spawn_agent" | "send_agent_message" | "team_status" => crate::collaboration::tools::call(st,seat,tool,args).await.map(|v|(v,None)).map_err(invalid),
-        "request_input" => ask::request_input(st, seat, args, reply).await,
+        "request_input" => ask::request_input(st, seat, args).await,
         "approve" if !may_approve(st, seat) => Err(invalid("the approve tool is not available to this agent")),
-        "approve" => ask::approve(st, seat, args, reply).await,
+        "approve" => ask::approve(st, seat, args).await,
         "record_decision" => records::record_decision(st, seat, args).map(|v| (v, None)),
         "report" => records::report(st, seat, args).map(|v| (v, None)),
         "dispatch_work" | "complete_work" | "workflow_status" => crate::workflow::call(st, seat, tool, args).map(|v| (v, None)).map_err(invalid),

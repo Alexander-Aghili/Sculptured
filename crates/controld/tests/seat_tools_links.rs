@@ -1,5 +1,6 @@
-//! A seat-tool question whose host connection closes while controld runs (hostd restarted, the machine
-//! slept): hostd already failed the agent's call, so nothing is ever "answered" into that connection.
+//! A seat-tool question whose host connection closes while controld runs (the computer slept, its
+//! network changed): the runner keeps the agent's call and sends it again when it reconnects, so the
+//! question stays open. An answer that cannot reach the call is recorded as not delivered.
 mod common;
 
 use common::m2::*;
@@ -19,36 +20,17 @@ async fn agent(s: &Served) -> String {
     seat(&practice_team(s, "solo").await, "claude")
 }
 
-/// The question is withdrawn and its waiter removed.
+/// The question stays open, still waiting for its answer.
 #[tokio::test]
-async fn a_dropped_host_connection_withdraws_the_waiting_question() {
+async fn a_dropped_host_connection_keeps_the_question_open() {
     let s = serve().await;
     let seat = "team.a@t";
     let (call, link, q) = which(&s, seat).await;
     drop(link);
-    ended(call).await;
-    let w = wait_event(&s.st, seat, "withdrawn", |b| matches!(b, EventBody::QuestionWithdrawn { question_id, .. } if *question_id == q)).await;
-    assert_eq!(w.actor, Actor::System("controld".into()));
-    assert!(s.st.seat_waits.lock().unwrap().is_empty());
-    assert_eq!(question_view(&s, seat, &q).await["state"], "withdrawn");
-}
-
-/// Concern 4: the operator answers after the connection closed, before controld noticed. `deliver`
-/// sees the closed connection: the answer is not sent (Task 3's QuestionAnswerFailed path, the operator
-/// is told), and the question ends withdrawn.
-#[tokio::test]
-async fn an_answer_to_a_call_whose_connection_closed_is_not_sent() {
-    let s = serve().await;
-    let agent = agent(&s).await;
-    let (call, link, q) = which(&s, &agent).await;
-    // No await between closing the connection and answering: the waiting call cannot notice first.
-    drop(link);
-    let err = controld::questions::answer(&s.st, &q, Answer::Text { text: "Green".into() }).await.unwrap_err();
-    assert_eq!(err.code, "host_unreachable", "{}", err.message);
-    assert!(answer_failed(&s, &agent, &q).is_some(), "the answer is recorded as not delivered");
-    ended(call).await;
-    assert_eq!(question_view(&s, &agent, &q).await["state"], "withdrawn");
-    assert!(s.st.seat_waits.lock().unwrap().is_empty());
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert!(!call.is_finished());
+    assert!(s.st.seat_waits.lock().unwrap().contains_key(&q));
+    assert_eq!(question_view(&s, seat, &q).await["state"], "open");
 }
 
 /// Concern 4: the answer reached the waiting call, but its connection closed before the reply went

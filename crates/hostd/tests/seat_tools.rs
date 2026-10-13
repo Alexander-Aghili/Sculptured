@@ -5,7 +5,6 @@ use common::*;
 use host_proto::*;
 use hostd::seat_tools::{handle_rpc, tool_list};
 use hostd::run_link;
-use hostd::supervisor::{LINK_DROPPED, NOT_CONNECTED, TOO_BUSY};
 use serde_json::{json, Value};
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -66,10 +65,19 @@ fn the_shim_refuses_approve_unless_restricted_and_unknown_methods() {
 
 // ---- the relay, against a fake controld ----
 
+/// No link yet (the computer is offline): the call waits, and goes as soon as a link comes up.
 #[tokio::test]
-async fn without_controld_a_tool_call_fails_at_once() {
-    let err = tokio::time::timeout(CALL_WAIT, stub_sup().tool_call("dev.a@r", "report", json!({}))).await.expect("at once").unwrap_err();
-    assert_eq!(err, NOT_CONNECTED);
+async fn without_controld_a_tool_call_waits_for_the_link() {
+    let sup = stub_sup();
+    let s = sup.clone();
+    let call = tokio::spawn(async move { s.tool_call("dev.a@r", "report", json!({ "summary": "later" })).await });
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(!call.is_finished(), "the call waits instead of failing");
+    let mut ws = linked(&sup).await;
+    let (call_id, _, _, args) = next_call(&mut ws).await;
+    assert_eq!(args["summary"], "later");
+    send(&mut ws, &ToHost::SeatToolReply { call_id, ok: true, result: json!({ "text": "ok" }), error: None }).await;
+    assert_eq!(ended(call).await.unwrap()["text"], "ok");
 }
 
 #[tokio::test]
@@ -97,47 +105,29 @@ async fn a_refused_call_returns_controlds_words() {
     assert!(!sup.tool_call_pending(&call_id), "answered calls are forgotten");
 }
 
-/// Review Focus #4 (hostd half): when the link drops, the agent's waiting tool call returns an error.
+/// A link that drops mid-call keeps the agent's call waiting; the next link sends it again (same id)
+/// and controld's reply reaches the agent.
 #[tokio::test]
-async fn a_dropped_link_fails_pending_tool_calls() {
+async fn a_dropped_link_resends_pending_tool_calls_on_reconnect() {
     let sup = stub_sup();
     let mut ws = linked(&sup).await;
     let s = sup.clone();
     let call = tokio::spawn(async move { s.tool_call("dev.a@r", "request_input", json!({ "question": "?" })).await });
-    next_call(&mut ws).await;
+    let (first_id, ..) = next_call(&mut ws).await;
     drop(ws);
-    let got = tokio::time::timeout(Duration::from_secs(5), call).await.expect("the call ends").unwrap();
-    assert_eq!(got.unwrap_err(), LINK_DROPPED);
-}
-
-/// Important 7: after a lag, only the calls that never reached controld fail (TOO_BUSY); a forwarded
-/// call keeps waiting for controld's reply.
-#[tokio::test]
-async fn a_lag_fails_only_the_calls_that_were_never_forwarded() {
-    let sup = stub_sup();
-    let mut out = sup.subscribe_tool_calls();
-    let (a, b) = (sup.clone(), sup.clone());
-    let forwarded_call = tokio::spawn(async move { a.tool_call("dev.a@r", "request_input", json!({ "question": "?" })).await });
-    let lost_call = tokio::spawn(async move { b.tool_call("dev.b@r", "report", json!({ "summary": "x" })).await });
-    let mut ids = std::collections::HashMap::new();
-    for _ in 0..2 {
-        let FromHost::SeatTool { call_id, seat, .. } = out.recv().await.unwrap() else { panic!("a call") };
-        ids.insert(seat, call_id);
-    }
-    let (fwd, lost) = (ids["dev.a@r"].clone(), ids["dev.b@r"].clone());
-    sup.fail_tool_calls_except(&[fwd.clone()].into(), TOO_BUSY);
-    assert_eq!(ended(lost_call).await.unwrap_err(), TOO_BUSY);
-    assert!(!sup.tool_call_pending(&lost), "the link skips it if its frame still comes");
-    assert!(sup.tool_call_pending(&fwd), "a forwarded call still waits for controld");
-    sup.resolve_tool_call(&fwd, Ok(json!({ "text": "Blue" })));
-    assert_eq!(ended(forwarded_call).await.unwrap()["text"], "Blue");
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(!call.is_finished(), "the call survives the drop");
+    let mut ws = linked(&sup).await;
+    let (again, seat, tool, _) = next_call(&mut ws).await;
+    assert_eq!((again.as_str(), seat.as_str(), tool.as_str()), (first_id.as_str(), "dev.a@r", "request_input"));
+    send(&mut ws, &ToHost::SeatToolReply { call_id: again, ok: true, result: json!({ "text": "Blue" }), error: None }).await;
+    assert_eq!(ended(call).await.unwrap()["text"], "Blue");
 }
 
 /// The lag path through a real link: more calls than the link's queue holds pile up before controld
-/// welcomes it. Every one fails with TOO_BUSY, none of the already-failed ones is passed on, and the
-/// next call goes through.
+/// welcomes it. None is lost: every one reaches controld, and each answer reaches its call.
 #[tokio::test]
-async fn a_link_that_lags_fails_the_lost_calls_and_skips_them() {
+async fn a_link_that_lags_still_passes_every_call_on() {
     let sup = stub_sup();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("ws://{}/host", listener.local_addr().unwrap());
@@ -154,14 +144,14 @@ async fn a_link_that_lags_fails_the_lost_calls_and_skips_them() {
         .collect();
     tokio::time::sleep(Duration::from_millis(100)).await;
     send(&mut ws, &ToHost::Welcome { resume_after: 0 }).await;
-    for c in calls {
-        assert_eq!(ended(c).await.unwrap_err(), TOO_BUSY);
+    let mut seen = std::collections::HashSet::new();
+    while seen.len() < 1100 {
+        let (call_id, ..) = next_call(&mut ws).await;
+        if seen.insert(call_id.clone()) {
+            send(&mut ws, &ToHost::SeatToolReply { call_id, ok: true, result: json!({ "text": "ok" }), error: None }).await;
+        }
     }
-    no_call_within(&mut ws, Duration::from_millis(300)).await;
-    let s = sup.clone();
-    let call = tokio::spawn(async move { s.tool_call("dev.a@r", "report", json!({ "summary": "after" })).await });
-    let (call_id, _, _, args) = next_call(&mut ws).await;
-    assert_eq!(args["summary"], "after");
-    send(&mut ws, &ToHost::SeatToolReply { call_id, ok: true, result: json!({ "text": "ok" }), error: None }).await;
-    assert!(ended(call).await.is_ok());
+    for c in calls {
+        assert_eq!(ended(c).await.unwrap()["text"], "ok");
+    }
 }

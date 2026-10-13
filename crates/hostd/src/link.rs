@@ -1,4 +1,4 @@
-use crate::supervisor::{Supervisor, LINK_DROPPED, TOO_BUSY};
+use crate::supervisor::Supervisor;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use host_proto::{decode, encode, FromHost, ToHost, PROTOCOL_VERSION};
 use host_proto::HostEvent;
@@ -29,15 +29,6 @@ impl LinkError {
     }
 }
 
-/// Fails the waiting seat-tool calls when this connection ends, however it ends.
-struct FailPending<'a>(&'a Supervisor);
-
-impl Drop for FailPending<'_> {
-    fn drop(&mut self) {
-        self.0.fail_tool_calls(LINK_DROPPED);
-    }
-}
-
 fn frame(m: &FromHost) -> Message {
     Message::text(encode(m))
 }
@@ -51,8 +42,7 @@ struct Conn<'a, S> {
     sup: &'a Supervisor,
     live: Receiver<HostEvent>,
     last_sent: u64,
-    /// Calls this connection passed to controld and that wait for its reply. A lag must not fail
-    /// them: their questions may be open in Needs you, and an answer would then reach nobody.
+    /// Calls this connection already passed to controld, so a call is sent once per connection.
     forwarded: HashSet<String>,
     /// Answers to `ToHost::Op`, sent from the serve loop.
     op_tx: mpsc::UnboundedSender<FromHost>,
@@ -91,17 +81,26 @@ where
     }
 
     /// Passes one seat-tool call on to controld, after the events the agent emitted before calling (its
-    /// turn start), so controld knows which turn the call belongs to. A call already failed after a lag
-    /// (TOO_BUSY) has its answer and is never passed on.
+    /// turn start), so controld knows which turn the call belongs to. A call already answered, or
+    /// already sent on this connection, is skipped.
     async fn forward_call(&mut self, call: FromHost) -> Result<(), LinkError> {
         let FromHost::SeatTool { call_id, .. } = &call else { return Ok(()) };
-        if !self.sup.tool_call_pending(call_id) {
+        if !self.sup.tool_call_pending(call_id) || self.forwarded.contains(call_id) {
             return Ok(());
         }
         let id = call_id.clone();
         self.drain_live().await?;
         self.sink.send(frame(&call)).await?;
         self.forwarded.insert(id);
+        Ok(())
+    }
+
+    /// Sends every call still waiting (on connect: those a dropped link left unanswered; after a lag:
+    /// those the queue lost). controld answers each call id once, so a repeat is harmless.
+    async fn forward_pending(&mut self) -> Result<(), LinkError> {
+        for call in self.sup.pending_tool_calls() {
+            self.forward_call(call).await?;
+        }
         Ok(())
     }
 
@@ -177,8 +176,8 @@ where
                 call = tool_calls.recv() => match call {
                     Ok(call) => self.forward_call(call).await?,
                     Err(RecvError::Lagged(n)) => {
-                        tracing::warn!(lost = n, "seat tool calls were dropped; failing the ones that never reached controld");
-                        self.sup.fail_tool_calls_except(&self.forwarded, TOO_BUSY);
+                        tracing::warn!(lost = n, "seat tool calls queued faster than sent; sending the waiting ones again");
+                        self.forward_pending().await?;
                     }
                     Err(RecvError::Closed) => return Ok(()),
                 },
@@ -248,9 +247,6 @@ pub async fn run_link_with(url: &str, token: &str, sup: &Supervisor, keepalive: 
     let (mut sink, mut stream) = ws.split();
     // Subscribe before replaying so nothing emitted in between is missed.
     let live = sup.subscribe();
-    // Declared before the receiver, so it runs after the receiver is gone: a call made in between
-    // finds no link (NOT_CONNECTED) instead of waiting in a queue nobody reads.
-    let _fail_pending = FailPending(sup);
     let tool_calls = sup.subscribe_tool_calls();
     sink.send(frame(&hello(sup).await)).await?;
     let resume_after = await_welcome(&mut stream).await?;
@@ -262,6 +258,7 @@ pub async fn run_link_with(url: &str, token: &str, sup: &Supervisor, keepalive: 
     let (op_tx, op_rx) = mpsc::unbounded_channel();
     let mut conn = Conn { sink, sup, live, last_sent: resume_after, forwarded: HashSet::new(), op_tx };
     conn.resend().await?;
+    conn.forward_pending().await?;
     conn.serve(stream, tool_calls, keepalive, op_rx).await
 }
 

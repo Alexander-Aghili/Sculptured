@@ -4,8 +4,8 @@ use host_proto::{DriverInfo, HostCommand, ToHost};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tokio::sync::{mpsc, oneshot, watch};
+use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, oneshot, watch, Notify};
 
 struct HostConn {
     conn_id: u64,
@@ -41,7 +41,37 @@ pub struct HostRegistry {
     next_conn: Arc<AtomicU64>,
     /// Serializes connect (insert + reattach) against disconnect (remove + stale) per host.
     session_locks: Arc<Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>>,
+    /// When each host's link last dropped, so work for it can wait out a short drop (`wait_connected`).
+    gone_at: Arc<Mutex<HashMap<String, Instant>>>,
+    /// Woken whenever a host connects.
+    arrived: Arc<Notify>,
+    /// Seat-tool calls by (host, call id): a runner sends a call again on every new link until it is
+    /// answered, and each id is acted on once (`begin_call`).
+    calls: Arc<Mutex<HashMap<(String, String), Call>>>,
 }
+
+/// A seat-tool call controld has seen: still being answered, or answered (the reply kept for a while,
+/// for a runner whose link dropped before the reply reached it).
+enum Call {
+    Running,
+    Answered(Box<ToHost>, Instant),
+}
+
+/// What to do with a seat-tool call that came in (`HostRegistry::begin_call`).
+pub enum CallStart {
+    /// First time: act on it.
+    New,
+    /// Already being answered: the reply goes to whichever link is current when it is ready.
+    Running,
+    /// Answered before, but the reply was lost with the old link: send it again.
+    Answered(Box<ToHost>),
+}
+
+/// How long an answered call's reply is kept for a runner that comes back.
+const KEEP_REPLIES: Duration = Duration::from_secs(6 * 3600);
+
+/// How long work for a computer whose link just dropped waits for it to come back before failing.
+pub const RECONNECT_GRACE: Duration = Duration::from_secs(45);
 
 impl HostRegistry {
     pub fn has_driver(&self, host: &str, driver: &str) -> bool {
@@ -112,6 +142,7 @@ impl HostRegistry {
         if let Some(old) = &old {
             let _ = old.evict.send(true);
         }
+        self.arrived.notify_waiters();
         (conn_id, old.is_some())
     }
 
@@ -121,6 +152,7 @@ impl HostRegistry {
         let mut hosts = self.inner.lock().unwrap();
         if hosts.get(host).is_some_and(|c| c.conn_id == conn_id) {
             hosts.remove(host);
+            self.gone_at.lock().unwrap().insert(host.to_string(), Instant::now());
             // Waiting ops on this host end now (their waiters see NotConnected).
             self.ops.lock().unwrap().retain(|_, (h, _)| h != host);
             true
@@ -129,8 +161,58 @@ impl HostRegistry {
         }
     }
 
+    /// Waits for `host` to reconnect when its link dropped less than `RECONNECT_GRACE` ago (a Wi-Fi
+    /// change, a server restart), so work for it is not failed over a short drop. Returns at once
+    /// when it is connected, or was never connected, or has been gone longer. True when connected.
+    pub async fn wait_connected(&self, host: &str) -> bool {
+        let deadline = match self.gone_at.lock().unwrap().get(host) {
+            Some(gone) => *gone + grace(),
+            None => return self.is_connected(host),
+        };
+        loop {
+            let arrived = self.arrived.notified();
+            if self.is_connected(host) {
+                return true;
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                return false;
+            }
+            let _ = tokio::time::timeout(deadline - now, arrived).await;
+        }
+    }
+
+    /// A seat-tool call from `host`: whether to act on it (see `CallStart`).
+    pub(super) fn begin_call(&self, host: &str, call_id: &str) -> CallStart {
+        let mut calls = self.calls.lock().unwrap();
+        calls.retain(|_, c| !matches!(c, Call::Answered(_, at) if at.elapsed() > KEEP_REPLIES));
+        match calls.get(&(host.to_string(), call_id.to_string())) {
+            Some(Call::Running) => CallStart::Running,
+            Some(Call::Answered(reply, _)) => CallStart::Answered(reply.clone()),
+            None => {
+                calls.insert((host.to_string(), call_id.to_string()), Call::Running);
+                CallStart::New
+            }
+        }
+    }
+
+    /// A call's reply: kept, and sent on the host's current link (if it has none, the runner sends the
+    /// call again when it reconnects and gets the kept reply).
+    pub(super) fn finish_call(&self, host: &str, call_id: &str, reply: ToHost) {
+        self.calls.lock().unwrap().insert((host.to_string(), call_id.to_string()), Call::Answered(Box::new(reply.clone()), Instant::now()));
+        self.send_now(host, reply);
+    }
+
+    /// Sends a frame on the host's current link, if it has one.
+    pub(super) fn send_now(&self, host: &str, frame: ToHost) {
+        if let Some(c) = self.inner.lock().unwrap().get(host) {
+            let _ = c.tx.send(frame);
+        }
+    }
+
     /// Sends work to `host` and waits up to `timeout` for its answer.
     pub async fn op(&self, host: &str, op: serde_json::Value, timeout: Duration) -> Result<serde_json::Value, OpFailure> {
+        self.wait_connected(host).await;
         let tx = match self.inner.lock().unwrap().get(host) {
             None => return Err(OpFailure::NotConnected),
             Some(c) if !c.features.iter().any(|f| f == host_proto::features::LOCAL_OPS) => return Err(OpFailure::OlderRunner),
@@ -169,8 +251,15 @@ impl HostRegistry {
 
     /// `command`, saying whether a failed command certainly did not happen (`NotConnected`,
     /// `Refused`, `OlderRunner`) or may have happened (`NoReply`). A command the host's features do
-    /// not cover is refused here (`OlderRunner`), never sent.
+    /// not cover is refused here (`OlderRunner`), never sent. A host whose link just dropped gets
+    /// `RECONNECT_GRACE` to come back first.
     pub async fn command_checked(&self, host: &str, command: HostCommand) -> Result<(), CommandFailure> {
+        self.wait_connected(host).await;
+        self.command_now(host, command).await
+    }
+
+    /// `command_checked` without waiting for a host that is away.
+    pub async fn command_now(&self, host: &str, command: HostCommand) -> Result<(), CommandFailure> {
         let (tx, pending) = {
             let hosts = self.inner.lock().unwrap();
             let conn = hosts.get(host).ok_or_else(|| CommandFailure::NotConnected(not_connected(host)))?;
@@ -198,6 +287,15 @@ impl HostRegistry {
             }
         }
     }
+}
+
+/// `RECONNECT_GRACE` (a test seam can shorten it).
+fn grace() -> Duration {
+    #[cfg(feature = "test-seams")]
+    if let Some(d) = crate::seams::override_ms(&crate::seams::HOST_RECONNECT_GRACE_MS) {
+        return d;
+    }
+    RECONNECT_GRACE
 }
 
 /// How long a host has to reply to a command: 30 s (a test seam can shorten it).

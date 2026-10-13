@@ -1,0 +1,112 @@
+//! The computer running a team's agents drops off mid-run (Wi-Fi change, sleep, a server deploy) and
+//! comes back. Nothing the agents were doing is lost: their calls wait, answers wait, and Stop is
+//! carried out on reconnect.
+mod common;
+
+use common::m2::*;
+use common::seat_tools::question_view;
+use common::{lifecycle, wait_for};
+use drivers::stub::StubDriver;
+use hostd::{journal::Journal, run_link, supervisor::Supervisor};
+use model::*;
+use serde_json::json;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::task::JoinHandle;
+
+/// This machine's runner, with a link that the test can cut and bring back.
+struct Runner {
+    sup: Supervisor,
+    link: JoinHandle<()>,
+}
+
+impl Runner {
+    async fn connect(s: &Served) -> Runner {
+        let sup = Supervisor::new("local".into(), vec![Arc::new(StubDriver)], Journal::open_in_memory(10_000).unwrap());
+        let link = Runner::link(s, &sup).await;
+        Runner { sup, link }
+    }
+
+    async fn link(s: &Served, sup: &Supervisor) -> JoinHandle<()> {
+        let (url, sup) = (s.url.clone(), sup.clone());
+        let link = tokio::spawn(async move {
+            let _ = run_link(&url, TOKEN, &sup).await;
+        });
+        wait_for("computer connected", || s.st.hosts.is_connected("local")).await;
+        link
+    }
+
+    async fn drop_link(&self, s: &Served) {
+        self.link.abort();
+        wait_for("computer gone", || !s.st.hosts.is_connected("local")).await;
+    }
+
+    async fn reconnect(&mut self, s: &Served) {
+        self.link = Runner::link(s, &self.sup).await;
+    }
+}
+
+fn questions_raised(s: &Served, seat: &str) -> usize {
+    events(&s.st, seat).iter().filter(|e| matches!(e.body, EventBody::QuestionRaised { .. })).count()
+}
+
+
+#[tokio::test]
+async fn a_question_answered_while_the_computer_is_offline_reaches_the_agent_when_it_returns() {
+    let s = serve().await;
+    let mut runner = Runner::connect(&s).await;
+    let agent = seat(&practice_team(&s, "solo").await, "claude");
+    let sup = runner.sup.clone();
+    let a = agent.clone();
+    let call = tokio::spawn(async move { sup.tool_call(&a, "request_input", json!({ "question": "Which colour?" })).await });
+    let raised = wait_event(&s.st, &agent, "a question", |b| matches!(b, EventBody::QuestionRaised { .. })).await;
+    let EventBody::QuestionRaised { question_id: q, .. } = raised.body else { unreachable!() };
+
+    runner.drop_link(&s).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(question_view(&s, &agent, &q).await["state"], "open", "the question stays open while the computer is away");
+    controld::questions::answer(&s.st, &q, Answer::Text { text: "Green".into() }).await.expect("answering never needs the computer");
+    assert!(!call.is_finished(), "the agent is still waiting");
+
+    runner.reconnect(&s).await;
+    let got = tokio::time::timeout(Duration::from_secs(10), call).await.expect("the answer arrives").unwrap().unwrap();
+    assert!(got.to_string().contains("Green"), "{got}");
+    assert_eq!(questions_raised(&s, &agent), 1, "the call sent again is answered once, not asked twice");
+}
+
+#[tokio::test]
+async fn stopping_a_team_while_its_computer_is_offline_works_and_happens_when_it_returns() {
+    let s = serve().await;
+    let mut runner = Runner::connect(&s).await;
+    let team = practice_team(&s, "solo").await;
+    let agent = seat(&team, "claude");
+    runner.drop_link(&s).await;
+    stop_team(&s, &team).await;
+    assert_eq!(lifecycle(&s.st, &agent), Some(SeatLifecycle::Stopping), "stopping, until the computer confirms it");
+    assert!(!runner.sup.live_seats().await.is_empty(), "the agent still runs on the offline computer");
+
+    runner.reconnect(&s).await;
+    wait_for("agent stopped on the computer", || lifecycle(&s.st, &agent) == Some(SeatLifecycle::Stopped)).await;
+    assert!(runner.sup.live_seats().await.is_empty());
+}
+
+#[tokio::test]
+async fn a_team_started_during_a_brief_drop_launches_once_the_computer_is_back() {
+    let s = serve().await;
+    let mut runner = Runner::connect(&s).await;
+    let team = practice_chain(&s, "Pair", &[("a", "A", "first"), ("b", "B", "second")], &[]).await;
+    runner.drop_link(&s).await;
+    let back = {
+        let s_url = s.url.clone();
+        let sup = runner.sup.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            let _ = run_link(&s_url, TOKEN, &sup).await;
+        })
+    };
+    start_team(&s, &team).await;
+    runner.link = back;
+    for a in ["a", "b"] {
+        assert_eq!(lifecycle(&s.st, &seat(&team, a)), Some(SeatLifecycle::Running));
+    }
+}

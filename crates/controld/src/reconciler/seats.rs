@@ -1,7 +1,7 @@
 //! One agent at a time: restart, stop, interrupt, and messages the operator sends.
 use super::{launch_one, lifecycle, STOP_GRACE_MS};
 use crate::error::ApiError;
-use crate::hosts::controld;
+use crate::hosts::{controld, CommandFailure};
 use crate::launch::seat_host;
 use crate::state::AppState;
 use crate::store::is_live;
@@ -43,11 +43,17 @@ pub async fn restart_seat(st: &AppState, seat_id: &str) -> Result<(), ApiError> 
 }
 
 /// Stops a seat's process. A host that says the seat is not running has nothing to
-/// stop; reconcile any live projection from that explicit response. A disconnected
-/// runner is still unknown and cannot establish that its processes have stopped.
-pub(super) async fn stop_on_host(st: &AppState, host: &str, seat: &str) -> Result<(), String> {
-    match st.hosts.command(host, HostCommand::Stop { seat: seat.to_string(), grace_ms: STOP_GRACE_MS }).await {
-        Err(e) if e == format!("seat {seat} is not running") => {
+/// stop; reconcile any live projection from that explicit response. A computer that is offline
+/// cannot stop it now: the seat is recorded as stopping, and the stop is sent when the computer
+/// reconnects (`restore::on_hello`). Its process is unknown until then, so it is not called stopped.
+pub(crate) async fn stop_on_host(st: &AppState, host: &str, seat: &str) -> Result<(), String> {
+    match st.hosts.command_now(host, HostCommand::Stop { seat: seat.to_string(), grace_ms: STOP_GRACE_MS }).await {
+        Err(CommandFailure::NotConnected(_)) => {
+            let reason = "Stops as soon as its computer reconnects".to_string();
+            crate::hosts::record_lifecycle(st, seat.to_string(), Provenance::Operator, SeatLifecycle::Stopping, reason);
+            Ok(())
+        }
+        Err(CommandFailure::Refused(e)) if e == format!("seat {seat} is not running") => {
             tracing::info!(%seat, error = %e, "nothing to stop on host");
             if lifecycle(st, seat).is_some_and(stoppable) {
                 let recorded = st.local_event(
@@ -63,7 +69,7 @@ pub(super) async fn stop_on_host(st: &AppState, host: &str, seat: &str) -> Resul
             }
             Ok(())
         }
-        other => other,
+        other => other.map_err(CommandFailure::into_message),
     }
 }
 

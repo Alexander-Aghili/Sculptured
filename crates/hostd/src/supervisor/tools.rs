@@ -6,7 +6,6 @@ use host_proto::{FromHost, SeatToolsParams};
 use drivers::SeatToolsLaunch;
 use model::EventBody;
 use serde_json::Value;
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tokio::sync::{broadcast, oneshot};
 
@@ -28,11 +27,8 @@ pub struct SeatToolsHost {
     pub shim: PathBuf,
 }
 
-/// What an agent's tool call returns when controld cannot answer. The agent reads these.
-pub const NOT_CONNECTED: &str = "Sculptured is not connected right now, so this call could not be made. Carry on with your best judgment.";
-pub const LINK_DROPPED: &str =
-    "Sculptured's connection to this agent's runner dropped before the call was answered. Carry on with your best judgment.";
-pub const TOO_BUSY: &str = "Sculptured was too busy to pass this call on. Carry on with your best judgment.";
+/// What a waiting tool call returns when its agent's process ended first (nobody reads it then).
+pub const CALL_ENDED: &str = "This agent's process ended before Sculptured answered.";
 
 impl Supervisor {
     /// The seat a seat-tools token belongs to, while that seat's process runs.
@@ -55,6 +51,10 @@ impl Supervisor {
     pub(super) fn forget_token(&self, token: &Option<String>) {
         let Some(t) = token else { return };
         let removed = self.inner.tokens.lock().unwrap().remove(t);
+        // The process is gone: its waiting calls end, and no later link sends them again.
+        if let Some(g) = &removed {
+            self.inner.tool_pending.lock().unwrap().retain(|_, (call, _)| !matches!(call, FromHost::SeatTool { seat, .. } if *seat == g.seat));
+        }
         if let Some(Grant { seat, config_file: Some(file), .. }) = removed
             && let Err(e) = std::fs::remove_file(&file)
             && e.kind() != std::io::ErrorKind::NotFound
@@ -64,55 +64,38 @@ impl Supervisor {
     }
 
     /// Relays one seat-tool call to controld and waits for its reply (which may take as long as a question).
+    /// The call outlives a dropped link: while the computer is offline it waits, and every link sends the
+    /// calls still waiting again (same id; controld answers each id once).
     pub async fn tool_call(&self, seat: &str, tool: &str, args: Value) -> Result<Value, String> {
         let call_id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
-        self.inner.tool_pending.lock().unwrap().insert(call_id.clone(), tx);
         let frame = FromHost::SeatTool { call_id: call_id.clone(), seat: seat.to_string(), tool: tool.to_string(), args };
-        // No link is subscribed: controld is not connected right now.
-        if self.inner.tool_out.send(frame).is_err() {
-            self.inner.tool_pending.lock().unwrap().remove(&call_id);
-            return Err(NOT_CONNECTED.to_string());
-        }
-        rx.await.unwrap_or_else(|_| Err(LINK_DROPPED.to_string()))
+        self.inner.tool_pending.lock().unwrap().insert(call_id, (frame.clone(), tx));
+        // No link is subscribed while offline; the next one sends it from `pending_tool_calls`.
+        let _ = self.inner.tool_out.send(frame);
+        rx.await.unwrap_or_else(|_| Err(CALL_ENDED.to_string()))
     }
 
     pub fn subscribe_tool_calls(&self) -> broadcast::Receiver<FromHost> {
         self.inner.tool_out.subscribe()
     }
 
-    /// Hands controld's reply to the waiting call; a call already failed (or unknown) ignores it.
+    /// Every call still waiting for controld's reply (in no particular order).
+    pub fn pending_tool_calls(&self) -> Vec<FromHost> {
+        self.inner.tool_pending.lock().unwrap().values().map(|(call, _)| call.clone()).collect()
+    }
+
+    /// Hands controld's reply to the waiting call; a call already answered (or unknown) ignores it.
     pub fn resolve_tool_call(&self, call_id: &str, reply: Result<Value, String>) {
         let waiting = self.inner.tool_pending.lock().unwrap().remove(call_id);
-        if let Some(tx) = waiting {
+        if let Some((_, tx)) = waiting {
             let _ = tx.send(reply);
         }
     }
 
-    /// True while the call still waits for its reply (not yet answered or failed).
+    /// True while the call still waits for its reply.
     pub fn tool_call_pending(&self, call_id: &str) -> bool {
         self.inner.tool_pending.lock().unwrap().contains_key(call_id)
-    }
-
-    /// Ends every waiting call with `reason` (the link dropped).
-    pub fn fail_tool_calls(&self, reason: &str) {
-        let pending: Vec<_> = self.inner.tool_pending.lock().unwrap().drain().collect();
-        for (_, tx) in pending {
-            let _ = tx.send(Err(reason.to_string()));
-        }
-    }
-
-    /// Ends the waiting calls that never reached controld (calls were lost on the way). A call in
-    /// `forwarded` already did: its question may be open in Needs you and controld's reply still comes.
-    pub fn fail_tool_calls_except(&self, forwarded: &HashSet<String>, reason: &str) {
-        let lost: Vec<_> = {
-            let mut pending = self.inner.tool_pending.lock().unwrap();
-            let ids: Vec<String> = pending.keys().filter(|id| !forwarded.contains(*id)).cloned().collect();
-            ids.into_iter().filter_map(|id| pending.remove(&id)).collect()
-        };
-        for tx in lost {
-            let _ = tx.send(Err(reason.to_string()));
-        }
     }
 
     /// A new token for an agent launched with seat tools, when this hostd serves them.

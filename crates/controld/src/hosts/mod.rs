@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::oneshot;
 
-pub use registry::{CommandFailure, HostRegistry, OpFailure};
+pub use registry::{CallStart, CommandFailure, HostRegistry, OpFailure, RECONNECT_GRACE};
 pub use session::host_ws;
 
 pub const LOCAL_HOST: &str = "local";

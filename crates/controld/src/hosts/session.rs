@@ -1,6 +1,6 @@
 //! One host's connection: Hello, Welcome{resume_after}, then events in (ingested and acked one by
 //! one), commands out, and seat-tool calls relayed.
-use super::{mark_stale, Pending, HELLO_TIMEOUT};
+use super::{mark_stale, CallStart, Pending, HELLO_TIMEOUT};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::store::LOCAL_EVENT_HOST;
@@ -118,13 +118,11 @@ async fn host_session(st: AppState, socket: WebSocket, expected: Option<String>)
     let pending: Pending = Arc::default();
     let (evict, evicted) = watch::channel(false);
     let session_lock = st.hosts.session_lock(&host_id);
-    // Weak: the registry's sender alone keeps `rx` open, so an evicted connection still ends.
-    let reply_tx = tx.downgrade();
     let conn_id = {
         let _serialized = session_lock.lock().await;
         register(&st, hello, resume_after, Registration { tx, pending: pending.clone(), evict })
     };
-    Conn { st: &st, host_id: &host_id, pending, reply_tx, sink }.serve(stream, rx, evicted).await;
+    Conn { st: &st, host_id: &host_id, pending, sink }.serve(stream, rx, evicted).await;
     let _serialized = session_lock.lock().await;
     if st.hosts.remove_if(&host_id, conn_id) {
         tracing::warn!(host = %host_id, "host disconnected; its seats are now stale");
@@ -158,7 +156,6 @@ struct Conn<'a> {
     st: &'a AppState,
     host_id: &'a str,
     pending: Pending,
-    reply_tx: mpsc::WeakUnboundedSender<ToHost>,
     sink: Sink,
 }
 
@@ -194,12 +191,7 @@ impl Conn<'_> {
                     let _ = done.send(if ok { Ok(()) } else { Err(error.unwrap_or_else(|| "command failed".into())) });
                 }
             }
-            Ok(FromHost::SeatTool { call_id, seat, tool, args }) => match self.reply_tx.upgrade() {
-                Some(reply_tx) => {
-                    tokio::spawn(crate::seat_tools::handle_call(self.st.clone(), reply_tx, call_id, seat, tool, args));
-                }
-                None => tracing::warn!(host = %host_id, %call_id, %seat, %tool, "seat tool call on a replaced connection; dropped"),
-            },
+            Ok(FromHost::SeatTool { call_id, seat, tool, args }) => self.on_call(call_id, seat, tool, args),
             Ok(FromHost::OpResult { op_id, ok, value, error }) => {
                 let result = if ok { Ok(value) } else { Err(error.unwrap_or(host_proto::OpError { status: 500, code: "op_failed".into(), message: "The computer could not do that".into() })) };
                 self.st.hosts.op_answered(host_id, &op_id, result);
@@ -208,6 +200,26 @@ impl Conn<'_> {
             Err(e) => tracing::warn!(host = %host_id, error = %e, "ignoring undecodable host frame"),
         }
         true
+    }
+
+    /// A runner sends a call again on each new link until it is answered: act on each id once.
+    fn on_call(&self, call_id: String, seat: String, tool: String, args: serde_json::Value) {
+        let host_id = self.host_id;
+        match self.st.hosts.begin_call(host_id, &call_id) {
+            CallStart::New => {
+                let (reply_tx, mut replies) = mpsc::unbounded_channel();
+                tokio::spawn(crate::seat_tools::handle_call(self.st.clone(), reply_tx, call_id.clone(), seat, tool, args));
+                // The reply goes on the host's link of the moment, which may be a newer one.
+                let (hosts, host) = (self.st.hosts.clone(), host_id.to_string());
+                tokio::spawn(async move {
+                    if let Some(reply) = replies.recv().await {
+                        hosts.finish_call(&host, &call_id, reply);
+                    }
+                });
+            }
+            CallStart::Running => tracing::debug!(host = %host_id, %call_id, "call sent again while it is being answered"),
+            CallStart::Answered(reply) => self.st.hosts.send_now(host_id, *reply),
+        }
     }
 
     /// Ingests one event and acks it; false when either fails.
