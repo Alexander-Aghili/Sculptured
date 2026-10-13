@@ -20,7 +20,8 @@ const TAIL_BYTES: usize = 4096;
 /// `program args…` in the agent's folder and environment, without hostd's token, stdio piped,
 /// killed on drop and leading a process group of its own.
 pub(crate) fn command(program: &Path, spec: &LaunchSpec, args: impl IntoIterator<Item = String>) -> Command {
-    let mut cmd = Command::new(program);
+    // Looked up now: a CLI installed after the runner started is found.
+    let mut cmd = Command::new(localops::programs::resolve(program));
     cmd.args(args)
         .current_dir(&spec.cwd)
         .envs(spec.env.iter().cloned())

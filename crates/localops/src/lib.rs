@@ -5,6 +5,7 @@ pub mod checks;
 pub mod clis;
 pub mod copies;
 pub mod folders;
+pub mod programs;
 pub mod generate;
 pub mod git;
 pub mod plan;

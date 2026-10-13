@@ -464,6 +464,7 @@ dependencies = [
  "futures",
  "host-proto",
  "libc",
+ "localops",
  "model",
  "serde_json",
  "tempfile",

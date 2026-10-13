@@ -36,7 +36,7 @@ pub struct LoginStarted {
 
 /// Runs `program args` with a timeout; Some((success, stdout + stderr)) when it ran at all.
 async fn run(program: &std::path::Path, args: &[&str]) -> Option<(bool, String)> {
-    let out = Command::new(program).args(args).stdin(Stdio::null()).kill_on_drop(true).output();
+    let out = Command::new(crate::programs::resolve(program)).args(args).stdin(Stdio::null()).kill_on_drop(true).output();
     let out = tokio::time::timeout(Duration::from_secs(15), out).await.ok()?.ok()?;
     let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     Some((out.status.success(), text.trim().to_string()))
@@ -79,7 +79,7 @@ pub async fn login(name: &str, program: &Path) -> Result<LoginStarted, LocalErro
         "codex" => &["login"],
         _ => return Err(LocalError::not_found("not_found", format!("no CLI {name:?}"))),
     };
-    let mut child = Command::new(program).args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped())
+    let mut child = Command::new(crate::programs::resolve(program)).args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped())
         .kill_on_drop(true).spawn().map_err(|e| LocalError::conflict("cli_missing", format!("{name} could not start: {e}")))?;
     let (out, err) = (child.stdout.take().expect("piped"), child.stderr.take().expect("piped"));
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();

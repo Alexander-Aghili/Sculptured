@@ -80,7 +80,7 @@ pub async fn run_within(cx: &Context, cli: &str, model: Option<&str>, prompt: &s
             args.push("-".into());
         }
     }
-    let started = tokio::process::Command::new(program)
+    let started = tokio::process::Command::new(crate::programs::resolve(program))
         .args(&args)
         .current_dir(dir.path())
         .stdin(std::process::Stdio::piped())
