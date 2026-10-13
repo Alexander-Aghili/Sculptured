@@ -93,7 +93,16 @@ fn a_missing_folder_is_pinned_to_the_agent_in_plain_words() {
     assert_eq!(i.element, ElementRef { kind: ElementKind::Agent, id: "reviewer".into() });
     assert_eq!(i.severity, IssueSeverity::Error);
     d.agents[1].folder = Some("relative/path".into());
-    assert_eq!(find(&validate_draft(&d), "folder-not-absolute").message, "Reviewer's folder must be a full path, such as /home/you/project");
+    assert_eq!(find(&validate_draft(&d), "folder-not-absolute").message, "Reviewer's folder must be a full path, such as /home/you/project or C:\\Users\\you\\project");
+    // A connected Windows computer's folders are full paths too.
+    for windows in [r"C:\Users\Ana\Documents", "D:/work/app", r"\\server\share\app"] {
+        d.agents[1].folder = Some(windows.into());
+        assert!(!validate_draft(&d).iter().any(|i| i.code == "folder-not-absolute"), "{windows} is a full path");
+    }
+    for relative in [r"Documents\app", "C:", "C:relative"] {
+        d.agents[1].folder = Some(relative.into());
+        assert!(validate_draft(&d).iter().any(|i| i.code == "folder-not-absolute"), "{relative} is not a full path");
+    }
 }
 
 #[test]

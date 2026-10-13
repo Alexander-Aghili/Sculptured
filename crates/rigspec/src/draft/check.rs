@@ -90,6 +90,15 @@ fn check_agent_name(a: &DraftAgent, names: &mut HashMap<String, usize>, out: &mu
     }
 }
 
+/// A full path on the computer that runs the agent: `/…` on Linux and macOS; `C:\…`, `C:/…` or a
+/// network share `\\server\…` on Windows (a connected Windows computer's folders).
+pub(crate) fn is_full_path(f: &str) -> bool {
+    let b = f.as_bytes();
+    f.starts_with('/')
+        || f.starts_with(r"\\")
+        || (b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && matches!(b[2], b'\\' | b'/'))
+}
+
 /// The agent's group exists, and it has a full-path folder unless it is a Practice agent.
 fn check_agent_place(d: &TeamDraft, a: &DraftAgent, out: &mut Vec<DraftIssue>) {
     let who = display_name(a);
@@ -102,8 +111,8 @@ fn check_agent_place(d: &TeamDraft, a: &DraftAgent, out: &mut Vec<DraftIssue>) {
         None if a.kind != AgentKind::Practice => {
             out.push(issue(Agent, &a.id, Error, "folder-missing", format!("{who} needs a folder to work in")));
         }
-        Some(f) if !f.starts_with('/') => {
-            let message = format!("{who}'s folder must be a full path, such as /home/you/project");
+        Some(f) if !is_full_path(f) => {
+            let message = format!("{who}'s folder must be a full path, such as /home/you/project or C:\\Users\\you\\project");
             out.push(issue(Agent, &a.id, Error, "folder-not-absolute", message));
         }
         _ => {}
