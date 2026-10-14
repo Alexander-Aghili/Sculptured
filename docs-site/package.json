@@ -6,10 +6,12 @@
     "validate": "mint validate",
     "links": "mint broken-links",
     "build": "node build.mjs",
-    "test": "node build.test.mjs"
+    "test": "node build.test.mjs",
+    "screenshots": "node screenshots/capture.mjs"
   },
   "devDependencies": {
-    "mint": "4.2.994"
+    "mint": "4.2.994",
+    "puppeteer-core": "^23.10.4"
   },
   "dependencies": {
     "@mdx-js/mdx": "3.1.0",

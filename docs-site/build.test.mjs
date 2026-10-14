@@ -40,7 +40,22 @@ try {
   for (const f of ['team-v1.json', 'session-v1.json']) {
     assert.ok(JSON.parse(fs.readFileSync(path.join(out, 'schema', f), 'utf8')).$schema, `the ${f} schema is published`);
   }
-  console.log(`build.test: ok (${pages.length} pages)`);
+  // Screenshots: every image a page uses exists, is small, and says what it shows.
+  let shots = 0;
+  for (const page of pages) {
+    const mdx = fs.readFileSync(new URL(`./${page}.mdx`, import.meta.url), 'utf8');
+    for (const [, alt, src] of mdx.matchAll(/!\[([^\]]*)\]\((\/images\/[^)\s]+)\)/g)) {
+      const file = new URL(`.${src}`, import.meta.url);
+      assert.ok(fs.existsSync(file), `${page}: ${src} exists`);
+      assert.ok(fs.statSync(file).size <= 400 * 1024, `${page}: ${src} is at most 400 KB`);
+      assert.ok(alt.trim().length > 0, `${page}: ${src} has alt text`);
+      shots += 1;
+    }
+  }
+  assert.ok(shots >= 8, `the docs show the app (${shots} screenshots)`);
+  const withShot = fs.readFileSync(path.join(out, 'quickstart.html'), 'utf8');
+  assert.match(withShot, /<img [^>]*src="\/images\/quickstart\//, 'screenshots render as images');
+  console.log(`build.test: ok (${pages.length} pages, ${shots} screenshots)`);
 } finally {
   fs.rmSync(out, { recursive: true, force: true });
 }
