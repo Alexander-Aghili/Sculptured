@@ -102,6 +102,7 @@ export const RECORDED_EVENTS: { name: string; from: 'Sculptured site' | 'Your br
   { name: 'team.started', from: 'Your Sculptured', what: 'A team started: how many agents, which programs, how many models, its shape' },
   { name: 'team.stopped', from: 'Your Sculptured', what: 'A team stopped' },
   { name: 'run.summary', from: 'Your Sculptured', what: 'A finished run: duration, tokens in and out, agents, spawned agents, failed agents' },
+  { name: 'run.imported', from: 'Your Sculptured', what: 'A Claude Code or Codex session was imported: which tool, and how many agents (never its content)' },
   { name: 'check.ran', from: 'Your Sculptured', what: "A check ran, and whether it passed (never the command or its output)" },
   { name: 'copies.enabled', from: 'Your Sculptured', what: "Agents' own copies were turned on" },
   { name: 'plan.held', from: 'Your Sculptured', what: 'A start waited because a plan was near its limit' },

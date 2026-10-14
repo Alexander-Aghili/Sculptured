@@ -22,6 +22,7 @@ export function JoinPage({ onSignedIn = () => window.location.assign('/') }: { o
   return (
     <AuthCard title="Join the Sculptured beta" lead={invite ? `Invite for ${invite.name}${invite.email ? ` (${invite.email})` : ''} · valid until ${new Date(invite.expires_at).toLocaleDateString()}.` : undefined}>
       {failed && <p className="auth-error" role="alert">{failed}</p>}
+      {failed && !invite && <p className="auth-note">Already have an account? <a href="/login">Sign in</a></p>}
       {invite && (
         <>
           <ProviderButtons providers={providers} purpose={{ join: token }} />

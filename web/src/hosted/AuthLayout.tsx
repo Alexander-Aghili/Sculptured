@@ -10,7 +10,7 @@ export function AuthCard({ title, lead, children }: { title: string; lead?: Reac
   return (
     <main className="auth-page">
       <div className="auth-column">
-        <a className="auth-brand" href="https://usesculptured.com"><BrandMark /><span>Sculptured</span></a>
+        <a className="auth-brand" href="/"><BrandMark /><span>Sculptured</span></a>
         <section className="auth-card" aria-labelledby="auth-title">
           <h1 id="auth-title">{title}</h1>
           {lead && <p className="auth-lead">{lead}</p>}
