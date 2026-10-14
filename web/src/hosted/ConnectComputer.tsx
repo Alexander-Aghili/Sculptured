@@ -98,7 +98,7 @@ type System = (typeof SYSTEMS)[number];
 function MacAppSteps({ href }: { href: string }) {
   return (
     <ol className="connect-steps">
-      <li><span>Download the app (Apple silicon Macs).</span>
+      <li><span>Download the app (macOS 11 or later, Apple silicon or Intel).</span>
         <a className="btn btn-primary" href={href}><Icon name="download" size={14} />Download Sculptured for Mac</a>
       </li>
       <li>Open the download and drag Sculptured to Applications, then open it there.</li>

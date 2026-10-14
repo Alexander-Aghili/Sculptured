@@ -72,7 +72,7 @@ sequenceDiagram
     | Runner data | `~/.sculptured/runner` (owner-only) |
   </Tab>
   <Tab title="macOS">
-    Apple silicon Macs only; the installer refuses Intel Macs. There are two ways to connect a Mac:
+    Apple silicon and Intel Macs, with macOS 11 or later. There are two ways to connect a Mac:
 
     - **The app:** on the Computers page, choose **Download Sculptured for Mac**. Open the download and drag Sculptured to Applications. The first time, macOS says it can't check the app, because it isn't signed with an Apple Developer ID yet: open *System Settings → Privacy & Security*, scroll down and choose **Open Anyway**. In the app, under **Sculptured account**, choose **Sign in to my account** and approve the computer. Agents run while the app is open.
     - **Terminal:** copy the connect command, as on Linux, and paste it into Terminal. The runner keeps itself running in the background with a LaunchAgent, `~/Library/LaunchAgents/dev.sculptured.runner.plist`, even when no window is open.
@@ -187,7 +187,7 @@ You can also run `sculptured connect https://app.usesculptured.com` yourself. It
 
 <AccordionGroup>
   <Accordion title="“There's no Sculptured build for … yet”">
-    The Computers page offers a command only for systems with a published build: today, Windows on x64, Linux and Apple silicon Macs. The installers also stop, without installing anything, on an Intel Mac, on Windows on Arm, or on an unsupported Linux processor.
+    The Computers page offers a command only for systems with a published build: today, Windows on x64, Linux and macOS. The installers also stop, without installing anything, on Windows on Arm or on an unsupported Linux processor.
   </Accordion>
   <Accordion title="“This connect command was already used or has expired”">
     Each command works once, for 30 minutes. Choose **Copy connect command** again and paste the new one.

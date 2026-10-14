@@ -20,9 +20,9 @@ target() {
     Darwin-x86_64)
       # A Rosetta shell on Apple silicon reports x86_64; it gets the native build.
       if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" = 1 ]; then echo aarch64-apple-darwin
-      else die "Intel Macs aren't supported yet. Sculptured runs on Apple silicon Macs and on Linux."; fi ;;
+      else echo x86_64-apple-darwin; fi ;;
     Darwin-arm64 | Darwin-aarch64) echo aarch64-apple-darwin ;;
-    *) die "unsupported system: $(uname -s) $(uname -m). Sculptured runs on Linux and Apple silicon Macs for now." ;;
+    *) die "unsupported system: $(uname -s) $(uname -m). Sculptured runs on Linux and macOS for now." ;;
   esac
 }
 

@@ -19,7 +19,7 @@ The workflow runs only when started by hand, never on push or on a schedule.
 - **Public repositories:** Linux and macOS minutes are free.
 - **Private repositories:** there is a monthly free allowance, and macOS minutes count 10× against it. If the account would be billed, don't run it; build locally instead (below).
 
-**Intel macOS** is commented out in the matrix to save macOS minutes. To add it, uncomment the line and change `install.sh`'s `Darwin-x86_64` case, which refuses Intel Macs for now.
+**Intel macOS** is built by `.github/workflows/mac.yml` too: the Apple silicon Mac cross-compiles it (`x86_64-apple-darwin`).
 
 ## Building locally instead
 
@@ -33,8 +33,8 @@ Upload `dist/*` to a release, or point `GATEWAY_RELEASES_URL` at any folder serv
 ### The hosted gateway's macOS build
 
 The gateway image builds Linux and Windows itself, but macOS needs a Mac. `.github/workflows/mac.yml` builds on GitHub's Apple silicon Macs on every push to main (free for public repositories) and replaces the files of the `mac-latest` release:
-- `sculptured-aarch64-apple-darwin.tar.gz`, `.sha256` and `.commit`: the runner. The server's update timer (sculptured-cloud's `update.sh`) takes it once `.commit` is the commit it runs, checks the checksum, and serves it from `/data/releases`.
-- `Sculptured-mac-arm64.dmg`: the desktop app, linked from the Computers page (`GATEWAY_MAC_APP_URL`). It's signed ad hoc, so macOS asks once before it opens; a Developer ID and notarization would remove that.
+- `sculptured-aarch64-apple-darwin.tar.gz` and `sculptured-x86_64-apple-darwin.tar.gz`, each with a `.sha256` and `.commit`: the runners for Apple silicon and Intel Macs. The server's update timer (sculptured-cloud's `update.sh`) takes it once `.commit` is the commit it runs, checks the checksum, and serves it from `/data/releases`.
+- `Sculptured-mac.dmg`: the desktop app, universal (both kinds of Mac), linked from the Computers page (`GATEWAY_MAC_APP_URL`). It's signed ad hoc, so macOS asks once before it opens; a Developer ID and notarization would remove that.
 
 If GitHub can't build it, build on a Mac and upload by hand:
 

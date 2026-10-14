@@ -57,8 +57,13 @@ chmod +x "$work/mac/uname" "$work/mac/sysctl"
 HOME="$work/h4" TRANSLATED=1 PATH="$work/mac:$PATH" sh "$work/install.sh" > "$work/out4" 2>&1 || { cat "$work/out4"; fail "Rosetta shell did not install"; }
 [ -x "$work/h4/.local/bin/sculptured" ] || fail "Rosetta shell: not installed"
 
-# 5. An Intel Mac stops with a clear message until its build ships.
-if HOME="$work/h5" TRANSLATED=0 PATH="$work/mac:$PATH" sh "$work/install.sh" > "$work/out5" 2>&1; then fail "an Intel Mac was accepted"; fi
-grep -q "Intel Macs aren't supported yet" "$work/out5" || { cat "$work/out5"; fail "no Intel message"; }
+# 5. An Intel Mac gets the Intel build.
+mkdir -p "$work/intel"
+printf '#!/bin/sh\n# intel build\necho "ran: $*" > "$HOME/ran.txt"\n' > "$work/intel/sculptured"
+chmod +x "$work/intel/sculptured"
+sh "$repo/deploy/release/package.sh" x86_64-apple-darwin "$work/intel/sculptured" "$work/rel" > /dev/null
+HOME="$work/h5" TRANSLATED=0 PATH="$work/mac:$PATH" sh "$work/install.sh" > "$work/out5" 2>&1 || { cat "$work/out5"; fail "an Intel Mac did not install"; }
+grep -q "intel build" "$work/h5/.local/bin/sculptured" || fail "an Intel Mac got the wrong build"
+grep -q "intel build" "$work/h4/.local/bin/sculptured" && fail "the Rosetta shell got the Intel build"
 
 echo "install.sh: all checks passed"

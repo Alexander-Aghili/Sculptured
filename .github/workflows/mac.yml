@@ -1,8 +1,9 @@
 # macOS builds of main, on GitHub's Apple silicon Macs (a Mac build needs Apple's SDK, so the hosted
 # service's Linux server can't make one). Each push replaces the files of the `mac-latest` release:
-# - sculptured-aarch64-apple-darwin.tar.gz (+ .sha256): the runner `install.sh` installs. The hosted
-#   service takes it once its .commit is the commit the service runs (sculptured-cloud's update.sh).
-# - Sculptured-mac-arm64.dmg: the desktop app, offered on the hosted Computers page. It is signed
+# - sculptured-{aarch64,x86_64}-apple-darwin.tar.gz (+ .sha256): the runners `install.sh` installs on
+#   Apple silicon and Intel Macs. The hosted service takes them once their .commit is the commit the
+#   service runs (sculptured-cloud's update.sh).
+# - Sculptured-mac.dmg: the desktop app for both kinds of Mac, offered on the hosted Computers page. It is signed
 #   ad hoc, not with an Apple Developer ID, so macOS asks once before it first opens. Ad hoc signing
 #   needs the hardened runtime off (it would reject Electron's own, differently signed frameworks).
 name: macOS build
@@ -40,8 +41,10 @@ jobs:
         run: |
           npm --prefix web ci --no-audit --no-fund && npm --prefix web run build
           cd desktop && npm ci --no-audit --no-fund
-          npx electron-builder --mac dmg --arm64 --publish never \
-            -c.mac.identity=- -c.mac.hardenedRuntime=false -c.dmg.artifactName=Sculptured-mac-arm64.dmg \
+          # Universal: both kinds of Mac. The bundled runner is already universal, so it's the same file in both halves.
+          npx electron-builder --mac dmg --universal --publish never \
+            -c.mac.identity=- -c.mac.hardenedRuntime=false -c.dmg.artifactName=Sculptured-mac.dmg \
+            -c.mac.x64ArchFiles=Contents/Resources/bin/sculptured \
             -c.extraMetadata.accountOrigin="$ACCOUNT_ORIGIN"
       - name: Publish to the mac-latest release
         env:
@@ -50,6 +53,7 @@ jobs:
           gh release view mac-latest >/dev/null 2>&1 || gh release create mac-latest --prerelease --target "$GITHUB_SHA" \
             --title "macOS builds of main" \
             --notes "Built on GitHub's Macs from each push to main; the files are replaced each time. sculptured-aarch64-apple-darwin.commit says which commit."
-          gh release upload mac-latest dist/sculptured-aarch64-apple-darwin.tar.gz dist/sculptured-aarch64-apple-darwin.tar.gz.sha256 desktop/dist/Sculptured-mac-arm64.dmg --clobber
+          gh release upload mac-latest dist/*.tar.gz dist/*.tar.gz.sha256 desktop/dist/Sculptured-mac.dmg --clobber
+          gh release delete-asset mac-latest Sculptured-mac-arm64.dmg -y 2>/dev/null || true  # the Apple-silicon-only app it replaced
           # Last, so a server never sees this commit before the files it names.
-          gh release upload mac-latest dist/sculptured-aarch64-apple-darwin.commit --clobber
+          gh release upload mac-latest dist/*.commit --clobber
