@@ -1,5 +1,6 @@
 //! Who started whom in a Claude Code session: each subagent thread is matched to its parent's `Agent`
-//! call (by the `.meta.json`'s `toolUseId`, else by its first prompt, else the next unmatched call).
+//! call (by the `.meta.json`'s `toolUseId`, else by its first prompt); with neither, it is shown under the
+//! main agent rather than guessed.
 //! A call whose subagent file was not uploaded still becomes an agent, listed as missing.
 use super::claude::{Call, Reader};
 use super::{Ev, Read, Thread};
@@ -32,9 +33,10 @@ fn first_prompt(t: &Thread) -> Option<&str> {
 /// The parent's call for this subagent, and (when found) its task, name and type.
 fn attach(t: &mut Thread, meta: &Value, calls: &[(String, Call)], used: &mut HashSet<String>) {
     let by_id = meta["toolUseId"].as_str().and_then(|id| calls.iter().find(|(_, c)| c.id == id));
-    let prompt = first_prompt(t).map(str::to_string);
-    let by_prompt = || calls.iter().find(|(_, c)| !used.contains(&c.id) && c.prompt.is_some() && c.prompt == prompt);
-    let found = by_id.or_else(by_prompt).or_else(|| calls.iter().find(|(_, c)| !used.contains(&c.id))).cloned();
+    let prompt = first_prompt(t).map(|p| p.trim().to_string());
+    let same = |c: &Call| c.prompt.as_deref().map(str::trim) == prompt.as_deref() && prompt.is_some();
+    let by_prompt = || calls.iter().find(|(owner, c)| *owner != t.key && !used.contains(&c.id) && same(c));
+    let found = by_id.or_else(by_prompt).cloned();
     let text = |k: &str| meta[k].as_str().map(str::to_string);
     let Some((owner, call)) = found else {
         (t.parent, t.name, t.agent_type) = (Some("main".into()), text("description"), text("agentType"));

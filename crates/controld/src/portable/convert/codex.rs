@@ -88,6 +88,10 @@ impl Reader {
     }
 
     fn meta(&mut self, p: &Value) {
+        // A sub-agent's rollout repeats its parent's meta after its own: the first one is this thread.
+        if !self.t.key.is_empty() {
+            return;
+        }
         self.t.key = p["id"].as_str().unwrap_or_default().to_string();
         self.t.session_id = p["id"].as_str().map(str::to_string);
         self.t.cwd = p["cwd"].as_str().map(str::to_string);

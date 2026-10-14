@@ -129,6 +129,10 @@ impl Reader {
     }
 
     fn user(&mut self, v: &Value, at: i64) {
+        if v["isCompactSummary"] == true {
+            self.push(at, body(EventBody::AgentText { turn_id: None, text: "[context compacted]".into() }));
+            return;
+        }
         if let Some(text) = prompt_text(v) {
             self.end_turn(at);
             self.push(at, Ev::Prompt { text, from: None });
@@ -228,23 +232,31 @@ fn usage(u: &Value, turn: String) -> EventBody {
     }
 }
 
+/// Text Claude Code itself puts in user lines: slash commands, shell mode, notices, interruptions.
+const OWN: &[&str] = &["<command-", "<local-command-", "[Request interrupted", "<bash-input>", "<bash-stdout>", "<bash-stderr>", "<task-notification>", "<system-reminder>"];
+
+/// One piece of a prompt: its words, "[image]" for a picture, nothing for Claude Code's own text.
+fn piece(b: &Value) -> Option<String> {
+    match b["type"].as_str()? {
+        "text" => b["text"].as_str().map(str::trim).filter(|t| !t.is_empty() && !OWN.iter().any(|p| t.starts_with(p))).map(str::to_string),
+        "image" => Some("[image]".into()),
+        _ => None,
+    }
+}
+
 /// The person's words, when this user line is a prompt: not a tool result, not Claude Code's own
-/// meta lines (`isMeta`, slash-command echoes, interruption markers).
+/// lines (`isMeta`, transcript-only lines, slash commands, shell mode, notices, interruptions).
 pub(super) fn prompt_text(v: &Value) -> Option<String> {
-    if v["isMeta"] == true {
+    if v["isMeta"] == true || v["isVisibleInTranscriptOnly"] == true {
         return None;
     }
-    let c = &v["message"]["content"];
-    let text = match c {
-        Value::String(s) => s.clone(),
-        Value::Array(blocks) if !blocks.is_empty() && blocks.iter().all(|b| b["type"] == "text") => {
-            blocks.iter().filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("\n")
-        }
+    let text = match &v["message"]["content"] {
+        Value::String(s) => piece(&serde_json::json!({ "type": "text", "text": s }))?,
+        Value::Array(blocks) if !blocks.iter().any(|b| b["type"] == "tool_result") => blocks.iter().filter_map(piece).collect::<Vec<_>>().join("\n"),
         _ => return None,
     };
-    let t = text.trim();
-    let own = ["<command-", "<local-command-", "[Request interrupted"].iter().any(|p| t.starts_with(p));
-    (!t.is_empty() && !own).then(|| t.to_string())
+    // A picture alone, with no words, is not a prompt either.
+    (!text.is_empty() && text != "[image]").then(|| truncate(text, MAX_TEXT))
 }
 
 fn result_text(c: &Value) -> String {

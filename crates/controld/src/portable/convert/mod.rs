@@ -95,6 +95,9 @@ enum Kind {
 
 /// The session files as one run, or why they can't be read.
 pub fn convert(files: &[Upload]) -> Result<Converted, ApiError> {
+    // The same file chosen twice (a folder added again) counts once.
+    let files: Vec<Upload> = files.iter().enumerate().filter(|(i, f)| !files[i + 1..].iter().any(|g| g.name == f.name && g.text == f.text)).map(|(_, f)| f.clone()).collect();
+    let files = files.as_slice();
     let kinds = files.iter().map(kind_of).collect::<Result<Vec<_>, _>>()?;
     let source = match (kinds.contains(&Kind::Claude), kinds.contains(&Kind::Codex)) {
         (true, true) => return Err(invalid("These files are from different tools; import one session at a time", 1, "Claude Code and Codex files")),

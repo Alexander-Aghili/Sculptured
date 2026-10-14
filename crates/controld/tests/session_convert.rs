@@ -237,3 +237,69 @@ fn an_agent_whose_file_is_missing_works_in_the_session_folder() {
     let tests = t.agents.iter().find(|a| a.name == "Write tests").unwrap();
     assert_eq!(tests.folder.as_deref(), Some("/work/app"));
 }
+
+// ---- Final review fixes
+
+#[test]
+fn a_codex_child_whose_file_repeats_its_parents_meta_stays_a_child() {
+    let c = convert(&[fixture("codex/rollout.jsonl"), fixture("codex/child-two-metas.jsonl")]).unwrap();
+    let h = parse_session(&c.session).unwrap().0;
+    assert_eq!(h.agents.len(), 2);
+    assert_eq!(h.agents.iter().filter(|a| a.parent.is_some()).count(), 1);
+}
+
+fn claude_lines(lines: &[serde_json::Value]) -> Upload {
+    Upload { name: "s.jsonl".into(), text: lines.iter().map(|l| l.to_string() + "\n").collect() }
+}
+
+fn prompts_of(u: Upload) -> Vec<String> {
+    bodies(&convert(&[u]).unwrap().session).into_iter().filter_map(|b| match b { EventBody::MessageQueued { text, .. } => Some(text), _ => None }).collect()
+}
+
+#[test]
+fn a_prompt_with_an_image_keeps_its_words() {
+    use serde_json::json;
+    let u = claude_lines(&[json!({"type":"user","sessionId":"s","timestamp":"2026-10-01T10:00:00Z","message":{"role":"user","content":[{"type":"image","source":{"type":"base64","data":"AAAA"}},{"type":"text","text":"Make it look like this"}]}})]);
+    assert_eq!(prompts_of(u), vec!["[image]\nMake it look like this".to_string()]);
+}
+
+#[test]
+fn claude_codes_own_shell_and_notification_lines_are_not_prompts() {
+    use serde_json::json;
+    let line = |text: &str| json!({"type":"user","sessionId":"s","timestamp":"2026-10-01T10:00:00Z","message":{"role":"user","content":text}});
+    let u = claude_lines(&[
+        line("Fix the bug"),
+        line("<bash-input>ls</bash-input>"),
+        line("<bash-stdout>secret.txt</bash-stdout><bash-stderr></bash-stderr>"),
+        line("<task-notification>done</task-notification>"),
+        json!({"type":"user","sessionId":"s","isCompactSummary":true,"timestamp":"2026-10-01T10:00:01Z","message":{"role":"user","content":"This session is being continued..."}}),
+    ]);
+    let c = convert(&[u]).unwrap();
+    let b = bodies(&c.session);
+    let prompts: Vec<_> = b.iter().filter_map(|x| match x { EventBody::MessageQueued { text, .. } => Some(text.as_str()), _ => None }).collect();
+    assert_eq!(prompts, ["Fix the bug"]);
+    assert!(b.iter().any(|x| matches!(x, EventBody::AgentText { text, .. } if text == "[context compacted]")));
+}
+
+#[test]
+fn a_subagent_without_meta_links_to_its_real_parent_whatever_the_upload_order() {
+    use serde_json::json;
+    let call = |id: &str, desc: &str, prompt: &str| json!({"type":"assistant","sessionId":"s","timestamp":"2026-10-01T10:00:01Z","message":{"id":format!("m-{id}"),"role":"assistant","model":"m","content":[{"type":"tool_use","id":id,"name":"Agent","input":{"description":desc,"subagent_type":"general-purpose","prompt":prompt}}]}});
+    let first = |agent: &str, prompt: &str| json!({"type":"user","sessionId":"s","isSidechain":true,"agentId":agent,"timestamp":"2026-10-01T10:00:02Z","message":{"role":"user","content":prompt}});
+    let main = claude_lines(&[json!({"type":"user","sessionId":"s","timestamp":"2026-10-01T10:00:00Z","message":{"role":"user","content":"Go"}}), call("t-a", "Agent A", "Do A\n")]);
+    let a = Upload { name: "agent-a.jsonl".into(), text: [first("a", "Do A\n"), call("t-b", "Agent B", "Do B\n")].iter().map(|l| l.to_string() + "\n").collect() };
+    let b = Upload { name: "agent-b.jsonl".into(), text: format!("{}\n", first("b", "Do B\n")) };
+    let h = parse_session(&convert(&[main, b, a]).unwrap().session).unwrap().0;
+    let id = |n: &str| h.agents.iter().find(|x| x.name.as_deref() == Some(n)).unwrap().id.clone();
+    let parent = |n: &str| h.agents.iter().find(|x| x.name.as_deref() == Some(n)).unwrap().parent.clone();
+    assert_eq!(parent("Agent B"), Some(id("Agent A")));
+    assert_eq!(h.agents.len(), 3, "no invented missing agents");
+}
+
+#[test]
+fn the_same_file_uploaded_twice_counts_once() {
+    let mut files = claude_with_agents(true);
+    files.push(fixture("claude/subagents/agent-a1.jsonl"));
+    let h = parse_session(&convert(&files).unwrap().session).unwrap().0;
+    assert_eq!(h.agents.len(), 4);
+}

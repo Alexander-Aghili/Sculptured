@@ -1,0 +1,4 @@
+{"timestamp":"2026-10-01T10:00:02.500Z","type":"session_meta","payload":{"id":"t3","cwd":"/work/app","cli_version":"0.50.0","source":{"subagent":{"parent_thread_id":"t1","depth":1}},"thread_source":"subagent","originator":"codex_cli_rs"}}
+{"timestamp":"2026-10-01T10:00:00.000Z","type":"session_meta","payload":{"id":"t1","cwd":"/work/app","cli_version":"0.50.0","source":"vscode","thread_source":"user","originator":"codex_cli_rs"}}
+{"timestamp":"2026-10-01T10:00:02.600Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Check the docs"}]}}
+{"timestamp":"2026-10-01T10:00:02.700Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Docs fine."}]}}
