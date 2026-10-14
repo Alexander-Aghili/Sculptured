@@ -177,7 +177,7 @@ describe('New team: Start from…', () => {
     vi.mocked(api.deployments).mockResolvedValue([]);
     vi.mocked(api.importRun).mockResolvedValue({ team: teamRecord({ draft: teamDraft({ id: 'past', name: 'Past' }) }), run: { start_seq: -1, started_ms: 1, initial_agents: 1, source: 'sculptured' }, warnings: [] });
     const file = new File(['{"format":"sculptured.session/v1"}\n'], 'r.sculptured-session.jsonl', { type: 'application/x-ndjson' });
-    await user.upload(within(advanced).getByLabelText('Run file'), file);
+    await user.upload(within(advanced).getByLabelText('Session or run files'), file);
     await waitFor(() => expect(api.importRun).toHaveBeenCalledWith('{"format":"sculptured.session/v1"}\n'));
     await waitFor(() => expect(where()).toBe('/rig/past?view=history'));
   });
@@ -194,7 +194,7 @@ describe('New team: Start from…', () => {
       run: { start_seq: -1, started_ms: 1, initial_agents: 1, source: 'sculptured' },
       warnings: [{ element: { kind: 'team', id: '' }, severity: 'warning', code: 'run-team-left-out', message: "The run's team could not be imported, so this team is empty: 1 thing to fix", detail: null, spec_path: null }],
     });
-    await user.upload(within(advanced).getByLabelText('Run file'), new File(['x'], 'r.sculptured-session.jsonl'));
+    await user.upload(within(advanced).getByLabelText('Session or run files'), new File(['x'], 'r.sculptured-session.jsonl'));
     const note = await within(advanced).findByRole('status');
     expect(note).toHaveTextContent("The run's team could not be imported");
     expect(where()).toBe('/');

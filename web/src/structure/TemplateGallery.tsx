@@ -8,6 +8,7 @@ import { diagnosticsOf, errorText } from '../errors';
 import { ApiError } from '../api';
 import type { DraftIssue } from '../generated/DraftIssue';
 import { useEffect, useId, useRef, useState } from 'react';
+import { ImportRun } from './ImportRun';
 import { api } from '../api';
 import { useRequestOnce } from '../useRequestOnce';
 import type { AgentKind } from '../generated/AgentKind';
@@ -90,68 +91,6 @@ export function TemplatePreview({ draft, practice }: { draft: TeamDraft; practic
         );
       })}
     </svg>
-  );
-}
-
-/** A run file (`.sculptured-session.jsonl`) becomes a read-only past run of a new team. */
-function ImportRun({ onCreated }: { onCreated: (id: string, open?: { history?: boolean }) => void }) {
-  const ids = useId();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ message: string; diagnostics: Diagnostic[] } | null>(null);
-  const [left, setLeft] = useState<{ id: string; name: string; warnings: DraftIssue[] } | null>(null);
-  const pick = async (input: HTMLInputElement) => {
-    const f = input.files?.[0];
-    if (!f) return;
-    setBusy(true);
-    setError(null);
-    setLeft(null);
-    try {
-      const r = await api.importRun(await f.text());
-      // The team the run came with could not be imported: say why before opening the run.
-      const why = r.warnings.filter((w) => w.code.startsWith('run-team'));
-      if (why.length > 0) setLeft({ id: r.team.draft.id, name: r.team.draft.name, warnings: why });
-      else onCreated(r.team.draft.id, { history: true });
-    } catch (err) {
-      setError({ message: errorText(err), diagnostics: diagnosticsOf(err) });
-    } finally {
-      setBusy(false);
-      input.value = '';
-    }
-  };
-  return (
-    <div className="import-form" aria-label="Import a past run" role="group">
-      <p className="muted">Import a past run (.sculptured-session.jsonl). It opens in History, read-only.</p>
-      <div className="import-line">
-        <label htmlFor={`${ids}-run`} className="prompt">
-          Run file
-        </label>
-        <input id={`${ids}-run`} type="file" accept=".jsonl,application/x-ndjson" disabled={busy} onChange={(e) => void pick(e.target)} />
-      </div>
-      {error && (
-        <DismissibleError className="tone-red">
-          <p>{error.message}</p>
-          {error.diagnostics.length > 0 && (
-            <ul aria-label="Problems in the run file">
-              {error.diagnostics.map((d, i) => (
-                <li key={i}>
-                  <code>{d.path}</code> — {d.message}
-                </li>
-              ))}
-            </ul>
-          )}
-        </DismissibleError>
-      )}
-      {left && (
-        <div role="status" className="import-dropped">
-          <ul aria-label="About the run's team">
-            {left.warnings.map((w, i) => (
-              <li key={i}>{w.message}</li>
-            ))}
-          </ul>
-          <Btn onClick={() => onCreated(left.id, { history: true })}>Open {left.name}</Btn>
-        </div>
-      )}
-    </div>
   );
 }
 

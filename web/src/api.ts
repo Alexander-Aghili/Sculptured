@@ -198,6 +198,10 @@ export const api = {
   },
   /** Download address of a run as a `sculptured.session/v1` file. */
   runFileUrl: (id: string, seq: number) => `${teamUrl(id)}/deployments/${seq}/session`,
+  /** Claude Code or Codex session files as a run file, with what was found; nothing is stored yet. */
+  convertSession: (files: { name: string; text: string }[]) => {
+    return request<import('./structure/SessionPreview').Converted>('POST', '/api/runs/convert', { files });
+  },
   importRun: (text: string) => {
     track('import-run');
     return request<{ team: TeamRecord; run: import('./generated/DeploymentRun').DeploymentRun; warnings: DraftIssue[] }>('POST', '/api/runs/import', undefined, { text: { body: text, type: 'application/x-ndjson' } });
