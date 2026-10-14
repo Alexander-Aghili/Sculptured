@@ -11,6 +11,7 @@ import { Btn } from '../shell/ui';
 import { WORDS } from '../vocab';
 import { plural } from '../format';
 import { TeamLimitsFields } from './TeamLimitsFields';
+import { ImproveFromRun } from './ImproveFromRun';
 import type { Edit } from './Panels';
 import '../features.css';
 
@@ -116,6 +117,7 @@ export function TeamAdvanced({ teamId, draft, flush, edit, locked = false }: Pro
       <summary>{WORDS.advanced}</summary>
       <div className="ta-body">
         {edit && <TeamLimitsFields draft={draft} edit={edit} locked={locked} />}
+        {edit && <ImproveFromRun teamId={teamId} draft={draft} edit={edit} locked={locked} />}
         <p className="ta-hint">See this team as a spec file, or save it to share or keep.</p>
         <div className="ta-actions">
           <Btn onClick={() => void load()} disabled={busy} aria-describedby={busy ? `${ids}-busy` : undefined}>

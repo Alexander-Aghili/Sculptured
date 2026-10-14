@@ -198,6 +198,9 @@ export const api = {
   },
   /** Download address of a run as a `sculptured.session/v1` file. */
   runFileUrl: (id: string, seq: number) => `${teamUrl(id)}/deployments/${seq}/session`,
+  /** A better version of a team rebuilt from an imported session, proposed by the user's own CLI; nothing is saved. */
+  improveFromRun: (id: string, startSeq: number, options: { cli: 'claude' | 'codex'; model: string | null }) =>
+    request<GeneratedTeam>('POST', `${teamUrl(id)}/improve-from-run`, { options, start_seq: startSeq }),
   /** Claude Code or Codex session files as a run file, with what was found; nothing is stored yet. */
   convertSession: (files: { name: string; text: string }[]) => {
     return request<import('./structure/SessionPreview').Converted>('POST', '/api/runs/convert', { files });

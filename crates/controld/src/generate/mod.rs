@@ -1,6 +1,7 @@
 //! Generating a team with the user's own Claude Code or Codex: optional clarifying questions, then
 //! 1 or 3 team sketches, each turned into a laid-out `sculptured.team/v1` file with its issues.
 //! The CLI runs on the user's computer (`LocalOp::Generate`), with no tools.
+mod improve;
 pub mod sketch;
 
 use crate::error::{respond, ApiError};
@@ -17,7 +18,10 @@ use serde_json::Value;
 use sketch::{Kinds, Sketch};
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/api/generate/questions", post(questions)).route("/api/generate/teams", post(teams))
+    Router::new()
+        .route("/api/generate/questions", post(questions))
+        .route("/api/generate/teams", post(teams))
+        .route("/api/teams/{id}/improve-from-run", post(improve::improve))
 }
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
@@ -84,7 +88,7 @@ impl Options {
     }
 }
 
-const ABOUT: &str = "You design teams of AI coding agents for Sculptured. Agents are Claude Code or Codex sessions. \
+pub(super) const ABOUT: &str = "You design teams of AI coding agents for Sculptured. Agents are Claude Code or Codex sessions. \
 An arrow \"hands-work-to\" means the first agent's finished work is sent to the second; \"reports-to\" and \"watches\" record intent only. \
 Each agent's job is the first message it receives: write it as a direct, specific instruction.";
 
@@ -186,19 +190,38 @@ fn three() -> usize {
 }
 
 #[derive(Deserialize)]
-struct Alternative {
+pub(super) struct Alternative {
     label: String,
     rationale: String,
     team: Sketch,
 }
 
 #[derive(Deserialize)]
-struct Alternatives {
+pub(super) struct Alternatives {
     alternatives: Vec<Alternative>,
 }
 
+/// Reads the CLI's answer as `count` team sketches, each with agents.
+fn alternatives_parser(count: usize) -> impl Fn(&Value) -> Result<Alternatives, String> {
+    move |v: &Value| {
+        let mut a: Alternatives = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+        if a.alternatives.is_empty() || a.alternatives.iter().any(|x| x.team.agents.is_empty()) {
+            return Err("a team had no agents".to_string());
+        }
+        a.alternatives.truncate(count);
+        Ok(a)
+    }
+}
+
+/// One sketch as a laid-out team file, with what was dropped and the team's issues.
+fn offered(st: &AppState, x: Alternative, kinds: Kinds, folder: Option<&str>) -> Offered {
+    let c = sketch::to_team_file(&x.team, kinds, folder);
+    let issues = crate::teams::issues_for(st, &c.file.team);
+    Offered { label: x.label, rationale: x.rationale, file: c.file, dropped: c.dropped, issues }
+}
+
 #[derive(Serialize)]
-struct Offered {
+pub(super) struct Offered {
     label: String,
     rationale: String,
     file: crate::portable::team::TeamFile,
@@ -216,26 +239,10 @@ struct Offer {
 async fn teams(State(st): State<AppState>, Json(req): Json<TeamsReq>) -> Response {
     let count = if req.count == 1 { 1 } else { 3 };
     let prompt = teams_prompt(&req.prompt, &req.options, &req.answers, count);
-    let parse = |v: &Value| {
-        let mut a: Alternatives = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
-        if a.alternatives.is_empty() || a.alternatives.iter().any(|x| x.team.agents.is_empty()) {
-            return Err("a team had no agents".to_string());
-        }
-        a.alternatives.truncate(count);
-        Ok(a)
-    };
-    let result = call(&st, &req.options, prompt, sketch::teams_schema(count), parse).await.map(|a| {
+    let result = call(&st, &req.options, prompt, sketch::teams_schema(count), alternatives_parser(count)).await.map(|a| {
         let kinds = Kinds::from_option(req.options.kinds.as_deref());
         let folder = req.options.folder.as_deref().map(str::trim).filter(|f| !f.is_empty());
-        let alternatives = a
-            .alternatives
-            .into_iter()
-            .map(|x| {
-                let c = sketch::to_team_file(&x.team, kinds, folder);
-                let issues = crate::teams::issues_for(&st, &c.file.team);
-                Offered { label: x.label, rationale: x.rationale, file: c.file, dropped: c.dropped, issues }
-            })
-            .collect();
+        let alternatives = a.alternatives.into_iter().map(|x| offered(&st, x, kinds, folder)).collect();
         Offer { alternatives, cli: req.options.cli.clone(), model: req.options.model.clone() }
     });
     respond(result)

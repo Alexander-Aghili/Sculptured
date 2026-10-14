@@ -186,3 +186,49 @@ async fn the_schemas_leave_counts_to_the_server() {
     let args = std::fs::read_to_string(d.path().join("args")).unwrap();
     assert!(!args.contains("minItems") && !args.contains("maxItems"), "structured-output modes may refuse item limits: {args}");
 }
+
+fn session_files() -> Value {
+    let dir = format!("{}/tests/fixtures/sessions/claude", env!("CARGO_MANIFEST_DIR"));
+    let file = |p: &str| json!({ "name": p.rsplit('/').next().unwrap(), "text": std::fs::read_to_string(format!("{dir}/{p}")).unwrap() });
+    json!({ "files": [file("main-with-agents.jsonl"), file("subagents/agent-a1.jsonl"), file("subagents/agent-a1.meta.json")] })
+}
+
+/// A team imported from the fixture session: (team id, its imported run's start seq).
+async fn imported(s: &Served) -> (String, i64) {
+    let (status, c) = call(&s.router, "POST", "/api/runs/convert", session_files()).await;
+    assert_eq!(status, StatusCode::OK, "{c}");
+    let req = axum::http::Request::builder().method("POST").uri("/api/runs/import").header("host", "test").header("content-type", "application/x-ndjson")
+        .body(axum::body::Body::from(c["session"].as_str().unwrap().to_string())).unwrap();
+    let resp = tower::ServiceExt::oneshot(s.router.clone(), req).await.unwrap();
+    let bytes = http_body_util::BodyExt::collect(resp.into_body()).await.unwrap().to_bytes();
+    let v: Value = serde_json::from_slice(&bytes).unwrap();
+    (v["team"]["draft"]["id"].as_str().unwrap().to_string(), v["run"]["start_seq"].as_i64().unwrap())
+}
+
+#[tokio::test]
+async fn a_team_rebuilt_from_a_session_is_improved_from_a_summary_without_tool_output() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::write(d.path().join("teams.json"), result(json!({ "alternatives": [
+        { "label": "team", "rationale": "A lead and a researcher.", "team": sketch("Login", &["Lead", "Researcher"], &[("Lead", "Researcher")]) },
+    ]}))).unwrap();
+    let s = served_with(fake_claude(d.path(), BY_SCHEMA)).await;
+    let (team, seq) = imported(&s).await;
+    let (status, v) = call(&s.router, "POST", &format!("/api/teams/{team}/improve-from-run"), json!({ "options": opts(json!({})), "start_seq": seq })).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    let names: Vec<&str> = v["file"]["team"]["agents"].as_array().unwrap().iter().map(|a| a["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["Lead", "Researcher"]);
+    assert_eq!(v["rationale"], "A lead and a researcher.");
+    let prompt = std::fs::read_to_string(d.path().join("prompts")).unwrap();
+    assert!(prompt.contains("Explore auth") && prompt.contains("Find how auth works"), "the summary names the agents and their tasks");
+    assert!(!prompt.contains("users table"), "tool output never goes into the prompt");
+}
+
+#[tokio::test]
+async fn only_an_imported_run_can_improve_a_team() {
+    let d = tempfile::tempdir().unwrap();
+    let s = served_with(fake_claude(d.path(), BY_SCHEMA)).await;
+    let (team, _) = imported(&s).await;
+    let (status, v) = call(&s.router, "POST", &format!("/api/teams/{team}/improve-from-run"), json!({ "options": opts(json!({})), "start_seq": 5 })).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{v}");
+    assert_eq!(v["error"]["code"], "not_imported");
+}
