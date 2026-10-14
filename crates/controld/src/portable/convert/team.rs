@@ -18,7 +18,9 @@ pub(super) fn rebuild(threads: &[Thread], source: Source) -> TeamFile {
     let roles = roles(threads);
     let names: HashMap<&str, String> = roles.iter().map(|r| (r.id.as_str(), name_of(r))).collect();
     let at = layout(&roles);
-    let agents = roles.iter().map(|r| agent(r, &roles, &names, at[r.id.as_str()])).collect();
+    // An agent whose file was not uploaded works where the session did.
+    let session_folder = threads.iter().find(|t| t.parent.is_none()).and_then(|t| t.cwd.clone());
+    let agents = roles.iter().map(|r| agent(r, &roles, &names, at[r.id.as_str()], session_folder.as_deref())).collect();
     let pairs = roles.iter().filter_map(|r| Some((r.parent.clone()?, r.id.clone())));
     let connections = pairs.enumerate().map(|(n, (from, to))| DraftConnection { id: format!("c-{}", n + 1), from, to, kind: ConnectionKind::HandsWorkTo }).collect();
     let fallback = if source == Source::Codex { "Imported Codex session" } else { "Imported Claude Code session" };
@@ -94,11 +96,11 @@ fn layout<'a>(roles: &'a [Role]) -> HashMap<&'a str, (i32, i32)> {
     out
 }
 
-fn agent(r: &Role, roles: &[Role], names: &HashMap<&str, String>, (x, y): (i32, i32)) -> DraftAgent {
+fn agent(r: &Role, roles: &[Role], names: &HashMap<&str, String>, (x, y): (i32, i32), session_folder: Option<&str>) -> DraftAgent {
     let t = r.threads[0];
     let kind = if t.runtime == "codex-app-server" { AgentKind::Codex } else { AgentKind::Claude };
     let advanced = AgentAdvanced { model: model_of(r), ..Default::default() };
-    DraftAgent { id: r.id.clone(), group_id: None, name: names[r.id.as_str()].clone(), kind, job: job(r, roles, names), folder: t.cwd.clone(), x, y, advanced }
+    DraftAgent { id: r.id.clone(), group_id: None, name: names[r.id.as_str()].clone(), kind, job: job(r, roles, names), folder: t.cwd.clone().or_else(|| session_folder.map(str::to_string)), x, y, advanced }
 }
 
 fn first_prompt(t: &Thread) -> Option<String> {

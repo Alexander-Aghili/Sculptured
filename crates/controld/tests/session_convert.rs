@@ -230,3 +230,10 @@ fn the_rebuilt_team_holds_together() {
         assert!(errors.is_empty(), "{errors:?}");
     }
 }
+
+#[test]
+fn an_agent_whose_file_is_missing_works_in_the_session_folder() {
+    let t = team_of(&claude_with_agents(false));
+    let tests = t.agents.iter().find(|a| a.name == "Write tests").unwrap();
+    assert_eq!(tests.folder.as_deref(), Some("/work/app"));
+}
