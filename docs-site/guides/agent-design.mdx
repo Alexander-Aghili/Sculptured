@@ -42,7 +42,7 @@ flowchart LR
   R -- "approved" --> D(("item complete"))
 ```
 
-Plain arrows only go forward: the board refuses a loop of "hands work to" arrows ("remove one connection so the work has a starting point"). A review loop that sends work back, like the one above, is a [workflow](/guides/workflows) with a round limit.
+Plain arrows can loop, for example a reviewer handing work back to a builder, as long as an agent outside the loop hands work into it. Each piece of work goes round such a loop at most 3 times before it stops and says so. A review loop with named outcomes and a round limit you set, like the one above, is a [workflow](/guides/workflows).
 
 ## Set up each agent
 

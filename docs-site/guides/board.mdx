@@ -97,7 +97,9 @@ flowchart LR
   B2 -- "hands work to" --> R
 ```
 
-An agent with two incoming arrows, like Reviewer above, waits until both givers have a result; its first message then carries its Job and both results. Arrows can't form a loop. To send work back for another round, use a [workflow](/guides/workflows).
+An agent with two incoming arrows, like Reviewer above, waits until both givers have a result; its first message then carries its Job and both results.
+
+Arrows can form a loop, such as Reviewer → CAD → Reviewer, as long as an agent outside the loop hands work into it (that agent is the starting point). An arrow that comes back round a loop is never waited for: work coming back along it arrives as **More work**. One piece of work goes round a loop at most 3 times; then the loop stops and says so, and **Hand over again** sends it round again. For review rounds with outcomes and limits you choose, use a [workflow](/guides/workflows).
 
 <Note>A planned arrow is design intent. It does not prove a message was sent. The Run view shows what was actually handed over.</Note>
 
@@ -144,7 +146,7 @@ Common items:
 | *Name* needs a folder to work in | Set a project folder, or one for that agent. |
 | *Name*'s folder must be a full path, such as /home/you/project or C:\Users\you\project | Use a full path, not `~/project` or a relative one. |
 | Two agents are called *Name*; give each its own name | Rename one. |
-| *A* → *B* is part of a loop (…); remove one connection so the work has a starting point | Remove one arrow, or use a workflow for loops. |
+| *A* → *B* is part of a loop (…) that no other agent hands work into, so the work has no starting point | Connect an agent outside the loop to one in it, or remove one arrow. |
 | A group needs a name | Name the group. |
 
 When nothing is left, the status reads "Ready to start. Each agent gets its job as its first message."

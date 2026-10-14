@@ -6,6 +6,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::Router;
 use common::{fake_bin, lifecycle, wait_for};
+use controld::handoffs::LOOP_ROUNDS;
 use controld::reconciler::{HANDOFF_ACTOR, TEAM_START_ACTOR};
 use controld::store::{HandoffWrite, RigSource, Store};
 use controld::{app, AppState};
@@ -255,6 +256,35 @@ async fn a_chain_runs_in_order_and_only_work_turns_hand_over() {
 
     let (status, body) = hand_over(&router, &reviewer, "h2").await;
     assert_eq!((status, body["error"]["code"].clone()), (StatusCode::CONFLICT, json!("no_downstream")), "{body}");
+}
+
+/// Builder → Reviewer ⇄ CAD: the loop has a starting point (the Builder), so the Reviewer's
+/// first handoff waits only for the Builder. Work then goes round the loop, and stops after
+/// LOOP_ROUNDS rounds of the same work, saying so; Hand over again goes round again.
+#[tokio::test]
+async fn a_loop_with_a_starting_point_goes_round_until_its_round_limit() {
+    let (_home, st, router) = served(Arc::new(StubDriver)).await;
+    let id = team(
+        &router,
+        "Loop",
+        &[("builder", "Builder", "Build it"), ("reviewer", "Reviewer", "Review it"), ("cad", "CAD", "Integrate it")],
+        &[("builder", "reviewer", "hands-work-to"), ("reviewer", "cad", "hands-work-to"), ("cad", "reviewer", "hands-work-to")],
+    )
+    .await;
+    let (reviewer, cad) = (seat(&id, "reviewer"), seat(&id, "cad"));
+    start(&router, &id, "s1").await;
+    wait_for("the loop stops at its limit", || stuck(&st, &reviewer).is_some_and(|(r, _)| r.contains("rounds"))).await;
+    settle().await;
+    let (r, c) = (handoffs(&st, &reviewer), handoffs(&st, &cad));
+    assert!(r[0].2.starts_with("Handed over by Builder\n\nReview it"), "{}", r[0].2);
+    assert!(r[1].2.starts_with("More work from CAD"), "{}", r[1].2);
+    assert_eq!((r.len(), c.len()), (1 + LOOP_ROUNDS, 1 + LOOP_ROUNDS), "{r:?}");
+    let (reason, _) = stuck(&st, &reviewer).unwrap();
+    assert!(reason.contains(&format!("{LOOP_ROUNDS} rounds")) && reason.contains("Hand over again"), "{reason}");
+
+    let (status, body) = hand_over(&router, &cad, "again").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    wait_for("another round", || handoffs(&st, &reviewer).len() > 1 + LOOP_ROUNDS).await;
 }
 
 #[tokio::test]

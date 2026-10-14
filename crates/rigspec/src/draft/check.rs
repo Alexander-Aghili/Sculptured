@@ -179,6 +179,21 @@ fn path_back<'a>(prev: &HashMap<&'a str, &'a str>, goal: &'a str) -> Vec<&'a str
     path
 }
 
+/// Every agent work can reach along "hands work to" from an agent nobody hands work to.
+fn reached_from_starts<'a>(d: &'a TeamDraft, next: &HashMap<&'a str, Vec<&'a str>>) -> HashSet<&'a str> {
+    let handed: HashSet<&str> = next.values().flatten().copied().collect();
+    let mut seen: HashSet<&str> = d.agents.iter().map(|a| a.id.as_str()).filter(|a| !handed.contains(a)).collect();
+    let mut todo: Vec<&str> = seen.iter().copied().collect();
+    while let Some(n) = todo.pop() {
+        for &m in next.get(n).map(Vec::as_slice).unwrap_or(&[]) {
+            if seen.insert(m) {
+                todo.push(m);
+            }
+        }
+    }
+    seen
+}
+
 fn loop_issues(d: &TeamDraft) -> Vec<DraftIssue> {
     let hands: Vec<_> = d
         .connections
@@ -191,12 +206,17 @@ fn loop_issues(d: &TeamDraft) -> Vec<DraftIssue> {
     for c in &hands {
         next.entry(c.from.as_str()).or_default().push(c.to.as_str());
     }
+    let started = reached_from_starts(d, &next);
     let mut out = Vec::new();
     for c in hands {
+        // A loop is fine once work can reach it from an agent nobody hands work to.
+        if started.contains(c.from.as_str()) {
+            continue;
+        }
         let Some(back) = shortest_path(&next, c.to.as_str(), c.from.as_str()) else { continue };
         let ring: Vec<String> = std::iter::once(c.from.as_str()).chain(back).map(|id| name_of(d, id)).collect();
         let message = format!(
-            "{} → {} is part of a loop ({}); remove one connection so the work has a starting point",
+            "{} → {} is part of a loop ({}) that no other agent hands work into, so the work has no starting point; connect an agent outside the loop to it, or remove one connection",
             name_of(d, &c.from),
             name_of(d, &c.to),
             ring.join(" → ")

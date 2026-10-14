@@ -58,6 +58,15 @@ fn delegation_cycle_is_rejected() {
 }
 
 #[test]
+fn a_loop_entered_from_a_starting_seat_compiles_and_its_closing_edge_orders_nothing() {
+    let yaml = mini("[{kind: delegates_to, from: a, to: b}, {kind: delegates_to, from: b, to: c}, {kind: delegates_to, from: c, to: b}]")
+        .replace("    edges:", "      - { id: c, agent_ref: \"local:agents/c\", profile: default, runtime: stub, cwd: \".\" }\n    edges:");
+    let rig = compile(&yaml).unwrap();
+    let layers: Vec<Vec<&str>> = rig.launch_layers.iter().map(|l| l.iter().map(String::as_str).collect()).collect();
+    assert_eq!(layers, [["dev.a@mini"], ["dev.b@mini"], ["dev.c@mini"]]);
+}
+
+#[test]
 fn self_loop_is_a_cycle() {
     let errs = errors(compile(&mini("[{kind: spawned_by, from: a, to: a}]")));
     assert!(errs.iter().any(|d| d.message.contains("cycle")));

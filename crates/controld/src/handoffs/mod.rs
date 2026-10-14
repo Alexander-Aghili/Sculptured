@@ -57,6 +57,10 @@ pub use operator::{request_handover, resend};
 pub use owed::{continue_text, deliver_owed, OwedMode, Restarting};
 pub use texts::{cap_result, first_text, more_text};
 
+/// How many times one piece of work may go round a loop of "hands work to" arrows before the
+/// loop stops and says so (Hand over again goes round again). Each round costs model turns.
+pub const LOOP_ROUNDS: usize = 3;
+
 /// Actor id for handoff messages. Must match the web's `HANDOFF_ACTOR`.
 pub const HANDOFF_ACTOR: &str = "handoff";
 

@@ -1,9 +1,9 @@
 //! Planning one start: agent by agent, upstreams first, the handoffs due and why the others wait.
 use super::plan::{delivery, fate, groups, job_unsent, push_status, stuck, Delivery, Fate};
 use super::starts::Ended;
-use super::team::{reachable, topo_order, upstreams_of, Team};
+use super::team::{loop_backs, reachable, topo_order, upstreams_of, Team};
 use super::work::{seat_work, work_items, Item, SeatWork};
-use super::{restart_key, Action, HANDOFF_ACTOR};
+use super::{restart_key, Action, HANDOFF_ACTOR, LOOP_ROUNDS};
 use crate::hosts::LOCAL_HOST;
 use crate::store::{HandedOverRecord, HandoffWrite, Store};
 use model::{Actor, HandoffSource, HandoffStuck, MessageIntent, SeatLifecycle, Wave};
@@ -46,6 +46,8 @@ pub(super) struct StartPlan<'a> {
     start: StartRef,
     in_flight: &'a HashSet<String>,
     upstreams: HashMap<String, Vec<String>>,
+    /// (from, to) arrows that close a loop: work comes back along them, never waited for.
+    loop_backs: HashSet<(String, String)>,
     work: HashMap<String, SeatWork>,
     items: HashMap<String, Vec<Item>>,
     records: HashMap<String, Vec<HandedOverRecord>>,
@@ -70,7 +72,8 @@ impl<'a> StartPlan<'a> {
             records.insert(s, recs);
         }
         let (stuck_of, idle) = (HashMap::new(), HashSet::new());
-        Ok(StartPlan { store, team, start, in_flight, upstreams, work, items, records, stuck_of, idle })
+        let loop_backs = loop_backs(team.rig);
+        Ok(StartPlan { store, team, start, in_flight, upstreams, loop_backs, work, items, records, stuck_of, idle })
     }
 
     pub(super) fn run(mut self, actions: &mut Vec<Action>) -> rusqlite::Result<()> {
@@ -161,9 +164,16 @@ impl<'a> StartPlan<'a> {
         Ok(())
     }
 
+    /// The upstreams `b` waits for: all but those that hand work back to it round a loop.
+    fn forward(&self, b: &str, ups: &[String]) -> Vec<String> {
+        ups.iter().filter(|u| !self.loop_backs.contains(&((*u).clone(), b.to_string()))).cloned().collect()
+    }
+
     /// A downstream agent's first handoff of a start waits until every upstream agent has a
-    /// result; it carries the agent's Job and each upstream's latest result.
+    /// result (not one that hands work back round a loop); it carries the agent's Job and each
+    /// of those upstreams' latest result.
     fn first_handoff(&self, b: &str, ups: &[String], wait: &mut Waiting, actions: &mut Vec<Action>) {
+        let ups = &self.forward(b, ups);
         let missing: Vec<String> = ups.iter().filter(|u| self.items[*u].is_empty()).cloned().collect();
         if !missing.is_empty() {
             wait.add(missing, |m| m.iter().find_map(|u| self.blocked_by(u)));
@@ -214,11 +224,17 @@ impl<'a> StartPlan<'a> {
         waves
     }
 
-    /// Waves: one message per wave, once every upstream the wave reaches finished.
+    /// Waves: one message per wave, once every upstream the wave reaches finished (work coming
+    /// back round a loop is never waited for). Round a loop, one wave stops after LOOP_ROUNDS.
     fn wave_handoffs(&self, b: &str, ups: &[String], wait: &mut Waiting, actions: &mut Vec<Action>) {
+        let forward = self.forward(b, ups);
         for (_, (wave, fresh)) in self.fresh_waves(b, ups) {
+            if self.rounds(b, &wave) >= LOOP_ROUNDS {
+                wait.blocked.get_or_insert_with(|| self.loop_limit(&fresh));
+                continue;
+            }
             let reach = reachable(self.team.rig, &wave.origin);
-            let wave_ups: Vec<&String> = ups.iter().filter(|u| **u == wave.origin || reach.contains(*u)).collect();
+            let wave_ups: Vec<&String> = forward.iter().filter(|u| **u == wave.origin || reach.contains(*u)).collect();
             let done = |u: &str| self.items[u].iter().any(|i| i.wave_of(u) == wave);
             let missing: Vec<String> = wave_ups.iter().filter(|u| !done(u)).map(|u| u.to_string()).collect();
             if !missing.is_empty() {
@@ -232,6 +248,18 @@ impl<'a> StartPlan<'a> {
             };
             actions.push(self.wave_message(b, wave, &fresh, failed));
         }
+    }
+
+    /// How many messages of this wave `b` has had: more than one only round a loop.
+    fn rounds(&self, b: &str, wave: &Wave) -> usize {
+        self.records[b].iter().filter(|r| r.resend_of.is_none() && r.wave.as_ref().is_some_and(|w| w.id == wave.id)).count()
+    }
+
+    fn loop_limit(&self, fresh: &[(String, Item)]) -> HandoffStuck {
+        let mut names: Vec<String> = fresh.iter().map(|(u, _)| self.team.name(u)).collect();
+        names.dedup();
+        let names = names.join(", ");
+        stuck(format!("the loop with {names} stopped after {LOOP_ROUNDS} rounds of this work; choose Hand over again on {names} to go round again"), false)
     }
 
     /// The "More work" message for one wave: each upstream's latest result in it.

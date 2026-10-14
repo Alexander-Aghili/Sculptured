@@ -121,25 +121,29 @@ fn a_self_loop_says_so() {
 }
 
 #[test]
-fn a_loop_flags_every_connection_on_it() {
+fn a_loop_nothing_hands_work_into_flags_every_connection_on_it() {
     let mut d = pair();
     d.connections.push(link("back", "reviewer", "builder"));
     let issues = validate_draft(&d);
     let loops: Vec<_> = issues.iter().filter(|i| i.code == "connection-loop").collect();
     assert_eq!(loops.len(), 2, "{issues:?}");
-    assert!(loops[0].message.contains("(Builder → Reviewer → Builder)"), "{}", loops[0].message);
-    assert!(loops[0].message.ends_with("remove one connection so the work has a starting point"));
     let ids: Vec<&str> = loops.iter().map(|i| i.element.id.as_str()).collect();
     assert_eq!(ids, ["c1", "back"], "each connection on the ring is pinned");
     assert!(loops.iter().all(|i| i.element.kind == ElementKind::Connection && i.severity == IssueSeverity::Error));
     assert_eq!(
         loops[0].message,
-        "Builder → Reviewer is part of a loop (Builder → Reviewer → Builder); remove one connection so the work has a starting point"
+        "Builder → Reviewer is part of a loop (Builder → Reviewer → Builder) that no other agent hands work into, so the work has no starting point; connect an agent outside the loop to it, or remove one connection"
     );
-    assert_eq!(
-        loops[1].message,
-        "Reviewer → Builder is part of a loop (Reviewer → Builder → Reviewer); remove one connection so the work has a starting point"
-    );
+}
+
+#[test]
+fn a_loop_with_a_starting_point_is_fine() {
+    let mut d = pair();
+    d.agents.push(DraftAgent { id: "lead".into(), name: "Lead".into(), ..d.agents[0].clone() });
+    d.connections.push(link("back", "reviewer", "builder"));
+    d.connections.push(link("in", "lead", "builder"));
+    let issues = validate_draft(&d);
+    assert!(issues.iter().all(|i| i.code != "connection-loop"), "{issues:?}");
 }
 
 #[test]

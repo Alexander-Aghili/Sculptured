@@ -118,6 +118,18 @@ pub(super) fn downstreams_of(rig: &CompiledRig, seat: &str) -> Vec<String> {
     upstreams_of(rig).into_iter().filter(|(_, ups)| ups.iter().any(|u| u == seat)).map(|(b, _)| b).collect()
 }
 
+/// "Hands work to" arrows that close a loop: back to a seat that launches no later. The launch
+/// order already leaves them out (rigspec), so a seat never waits on one before it first runs.
+pub(super) fn loop_backs(rig: &CompiledRig) -> HashSet<(String, String)> {
+    let layer: HashMap<&str, usize> = rig.launch_layers.iter().enumerate().flat_map(|(i, l)| l.iter().map(move |s| (s.as_str(), i))).collect();
+    rig.edges
+        .iter()
+        .filter(|e| e.kind == EdgeKind::DelegatesTo && e.from != e.to)
+        .filter(|e| matches!((layer.get(e.from.as_str()), layer.get(e.to.as_str())), (Some(f), Some(t)) if f >= t))
+        .map(|e| (e.from.clone(), e.to.clone()))
+        .collect()
+}
+
 /// Every seat reachable from `origin` along "hands work to" (not `origin` itself).
 pub(super) fn reachable(rig: &CompiledRig, origin: &str) -> HashSet<String> {
     let mut seen = HashSet::new();

@@ -102,6 +102,40 @@ fn launch_layers(order: &[String], before_after: &[(String, String)]) -> Result<
     Ok(layers)
 }
 
+/// The (before, after) pairs that close a loop, found depth-first from the seats nothing
+/// launches before, in declaration order. Without them the rest is a forward order. A loop that
+/// no starting seat leads into keeps all its pairs, so it stays a launch-order cycle.
+fn loop_closing(order: &[String], deps: &[(String, String)]) -> HashSet<(String, String)> {
+    let mut next: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (before, after) in deps {
+        next.entry(before.as_str()).or_default().push(after.as_str());
+    }
+    let has_before: HashSet<&str> = deps.iter().map(|(_, after)| after.as_str()).collect();
+    let mut state: HashMap<&str, bool> = HashMap::new(); // false: on the current path; true: done
+    let mut closing = HashSet::new();
+    for root in order.iter().filter(|s| !has_before.contains(s.as_str())) {
+        visit(root, &next, &mut state, &mut closing);
+    }
+    closing
+}
+
+fn visit<'a>(s: &'a str, next: &HashMap<&'a str, Vec<&'a str>>, state: &mut HashMap<&'a str, bool>, closing: &mut HashSet<(String, String)>) {
+    if state.contains_key(s) {
+        return;
+    }
+    state.insert(s, false);
+    for &t in next.get(s).map(Vec::as_slice).unwrap_or(&[]) {
+        match state.get(t) {
+            Some(false) => {
+                closing.insert((s.to_string(), t.to_string()));
+            }
+            Some(true) => {}
+            None => visit(t, next, state, closing),
+        }
+    }
+    state.insert(s, true);
+}
+
 pub(crate) fn seat_id(spec: &RigSpec, pod: &str, member: &str) -> String {
     format!("{pod}.{member}@{}", spec.name)
 }
@@ -167,7 +201,10 @@ pub fn compile(yaml: &str) -> Result<CompiledRig, Vec<Diagnostic>> {
         spec.pods.iter().flat_map(|pod| pod.members.iter().map(|m| compile_seat(&spec, pod, m))).collect();
     let edges = compile_edges(&spec);
     let order: Vec<String> = seats.iter().map(|s| s.id.clone()).collect();
-    let launch_layers = match launch_layers(&order, &launch_deps(&edges)) {
+    let deps = launch_deps(&edges);
+    let closing = loop_closing(&order, &deps);
+    let forward: Vec<(String, String)> = deps.into_iter().filter(|d| !closing.contains(d)).collect();
+    let launch_layers = match launch_layers(&order, &forward) {
         Ok(l) => l,
         Err(cycle) => {
             diags.push(error("edges", format!("launch-order cycle among: {}", cycle.join(", "))));
