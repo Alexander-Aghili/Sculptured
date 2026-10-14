@@ -1,0 +1,55 @@
+---
+title: MADL files
+description: Export a team as a Multi-Agent Descriptor Language file that other tools can read, and import MADL files as teams.
+---
+
+[MADL](https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language), the Multi-Agent Descriptor Language, is an open, vendor-neutral file format for describing a multi-agent system. A MADL file holds:
+
+- the agents and the groups they are in;
+- who hands work to whom, and how agents communicate;
+- global settings, and settings for each agent;
+- the restrictions each agent works under.
+
+Use it to share a team with tools other than Sculptured, to keep a readable copy in a Git repository, or to bring in a system designed elsewhere.
+
+| | |
+| --- | --- |
+| **Export** | Team **Advanced** → **Export as MADL**. The file goes to your downloads as `<team>.madl.yaml`. **Include folders** works as it does for team files. |
+| **Import** | **New project · Start from…** → **Advanced** → choose a `.madl.yaml` (or `.json`) file, or paste it, then **Import**. |
+
+## What is kept
+
+A team exported from Sculptured and imported again comes back unchanged.
+
+| Sculptured | MADL |
+| --- | --- |
+| Agents, their Jobs and kinds | `agents`, with `instructions` and `runtime: claude-code` or `codex` |
+| Groups | `groups`, and each agent's `groups` |
+| Hands work to, reports to, watches | `connections` of kind `handoff`, `report`, `watch` |
+| The Input | `inputs` |
+| Models | each agent's `model`, written as `provider/model` |
+| Token limits | `settings.restrictions.budget` |
+| Checks | `checks` |
+| Schedules | `policies.schedules` |
+| Positions on the board | `layout` |
+| Workflows, permissions, own copies, the decision log | Sculptured's own extension, `com.usesculptured` |
+
+A workflow is also drawn in MADL's own terms, so other tools see its shape: check, person and merge stages become steps, and routes become handoffs labelled with their outcome.
+
+## Importing a MADL file from elsewhere
+
+MADL can describe more than Sculptured runs today. Importing keeps what Sculptured can use and lists the rest by its place in the file, under **Not imported**:
+
+- **People** (`runtime: human`) are not board agents; people answer agents' questions from the app.
+- **Other runtimes**, such as CAMEL or CrewAI, are imported as Claude Code agents.
+- **Delegate** and **review** connections become **hands work to**; **ask** and **approve** connections are not kept.
+- **Channels**, communication rules, steps outside a workflow, tools, skills and placement are not kept yet.
+
+A file that is not valid MADL is refused with each error and where it is. A MADL file that refers to other files (`$ref`) can't be uploaded as it is. Join it into one file first with `madl expand`:
+
+```sh
+cargo install --git https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language madl-cli
+madl expand team.madl.yaml > one-file.madl.yaml
+```
+
+The `madl` command also validates a file (`madl validate`), shows every agent's effective settings (`madl resolve`) and draws it (`madl graph`).

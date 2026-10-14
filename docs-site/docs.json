@@ -27,6 +27,7 @@
         "pages": [
           "guides/agent-design",
           "guides/board",
+          "guides/design-assistant",
           "guides/workflows",
           "guides/groups",
           "guides/examples",
@@ -50,7 +51,8 @@
         "pages": [
           "guides/community",
           "guides/pattern-catalog",
-          "guides/team-files"
+          "guides/team-files",
+          "guides/madl"
         ]
       },
       {
