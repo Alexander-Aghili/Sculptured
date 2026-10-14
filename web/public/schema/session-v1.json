@@ -2562,6 +2562,10 @@
           "description": "Immutable; becomes the rig name.",
           "type": "string"
         },
+        "limits": {
+          "description": "Limits on the agents this team's agents spawn (Advanced). Absent = no limits.",
+          "$ref": "#/$defs/TeamLimits"
+        },
         "models": {
           "description": "The team's model per provider; absent = the CLI's own default.",
           "$ref": "#/$defs/ModelDefaults"
@@ -2630,6 +2634,30 @@
         "format",
         "team"
       ]
+    },
+    "TeamLimits": {
+      "description": "Limits a person set on a team's spawned agents. None = no limit; Sculptured sets none of its own.",
+      "type": "object",
+      "properties": {
+        "max_agents": {
+          "description": "Most agents in the team at once, its own and spawned children together.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_child_levels": {
+          "description": "Most levels of children: 1 lets the team's agents spawn children that cannot spawn their own.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      }
     },
     "TenureCause": {
       "type": "string",

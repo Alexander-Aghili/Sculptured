@@ -10,6 +10,8 @@ import { MARK } from '../draft/issues';
 import { Btn } from '../shell/ui';
 import { WORDS } from '../vocab';
 import { plural } from '../format';
+import { TeamLimitsFields } from './TeamLimitsFields';
+import type { Edit } from './Panels';
 import '../features.css';
 
 type Props = {
@@ -17,6 +19,9 @@ type Props = {
   draft: TeamDraft;
   /** Saves pending edits first, so the spec is the team on screen. */
   flush: () => Promise<{ ok: boolean }>;
+  /** Changes the team's own settings (its limits); absent = read-only. */
+  edit?: Edit;
+  locked?: boolean;
 };
 
 const list = (names: string[]) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
@@ -36,7 +41,7 @@ export function needsSentence(draft: TeamDraft, issues: DraftIssue[]): string {
  * Expert tools for a team, closed by default: its spec, read-only with Copy, and Export.
  * Spec words are allowed here only (`data-advanced`).
  */
-export function TeamAdvanced({ teamId, draft, flush }: Props) {
+export function TeamAdvanced({ teamId, draft, flush, edit, locked = false }: Props) {
   const ids = useId();
   const [spec, setSpec] = useState<TeamSpec | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +115,7 @@ export function TeamAdvanced({ teamId, draft, flush }: Props) {
     <details className="team-advanced" data-advanced>
       <summary>{WORDS.advanced}</summary>
       <div className="ta-body">
+        {edit && <TeamLimitsFields draft={draft} edit={edit} locked={locked} />}
         <p className="ta-hint">See this team as a spec file, or save it to share or keep.</p>
         <div className="ta-actions">
           <Btn onClick={() => void load()} disabled={busy} aria-describedby={busy ? `${ids}-busy` : undefined}>

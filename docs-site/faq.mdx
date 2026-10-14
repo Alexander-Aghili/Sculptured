@@ -30,7 +30,7 @@ description: Short answers about what Sculptured is, what it costs to run, where
     Your agents use your own Claude or ChatGPT plan, or API key, through Claude Code and Codex. Sculptured shows each turn's tokens and an estimated cost at API prices, with its source. If you use a subscription plan, you are not billed that amount; it shows how much of your plan the work used. Teams use many more tokens than a single agent, so start with one agent and split work only when it helps. See [Designing teams](/guides/agent-design).
   </Accordion>
   <Accordion title="Can a team run away and use my whole plan?">
-    You can cap it. Give an agent a **Token limit** to soft-stop it, or a team an output budget to hard-stop it. Agents can start at most 10 helpers each and 64 agents per team. Sculptured also holds new work when your plan is at 90% of a usage window. See [Limits](/reference/limits).
+    You can cap it. Give an agent a **Token limit** to soft-stop it, or a team an output budget to hard-stop it. Helpers agents start have no limit unless you set one on the team (**Most agents, children included**, **Most levels of children**). Sculptured also holds new work when your plan is at 90% of a usage window. See [Limits](/reference/limits).
   </Accordion>
   <Accordion title="Why do the token numbers change after a turn ends?">
     Claude Code and Codex report tokens when a turn ends, so counts can arrive up to one turn late. Sculptured shows them as the CLI reported them.

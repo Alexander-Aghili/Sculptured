@@ -3,7 +3,7 @@ title: Limits
 description: The caps, budgets and timeouts that keep a team from running away, and the exact values Sculptured uses.
 ---
 
-Sculptured has a small set of limits. Some you set on a team, such as an agent's **Token limit**. Others are fixed, such as how many subagents an agent may start. Every token count comes from what Claude Code or Codex reported after a turn, so a limit can be passed by up to one turn.
+Sculptured has a small set of limits. Some you set on a team, such as an agent's **Token limit**. Sculptured sets no fixed cap on how many subagents an agent may start; a team can set one. Every token count comes from what Claude Code or Codex reported after a turn, so a limit can be passed by up to one turn.
 
 ```mermaid
 flowchart LR
@@ -33,13 +33,14 @@ Usage reports can arrive late, so a soft stop can overshoot its 5,000-token esti
 
 ## Subagents
 
-An agent can start tracked helpers with the `spawn_agent` tool ([agent tools](/reference/agent-tools)). These caps are fixed:
+An agent can start tracked helpers with the `spawn_agent` tool ([agent tools](/reference/agent-tools)). Sculptured sets no limits on them. A team can set its own under **Advanced** on the Design board; blank means no limit:
 
-| Cap | Value | What the agent is told |
-| --- | --- | --- |
-| Direct subagents per agent, per run | 10 | "Per-agent limit: 10 direct subagents per project run" |
-| Agents in a team, subagents included | 64 | "Project limit: 64 agents including children" |
-| Depth | An agent with 4 parents above it cannot start another | "Subagent depth limit: 4" |
+| Team setting | Refusal the agent gets |
+| --- | --- |
+| **Most agents, children included** (the team's own agents plus every child) | "Team limit you set: 20 agents, children included" |
+| **Most levels of children** (1 = children cannot start their own) | "Team limit you set: 3 levels of children" |
+
+The parent's card on the Run board shows the refusal. The settings are saved in the team file as `limits.max_agents` and `limits.max_child_levels`.
 
 A spawn is also refused when the parent's budget is used up, the parent is stopping, the team is not running, or the plan is held (below). Claude Code's and Codex's own built-in delegation is turned off, so every helper is an agent you can see on the board.
 

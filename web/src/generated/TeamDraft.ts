@@ -4,6 +4,7 @@ import type { DraftConnection } from "./DraftConnection";
 import type { DraftGroup } from "./DraftGroup";
 import type { ModelDefaults } from "./ModelDefaults";
 import type { Schedule } from "./Schedule";
+import type { TeamLimits } from "./TeamLimits";
 import type { Workflow } from "./Workflow";
 
 export type TeamDraft = { workflow?: Workflow, 
@@ -23,6 +24,10 @@ models?: ModelDefaults,
  * Messages sent to an agent every N minutes while the team runs (Advanced).
  */
 schedules?: Array<Schedule>, 
+/**
+ * Limits on the agents this team's agents spawn (Advanced). Absent = no limits.
+ */
+limits?: TeamLimits, 
 /**
  * People keep a decision log that agents read with read_decisions (Advanced).
  */

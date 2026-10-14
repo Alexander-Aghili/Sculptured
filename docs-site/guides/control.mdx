@@ -72,11 +72,16 @@ Agents can create helpers with `spawn_agent`, message each other with `send_agen
 - they run on the same computer as their parent;
 - they appear on the Run board with their parent. **Focus selected subtree** shows one branch, **Up to parent** widens it, and **Whole tree** goes back.
 
-| Limit | Value |
-| --- | --- |
-| Direct children per agent, per run | 10 |
-| Agents in a project, children included | 64 |
-| Levels of children | 4 |
+There are **no limits on children unless you set them**. To set them, open the team's **Advanced** settings on the Design board (with the team stopped):
+
+| Setting | What it limits | When it is reached |
+| --- | --- | --- |
+| **Most agents, children included** | Every agent in the team at once: the ones you designed plus every child. | The agent is told "Team limit you set: 20 agents, children included" and carries on without a new child. |
+| **Most levels of children** | How deep children may go. 1 lets your agents start children that cannot start their own. | The agent is told "Team limit you set: 3 levels of children". |
+
+Leave a field blank for no limit. When a limit stops a spawn, the parent's card on the Run board says so.
+
+The Run board stays readable with many children. A parent with more than six shows five of them and a **+N more** card that lists the rest. Children below the third level fold into a **+N deeper** card. Either card opens a list of those agents with their status, and each opens that agent. **List** always shows every agent. A token limit or the team's output budget still applies to children, so set one of those to cap cost.
 
 A hard stop of a parent stops its descendants first. Helpers that a CLI starts by itself, and other processes an agent launches, are not managed children. Sculptured does not track or stop them.
 

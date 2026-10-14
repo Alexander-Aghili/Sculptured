@@ -229,7 +229,7 @@ hostd offers these tools to every Claude, Codex and Practice agent as an MCP ser
 | `record_decision` | After a question timed out, say what was decided and why (`question-decided`, agent-reported) |
 | `report` | Findings about the work (`findings-reported`, agent-reported) |
 | `approve` | Claude's permission-prompt tool. Only a restricted Claude agent gets it. |
-| `spawn_agent` | Create a managed child agent that inherits model, folder and permissions. Limits: 10 direct children, 64 agents, depth 4. |
+| `spawn_agent` | Create a managed child agent that inherits model, folder and permissions. No limits unless the team sets them (`TeamDraft.limits`: most agents, most levels of children). |
 | `send_agent_message` | Message another agent in the team. It is queued, not an interrupt. |
 | `team_status` | Read the team's agents, parents, activity and lifecycle |
 | `dispatch_work`, `complete_work`, `workflow_status` | Dynamic workflow tools ([Workflows](workflows.md)) |

@@ -55,6 +55,26 @@ pub struct AgentAdvanced {
     pub check: Option<String>,
 }
 
+/// Limits a person set on a team's spawned agents. None = no limit; Sculptured sets none of its own.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct TeamLimits {
+    /// Most agents in the team at once, its own and spawned children together.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub max_agents: Option<u32>,
+    /// Most levels of children: 1 lets the team's agents spawn children that cannot spawn their own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub max_child_levels: Option<u32>,
+}
+
+impl TeamLimits {
+    pub fn is_empty(&self) -> bool {
+        self.max_agents.is_none() && self.max_child_levels.is_none()
+    }
+}
+
 /// A per-agent token limit for one run (since the team started).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
 #[ts(export)]
@@ -208,6 +228,10 @@ pub struct TeamDraft {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<Schedule>>", optional)]
     pub schedules: Vec<Schedule>,
+    /// Limits on the agents this team's agents spawn (Advanced). Absent = no limits.
+    #[serde(default, skip_serializing_if = "TeamLimits::is_empty")]
+    #[ts(as = "Option<TeamLimits>", optional)]
+    pub limits: TeamLimits,
     /// People keep a decision log that agents read with read_decisions (Advanced).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]

@@ -101,6 +101,21 @@ describe('team Advanced (Team panel)', () => {
     expect(api.teamFile).toHaveBeenLastCalledWith('t', true);
   });
 
+  it('sets the team\'s own limits on spawned agents; blank means no limit', async () => {
+    const state = fakeTeam(teamRecord());
+    const { advanced, user } = await openAdvanced();
+    const most = within(advanced).getByRole('spinbutton', { name: 'Most agents, children included' });
+    expect(most).toHaveValue(null);
+    expect(within(advanced).getByText(/Sculptured sets no limits of its own/)).toBeInTheDocument();
+    await user.type(most, '20');
+    await user.type(within(advanced).getByRole('spinbutton', { name: 'Most levels of children' }), '3');
+    await waitFor(() => expect(state.rec.draft.limits).toEqual({ max_agents: 20, max_child_levels: 3 }));
+    await user.clear(most);
+    await waitFor(() => expect(state.rec.draft.limits).toEqual({ max_child_levels: 3 }));
+    await user.clear(within(advanced).getByRole('spinbutton', { name: 'Most levels of children' }));
+    await waitFor(() => expect(state.rec.draft.limits).toBeUndefined());
+  });
+
   it('a generated team says so, with its description', async () => {
     fakeTeam(teamRecord({ origin: { kind: 'generated', cli: 'claude', model: null, at_ms: Date.UTC(2026, 9, 12), prompt: 'Rebuild our docs site' } }));
     renderAt('/team/t/structure');

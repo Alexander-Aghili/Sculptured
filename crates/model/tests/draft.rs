@@ -30,7 +30,7 @@ fn reviewer() -> DraftAgent {
 }
 
 fn draft() -> TeamDraft {
-    TeamDraft { schedules: vec![], decision_log: false,
+    TeamDraft { schedules: vec![], decision_log: false, limits: Default::default(),
         workflow: None,
         folder: None,
         id: "my-team".into(),

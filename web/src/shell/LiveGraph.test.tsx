@@ -293,3 +293,50 @@ describe('chipRow', () => {
     expect(chipRow([chip('a'), chip('b'), chip('c')], 5)).toEqual({ shown: [chip('a'), chip('b')], more: 3 });
   });
 });
+
+describe('many spawned agents', () => {
+  const spec = (member: string) => ({ ...compiledRig().seats[0], id: `dev.${member}@r`, member });
+  /** The fixture team plus `children` as `[member, parent member]`, spawned in that order. */
+  function spawned(children: [string, string][]) {
+    const base = compiledRig();
+    const rig = { ...base, seats: [...base.seats, ...children.map(([m]) => spec(m))], edges: [...base.edges, ...children.map(([m, p]) => ({ kind: 'spawned_by' as const, from: `dev.${m}@r`, to: `dev.${p}@r`, enforced: true }))] };
+    const views = Object.fromEntries(rig.seats.map((s) => [s.id, seatView(s.member, { label: s.member })]));
+    const agents = Object.fromEntries(teamAgents('r', rig, views).map((a) => [a.id, a]));
+    return { rig, agents };
+  }
+
+  it('shows five children of a parent with more than six, and lists the rest from "+N more"', async () => {
+    const { rig, agents } = spawned(Array.from({ length: 8 }, (_, i): [string, string] => [`c${i}`, 'a']));
+    const onOpen = vi.fn();
+    render(graph({ compiled: rig, agents, onOpen }));
+    for (let i = 0; i < 5; i++) expect(screen.getByRole('button', { name: `c${i} — idle` })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'c5 — idle' })).toBeNull();
+    expect(screen.queryByTestId('edge-dev.c5@r-dev.a@r')).toBeNull();
+    const more = screen.getByRole('button', { name: '+3 more agents spawned by a' });
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    more.focus();
+    const user = userEvent.setup();
+    await user.keyboard('{Enter}');
+    const list = screen.getByRole('list', { name: 'Agents spawned by a, not drawn' });
+    expect(within(list).getAllByRole('button').map((b) => b.textContent)).toEqual(['c5 · idle', 'c6 · idle', 'c7 · idle']);
+    await user.click(within(list).getByRole('button', { name: 'c6 · idle' }));
+    expect(onOpen).toHaveBeenLastCalledWith('dev.c6@r');
+  });
+
+  it('folds children below the third level into "+N deeper" on their level-3 ancestor', async () => {
+    const { rig, agents } = spawned([['l1', 'a'], ['l2', 'l1'], ['l3', 'l2'], ['l4', 'l3'], ['l5', 'l4']]);
+    render(graph({ compiled: rig, agents }));
+    expect(screen.getByRole('button', { name: 'l3 — idle' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'l4 — idle' })).toBeNull();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '+2 deeper agents below l3' }));
+    const list = screen.getByRole('list', { name: 'Agents below l3, not drawn' });
+    expect(within(list).getAllByRole('button').map((b) => b.textContent)).toEqual(['l4 · idle', 'l5 · idle']);
+  });
+
+  it("says on the parent's card when the team's own limit refused a spawn", () => {
+    const limit = 'Team limit you set: 20 agents, children included';
+    render(graph({ agents: rows(seats, { 'dev.a@r': { chips: [], lastText: null, lastTurnEndSeq: null, limitNote: limit } }) }));
+    expect(screen.getByText(limit)).toBeVisible();
+  });
+});

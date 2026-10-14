@@ -197,7 +197,7 @@ async fn spawn(st: &AppState, parent: &str, args: &Value, key: &str) -> Result<V
             if let Some(why) = held {
                 return Err(format!("{why} Finish with the agents you have, or ask the operator."));
             }
-            check_spawn_limits(&store, parent, snap.rig.seats.len())?;
+            check_spawn_limits(&store, &rig_name, parent, snap.rig.seats.len())?;
             let child = new_child_seat(&mut snap.rig, parent, &rig_name, name, task)?;
             let source = store
                 .rig_source(&rig_name)
@@ -249,20 +249,20 @@ async fn spawn(st: &AppState, parent: &str, args: &Value, key: &str) -> Result<V
     )
 }
 
-/// Per-agent, per-project and depth limits on subagents.
-fn check_spawn_limits(store: &crate::store::Store, parent: &str, seats: usize) -> Result<(), String> {
-    if store.children(parent).map_err(err)?.len() >= 10 {
-        return Err("Per-agent limit: 10 direct subagents per project run".into());
+/// The limits the team set on spawned agents, if any. Sculptured sets none of its own.
+fn check_spawn_limits(store: &crate::store::Store, team: &str, parent: &str, seats: usize) -> Result<(), String> {
+    let limits = store.draft(team).map_err(err)?.map(|d| d.limits).unwrap_or_default();
+    if let Some(max) = limits.max_agents.filter(|&m| seats >= m as usize) {
+        return Err(format!("Team limit you set: {max} agents, children included"));
     }
-    if seats >= 64 {
-        return Err("Project limit: 64 agents including children".into());
-    }
-    let (mut ancestor, mut depth) = (parent.to_string(), 0);
-    while let Some(p) = store.parent(&ancestor).map_err(err)? {
-        depth += 1;
-        ancestor = p;
-        if depth >= 4 {
-            return Err("Subagent depth limit: 4".into());
+    if let Some(max) = limits.max_child_levels {
+        let (mut ancestor, mut levels) = (parent.to_string(), 1);
+        while let Some(p) = store.parent(&ancestor).map_err(err)? {
+            levels += 1;
+            ancestor = p;
+        }
+        if levels > max {
+            return Err(format!("Team limit you set: {max} levels of children"));
         }
     }
     Ok(())

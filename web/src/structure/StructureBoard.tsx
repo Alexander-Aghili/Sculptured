@@ -336,7 +336,7 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
       </section>
     );
 
-  const advanced = <TeamAdvanced teamId={teamId} draft={draft} flush={t.flush} />;
+  const advanced = <TeamAdvanced teamId={teamId} draft={draft} flush={t.flush} edit={t.edit} locked={locked} />;
   const panel =
     selection?.kind === 'agent' && selection.id !== sheet ? (
       <AgentPanel key={selection.id} draft={draft} agentId={selection.id} issues={issues} edit={t.edit} locked={locked} onSelect={inspectSelection} nameRef={nameRef} />

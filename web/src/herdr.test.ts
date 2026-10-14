@@ -36,6 +36,15 @@ describe('agent states', () => {
 });
 
 describe('activity', () => {
+  it('notes a spawn the team\'s own limit refused in the latest turn, and only that', () => {
+    const refused = (seq: number, reason: string, tool = 'spawn_agent') => ev(seq, { type: 'report-rejected', tool, reason, raw: {} });
+    const limit = 'Team limit you set: 20 agents, children included';
+    expect(activityOf([ev(1, { type: 'turn-started', turn_id: 't1' }), refused(2, limit)]).limitNote).toBe(limit);
+    expect(activityOf([ev(1, { type: 'turn-started', turn_id: 't1' }), refused(2, 'Parent is stopping')]).limitNote).toBeUndefined();
+    expect(activityOf([ev(1, { type: 'turn-started', turn_id: 't1' }), refused(2, limit, 'report')]).limitNote).toBeUndefined();
+    expect(activityOf([refused(1, limit), ev(2, { type: 'turn-started', turn_id: 't2' })]).limitNote).toBeUndefined();
+  });
+
   it('groups the latest turn tools by name, newest first, and finds the last reply and turn end', () => {
     const at = (e: ReturnType<typeof ev>, ms: number) => ({ ...e, at_ms: ms });
     const call = (seq: number, id: string, name: string, ms: number) =>

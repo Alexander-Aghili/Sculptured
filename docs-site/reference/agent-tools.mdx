@@ -112,7 +112,7 @@ Creates a managed child agent. The child appears on the **Run** board under its 
 | `name` | string | yes | The child's name on the board. |
 | `task` | string | yes | The child's job, sent as its first message. |
 
-Limits: 10 direct children per agent, 64 agents in a project, and 4 levels of children. A token limit set to include subagents counts the children's tokens toward the parent's limit. See [Limits](/reference/limits).
+There are no fixed limits on children. A team can set its own (**Most agents, children included** and **Most levels of children**), and a refusal names the setting. A token limit set to include subagents counts the children's tokens toward the parent's limit. See [Limits](/reference/limits).
 
 Use it for bounded, independent help. It does not replace the teammates you designed on the board.
 

@@ -34,13 +34,14 @@ A running agent starts a subagent by calling the `spawn_agent` seat tool (`colla
 - Native delegation is turned off when seat tools are on: Claude gets `--disallowedTools Agent,Task`; Codex gets `features.multi_agent = false` and `features.multi_agent_v2 = false`. So every subagent is a tracked board agent.
 - `spawn_agent` is idempotent by `request_id`: the same id returns the existing child; changed arguments with the same id are refused.
 
-Caps (`check_spawn_limits`), checked only when a new child would be created:
+Limits (`check_spawn_limits`), checked only when a new child would be created. Sculptured sets none of its own: each is a team setting, `TeamDraft.limits` (`model::TeamLimits`, Advanced on the Design board, `limits` in the team file), read from the saved draft at spawn time. Absent = no limit.
 
-| Cap | Value | Refusal text |
+| Team setting | Refused when | Refusal text |
 |---|---|---|
-| Direct children per agent per run | 10 | "Per-agent limit: 10 direct subagents per project run" |
-| Agents in a team, children included | 64 | "Project limit: 64 agents including children" |
-| Depth | a parent with 4 ancestors cannot spawn | "Subagent depth limit: 4" |
+| `max_agents` | the team already has that many seats, children included | "Team limit you set: {n} agents, children included" |
+| `max_child_levels` | the new child's level would pass it (a team agent's child is level 1) | "Team limit you set: {n} levels of children" |
+
+A refusal is recorded as `report-rejected` on the parent. The Run board shows the latest one from the parent's current turn on its card (`activityOf` → `limitNote`). The board draws at most five children of a parent with more than six (a "+N more" card lists the rest) and folds children below level 3 into a "+N deeper" card (`web/src/shell/childFold.ts`). Hidden agents keep their saved boxes, so nothing moves when they appear. The agent list shows every agent.
 
 `spawn_agent` is also refused when the parent's budget is used up, the parent is stopping, the team is not running, or its plan is held (§4).
 
@@ -152,7 +153,10 @@ Disclosure in the web app (`ItemBoard.tsx`):
 | Assignment tokens come from the turn that took it; absent, never zero | `crates/controld/src/workflow/tests.rs::a_steps_tokens_come_from_the_turn_that_took_its_assignment` |
 | Assignment cost sums estimates and flags partial | `workflow/tests.rs::a_steps_cost_sums_the_reported_estimates_and_says_where_they_came_from` |
 | Usage history is thinned, keeping both ends | `crates/controld/src/usage.rs::thinning_keeps_the_ends_and_the_count` |
-| Ten direct children, not eleven; retries don't count | `crates/controld/tests/collaboration.rs::each_agent_can_spawn_ten_children_but_not_eleven_and_retries_do_not_count` |
+| No limits unless set: 64 children of one agent and 6 levels spawn; retries don't count | `crates/controld/tests/collaboration.rs::without_team_limits_agents_spawn_past_the_old_caps_and_retries_do_not_count` |
+| A team's `max_agents` refuses with its setting named | `collaboration.rs::a_team_agent_limit_refuses_the_spawn_and_names_the_setting` |
+| A team's `max_child_levels` refuses with its setting named | `collaboration.rs::a_team_level_limit_refuses_a_deeper_child_and_names_the_setting` |
+| "+N more" and "+N deeper" list the agents the board does not draw | `web/src/shell/LiveGraph.test.tsx` (many spawned agents) |
 | Hard stop reaches children; spawns are idempotent | `collaboration.rs::managed_children_messages_and_hard_stop_are_observed_and_idempotent` |
 | Soft stop wraps up, then stops | `collaboration.rs::soft_stop_wraps_up_then_stops_and_archive_is_recoverable` |
 | Children inherit the budget; a used-up budget can't be resumed | `collaboration.rs::nested_children_inherit_budget_and_exhaustion_cannot_be_resumed` |

@@ -21,7 +21,7 @@ fn link(id: &str, from: &str, to: &str) -> DraftConnection {
 }
 
 fn team(agents: Vec<DraftAgent>, connections: Vec<DraftConnection>) -> TeamDraft {
-    TeamDraft { schedules: vec![], decision_log: false, workflow: None, folder: None, id: "my-team".into(), name: "My team".into(), groups: vec![], agents, connections, models: ModelDefaults::default(), revision: 1 }
+    TeamDraft { schedules: vec![], decision_log: false, limits: Default::default(), workflow: None, folder: None, id: "my-team".into(), name: "My team".into(), groups: vec![], agents, connections, models: ModelDefaults::default(), revision: 1 }
 }
 
 fn pair() -> TeamDraft {

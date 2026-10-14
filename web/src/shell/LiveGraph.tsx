@@ -6,6 +6,8 @@ import type { CompiledEdge } from '../generated/CompiledEdge';
 import type { EventRecord } from '../generated/EventRecord';
 import { chipText, shortAge, tokensText, type ToolChip } from '../herdr';
 import { computeLayout, withLiveChildren, type Layout } from '../layout';
+import { foldChildren } from './childFold';
+import { HiddenAgents } from './HiddenAgents';
 import { EDGE_WORDS, nameForId, NOT_ENFORCED, WORDS, type NameMap } from '../vocab';
 import type { AgentRow } from './model';
 import { Btn, Icon, StateMark, StuckMark, VendorMark, WaitingMark } from './ui';
@@ -185,6 +187,10 @@ export function AgentBox({
           <span className="box-last reason clamp" data-raw-evidence data-raw-evidence-title="" title={reason}>
             {reason}
           </span>
+        ) : a.activity?.limitNote ? (
+          <span className="box-last tone-amber" data-raw-evidence>
+            {a.activity.limitNote}
+          </span>
         ) : (
           <span className="box-last" data-raw-evidence>
             {last ? `› ${last}` : '› no reply yet'}
@@ -237,19 +243,22 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
     const b = layout.seats[seatIdFor(draft, a.id) ?? '']; return b ? { ...a, x:b.x, y:b.y } : a;
   }), groups: draft.groups.map(g => ({ ...g, ...layout.pods[g.id] })) } : undefined, [draft, layout]);
   const projection = useMemo(() => projectGroups(layout.seats, Object.fromEntries([...(draft?.agents.map(a => [seatIdFor(draft, a.id)!, a.group_id ?? 'team']) ?? []), ...compiled.seats.map(s => [s.id, s.pod])]), layout.pods, collapsed), [layout, compiled.seats, collapsed, draft]);
-  const routes = useMemo(() => routeGroupEdges(compiled.edges, projection), [compiled.edges, projection]);
+  // Many or deep spawned agents fold into "+N more" / "+N deeper"; their saved boxes stay put.
+  const fold = useMemo(() => foldChildren(compiled), [compiled]);
+  const drawnEdges = useMemo(() => compiled.edges.filter((e) => !fold.hidden.has(e.from) && !fold.hidden.has(e.to)), [compiled.edges, fold]);
+  const routes = useMemo(() => routeGroupEdges(drawnEdges, projection), [drawnEdges, projection]);
   // Labels sit beside their curves, never on a curve, a card or another label.
   const spots = useMemo(
     () =>
       placeLabels(
-        compiled.edges.flatMap((e, i) => {
+        drawnEdges.flatMap((e, i) => {
           const g = routes.get(e);
           const text = g && (g.merged.length > 1 ? `${g.merged.length} arrows` : label(e));
           return g && text ? [{ key: String(i), geom: g, text }] : [];
         }),
         Object.values(projection.boxes),
       ),
-    [compiled.edges, routes, projection],
+    [drawnEdges, routes, projection],
   );
   // Everything drawn, including connection arcs above or below the boxes.
   const bounds = useMemo(() => {
@@ -333,7 +342,7 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
                 <path d="M0,0 L10,5 L0,10 L2.5,5 z" className="arrow-head flowing" />
               </marker>
             </defs>
-            {compiled.edges.map((e) => {
+            {drawnEdges.map((e) => {
               const g = routes.get(e);
               if (!g) return null;
               const flowing = !liveOnly && agents[e.from]?.state.key === 'working';
@@ -354,7 +363,7 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
             })}
           </svg>
           {workflowDraft && onWorkflow && <WorkflowGraph collapsed={collapsed} draft={workflowDraft} onOpen={onWorkflow} onReveal={reveal} readOnly />}
-          {compiled.edges.map((e, i) => {
+          {drawnEdges.map((e, i) => {
             const g = spots.get(String(i));
             if (!g) return null;
             return (
@@ -372,7 +381,7 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
           {compiled.seats.map((s) => {
             const b = layout.seats[s.id];
             const a = agents[s.id];
-            if (!b || !a || projection.hidden.has(s.id)) return null;
+            if (!b || !a || projection.hidden.has(s.id) || fold.hidden.has(s.id)) return null;
             return (
               <div key={s.id} className="card-slot" style={{ left: b.x, top: b.y, width: b.w, height: b.h }}>
                 <AgentBox
@@ -389,6 +398,12 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
               </div>
             );
           })}
+          {([['more', fold.more], ['deeper', fold.deeper]] as const).flatMap(([kind, groups]) => [...groups].map(([at, ids]) => {
+            const box = layout.seats[ids[0]];
+            if (!box || projection.hidden.has(at)) return null;
+            const name = agents[at]?.name ?? nameForId(at, names);
+            return <HiddenAgents key={`${kind}-${at}`} box={box} ids={ids} kind={kind} relation={kind === 'more' ? `spawned by ${name}` : `below ${name}`} agents={agents} onOpen={onOpen} />;
+          }))}
           {notStarted.filter(id => !projection.hidden.has(id)).map((id) => {
             const b = layout.seats[id];
             return (

@@ -154,6 +154,8 @@ export type AgentActivity = {
   lastTurnEndSeq: number | null;
   /** How many different tools the latest turn used (chips shows at most `max`). */
   toolCount?: number;
+  /** The team's own limit refused a spawn in the latest turn: the refusal, verbatim. */
+  limitNote?: string;
 };
 
 /** Tools of the latest turn, grouped by name. Pure: a function of the events only. */
@@ -161,7 +163,17 @@ export function activityOf(events: EventRecord[], max = 3): AgentActivity {
   const { start, lastText, lastTurnEndSeq } = latestTurn(events);
   const byName = toolChips(events, start);
   const chips = [...byName.values()].sort((a, b) => b.order - a.order).slice(0, max).map(({ order: _o, ...c }) => c);
-  return { chips, lastText, lastTurnEndSeq, toolCount: byName.size };
+  const limitNote = limitRefusal(events, start);
+  return { chips, lastText, lastTurnEndSeq, toolCount: byName.size, ...(limitNote ? { limitNote } : {}) };
+}
+
+/** The latest spawn the team's own limit refused from `start` on (its reason names the setting). */
+function limitRefusal(events: EventRecord[], start: number): string | undefined {
+  for (let i = events.length - 1; i >= start; i--) {
+    const b = events[i].body;
+    if (b.type === 'report-rejected' && b.tool === 'spawn_agent' && b.reason.startsWith('Team limit you set')) return b.reason;
+  }
+  return undefined;
 }
 
 /** Where the latest turn starts, the latest agent text and the latest turn end. */

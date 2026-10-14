@@ -209,25 +209,72 @@ async fn nested_children_inherit_budget_and_exhaustion_cannot_be_resumed() {
     controld::reconciler::stop_rig(s.st.clone(),id).await.unwrap();
 }
 
+/// No limits unless the team sets them: one agent spawns more than 64 agents, and a chain goes deeper than 4.
 #[tokio::test]
-async fn each_agent_can_spawn_ten_children_but_not_eleven_and_retries_do_not_count() {
+async fn without_team_limits_agents_spawn_past_the_old_caps_and_retries_do_not_count() {
     let (s,_sup,_dir)=with_tools().await;
     let id=practice_team(&s,"solo").await;
     let root=seat(&id,"claude");
-    let mut first=None;
-    for i in 0..10 {
+    for i in 0..64 {
         let args=json!({"request_id":format!("wide-{i}"),"name":format!("Child {i}"),"task":"Small bounded task"});
         let (ok,result,error)=direct(&s,&root,"spawn_agent",args.clone()).await;
-        assert!(ok,"{error:?}");
-        if i==0 {first=Some(result["child"].as_str().unwrap().to_string());}
-        let (ok,replay,error)=direct(&s,&root,"spawn_agent",args).await;
-        assert!(ok,"{error:?}");assert_eq!(result,replay);
+        assert!(ok,"child {i}: {error:?}");
+        if i==0 {
+            let (ok,replay,error)=direct(&s,&root,"spawn_agent",args).await;
+            assert!(ok,"{error:?}");assert_eq!(result,replay);
+        }
     }
-    let (ok,_,error)=direct(&s,&root,"spawn_agent",json!({"request_id":"eleventh","name":"Too many","task":"No"})).await;
-    assert!(!ok);assert!(error.unwrap().contains("10 direct"));
-    let (ok,_,error)=direct(&s,&first.unwrap(),"spawn_agent",json!({"request_id":"grandchild","name":"Deeper branch","task":"Small bounded task"})).await;
-    assert!(ok,"{error:?}");
-    assert_eq!(s.st.store.lock().unwrap().children(&root).unwrap().len(),10);
+    assert_eq!(s.st.store.lock().unwrap().children(&root).unwrap().len(),64);
+    let mut parent=s.st.store.lock().unwrap().children(&root).unwrap()[0].clone();
+    for level in 2..=6 {
+        let (ok,child,error)=direct(&s,&parent,"spawn_agent",json!({"request_id":format!("deep-{level}"),"name":format!("Level {level}"),"task":"Small bounded task"})).await;
+        assert!(ok,"level {level}: {error:?}");
+        parent=child["child"].as_str().unwrap().to_string();
+    }
+    controld::reconciler::stop_rig(s.st.clone(),id).await.unwrap();
+}
+
+/// A solo Practice team with the team limits `limits`, started.
+async fn limited_team(s:&common::m2::Served,limits:serde_json::Value)->String{
+    let (status,rec)=call(&s.router,"POST","/api/teams",json!({"request_id":rid(),"template":"solo","practice":true})).await;
+    assert!(status.is_success(),"{rec}");
+    let mut draft=rec["draft"].clone();
+    draft["limits"]=limits;
+    let id=draft["id"].as_str().unwrap().to_string();
+    let (status,body)=call(&s.router,"PUT",&format!("/api/teams/{id}"),json!({"request_id":rid(),"revision":draft["revision"].clone(),"draft":draft})).await;
+    assert!(status.is_success(),"{body}");
+    start_team(s,&id).await;
+    id
+}
+
+#[tokio::test]
+async fn a_team_agent_limit_refuses_the_spawn_and_names_the_setting() {
+    let (s,_sup,_dir)=with_tools().await;
+    let id=limited_team(&s,json!({"max_agents":3})).await;
+    let root=seat(&id,"claude");
+    for i in 0..2 {
+        let (ok,_,error)=direct(&s,&root,"spawn_agent",json!({"request_id":format!("c{i}"),"name":"Helper","task":"Help"})).await;
+        assert!(ok,"{error:?}");
+    }
+    let (ok,_,error)=direct(&s,&root,"spawn_agent",json!({"request_id":"c2","name":"Helper","task":"Help"})).await;
+    assert!(!ok);
+    assert_eq!(error.as_deref(),Some("Team limit you set: 3 agents, children included"));
+    controld::reconciler::stop_rig(s.st.clone(),id).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_team_level_limit_refuses_a_deeper_child_and_names_the_setting() {
+    let (s,_sup,_dir)=with_tools().await;
+    let id=limited_team(&s,json!({"max_child_levels":2})).await;
+    let mut parent=seat(&id,"claude");
+    for level in 1..=2 {
+        let (ok,child,error)=direct(&s,&parent,"spawn_agent",json!({"request_id":format!("l{level}"),"name":"Helper","task":"Help"})).await;
+        assert!(ok,"{error:?}");
+        parent=child["child"].as_str().unwrap().to_string();
+    }
+    let (ok,_,error)=direct(&s,&parent,"spawn_agent",json!({"request_id":"l3","name":"Helper","task":"Help"})).await;
+    assert!(!ok);
+    assert_eq!(error.as_deref(),Some("Team limit you set: 2 levels of children"));
     controld::reconciler::stop_rig(s.st.clone(),id).await.unwrap();
 }
 
