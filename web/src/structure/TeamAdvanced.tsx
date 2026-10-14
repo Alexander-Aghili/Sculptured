@@ -97,6 +97,23 @@ export function TeamAdvanced({ teamId, draft, flush, edit, locked = false }: Pro
     }
   };
 
+  const exportMadl = async () => {
+    setBusy(true);
+    setError(null);
+    setExported(null);
+    try {
+      await flush();
+      const { yaml } = await api.teamMadl(teamId, withFolders);
+      const name = `${teamId}.madl.yaml`;
+      downloadText(name, yaml, 'application/yaml');
+      setExported(name);
+    } catch (e) {
+      setError(`Could not export the team: ${errorText(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copy = async () => {
     if (!spec) return;
     try {
@@ -130,6 +147,9 @@ export function TeamAdvanced({ teamId, draft, flush, edit, locked = false }: Pro
         <div className="ta-actions">
           <Btn onClick={() => void exportFile()} disabled={busy}>
             Export team file
+          </Btn>
+          <Btn onClick={() => void exportMadl()} disabled={busy} title="A Multi-Agent Descriptor Language file other tools can read">
+            Export as MADL
           </Btn>
           <label className="ta-check">
             <input type="checkbox" checked={withFolders} onChange={(e) => setWithFolders(e.target.checked)} /> Include folders (paths on this computer)

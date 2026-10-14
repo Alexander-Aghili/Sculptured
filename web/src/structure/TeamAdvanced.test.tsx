@@ -10,7 +10,7 @@ import { fakeTeam, renderAt, resetApi } from './harness';
 
 vi.mock('../api', async (orig) => {
   const m = await orig<typeof import('../api')>();
-  const names = ['getTeam', 'saveTeam', 'listTeams', 'templates', 'createTeam', 'startTeam', 'stopTeam', 'importTeam', 'listFolders', 'createFolder', 'listRigs', 'latestSeatEvents', 'stopRig', 'teamSpec', 'teamFile'];
+  const names = ['getTeam', 'saveTeam', 'listTeams', 'templates', 'createTeam', 'startTeam', 'stopTeam', 'importTeam', 'listFolders', 'createFolder', 'listRigs', 'latestSeatEvents', 'stopRig', 'teamSpec', 'teamFile', 'teamMadl'];
   return { ...m, api: { ...m.api, ...Object.fromEntries(names.map((n) => [n, vi.fn()])) } };
 });
 
@@ -99,6 +99,16 @@ describe('team Advanced (Team panel)', () => {
     await user.click(within(advanced).getByRole('button', { name: 'Export team file' }));
     await waitFor(() => expect(clicked).toHaveLength(2));
     expect(api.teamFile).toHaveBeenLastCalledWith('t', true);
+  });
+
+  it('exports the team as a MADL file', async () => {
+    vi.mocked(api.teamMadl).mockResolvedValue({ yaml: 'madl: draft\n' });
+    const { advanced, user } = await openAdvanced();
+    await user.click(within(advanced).getByRole('button', { name: 'Export as MADL' }));
+    await waitFor(() => expect(clicked).toHaveLength(1));
+    expect(api.teamMadl).toHaveBeenLastCalledWith('t', false);
+    expect(clicked[0].download).toBe('t.madl.yaml');
+    expect(within(advanced).getByRole('status')).toHaveTextContent('Exported t.madl.yaml');
   });
 
   it('sets the team\'s own limits on spawned agents; blank means no limit', async () => {

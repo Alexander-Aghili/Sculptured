@@ -115,6 +115,11 @@ export type GenerateOptions = {
 export type GeneratedTeam = { label: string; rationale: string; file: TeamFileV1; dropped: string[]; issues: DraftIssue[] };
 export type TeamFileV1 = { format: string; team: import('./generated/TeamDraft').TeamDraft; settings: { posture?: string | null; own_copies: boolean; question_timeout_min?: number | null } };
 
+/** One turn of a design-assistant conversation. */
+export type AssistantTurn = { role: 'person' | 'assistant'; text: string };
+/** The assistant's proposed design: nothing is saved until the person approves it. */
+export type DesignProposal = { summary: string; madl: string; draft: TeamDraft; dropped: Diagnostic[]; issues: DraftIssue[] };
+
 export type StartResult = { rig: string; warnings: DraftIssue[] };
 
 export type SendBody = { text: string; intent: MessageIntent; interrupt: boolean };
@@ -195,6 +200,19 @@ export const api = {
   teamFile: (id: string, folders = false) => {
     track('export-team-file');
     return get<unknown>(`${teamUrl(id)}/file${folders ? '?folders=true' : ''}`);
+  },
+  /** The team as a MADL (Multi-Agent Descriptor Language) file; `folders` keeps this computer's folder paths. */
+  teamMadl: (id: string, folders = false) => {
+    track('export-team-file');
+    return get<{ yaml: string }>(`${teamUrl(id)}/madl${folders ? '?folders=true' : ''}`);
+  },
+  /** Your own Claude Code / Codex proposes a change to the design; `proposal` continues from an earlier one. Nothing is saved. */
+  designAssistant: (id: string, body: { options: { cli: 'claude' | 'codex'; model: string | null }; messages: AssistantTurn[]; proposal: string | null }) =>
+    request<DesignProposal>('POST', `${teamUrl(id)}/assistant`, body),
+  /** A MADL file (YAML or JSON) as a new team, with what Sculptured could not keep. */
+  importMadl: (text: string, requestId = newRequestId()) => {
+    track('import-team-file');
+    return post<TeamImport>('/api/teams/import-madl', requestId, { text });
   },
   /** Download address of a run as a `sculptured.session/v1` file. */
   runFileUrl: (id: string, seq: number) => `${teamUrl(id)}/deployments/${seq}/session`,

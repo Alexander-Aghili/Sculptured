@@ -15,7 +15,7 @@ import { card, fakeTeam, renderAt, resetApi, where } from './harness';
 
 vi.mock('../api', async (orig) => {
   const m = await orig<typeof import('../api')>();
-  const names = ['getTeam', 'saveTeam', 'listTeams', 'templates', 'createTeam', 'startTeam', 'stopTeam', 'importTeam', 'listFolders', 'createFolder', 'listRigs', 'latestSeatEvents', 'stopRig', 'importTeamFile', 'importRun', 'deployments', 'deployment', 'deploymentEvents'];
+  const names = ['getTeam', 'saveTeam', 'listTeams', 'templates', 'createTeam', 'startTeam', 'stopTeam', 'importTeam', 'listFolders', 'createFolder', 'listRigs', 'latestSeatEvents', 'stopRig', 'importTeamFile', 'importMadl', 'importRun', 'deployments', 'deployment', 'deploymentEvents'];
   return { ...m, api: { ...m.api, ...Object.fromEntries(names.map((n) => [n, vi.fn()])) } };
 });
 
@@ -166,6 +166,34 @@ describe('New team: Start from…', () => {
     vi.mocked(api.importTeamFile).mockResolvedValueOnce({ team: teamRecord({ draft: teamDraft({ id: 'imp', name: 'Imported' }) }), warnings: [] });
     await user.click(within(advanced).getByRole('button', { name: 'Import' }));
     await waitFor(() => expect(where()).toBe('/team/imp/structure'));
+  });
+
+  it('imports a MADL file (YAML or JSON) and lists what Sculptured could not keep', async () => {
+    renderAt('/');
+    const gallery = await screen.findByRole('region', { name: 'New project · Start from…' });
+    const advanced = within(gallery).getByText('Advanced').closest('details')!;
+    const user = userEvent.setup();
+    await user.click(within(advanced).getByText('Advanced'));
+    vi.mocked(api.importMadl).mockResolvedValue({
+      team: teamRecord({ draft: teamDraft({ id: 'imp', name: 'CAD review' }) }),
+      dropped: [{ path: '/channels/0', severity: 'warning', message: 'Sculptured does not use channels yet' }],
+    });
+    const box = within(advanced).getByRole('textbox', { name: 'Team file contents' });
+    const text = 'madl: draft\nsystem: { id: cad, name: CAD review }\n';
+    await user.click(box);
+    await user.paste(text);
+    await user.click(within(advanced).getByRole('button', { name: 'Import' }));
+    const done = await within(advanced).findByRole('status');
+    expect(api.importMadl).toHaveBeenLastCalledWith(text, expect.any(String));
+    expect(api.importTeam).not.toHaveBeenCalled();
+    expect(done).toHaveTextContent('Imported CAD review. 1 part was not imported:');
+    expect(within(done).getByRole('list', { name: 'Not imported' })).toHaveTextContent('Sculptured does not use channels yet');
+    await user.clear(box);
+    await user.click(box);
+    await user.paste('{"madl":"draft","system":{"id":"cad","name":"CAD review"}}');
+    await user.click(within(advanced).getByRole('button', { name: 'Import' }));
+    await waitFor(() => expect(api.importMadl).toHaveBeenCalledTimes(2));
+    expect(api.importTeamFile).not.toHaveBeenCalled();
   });
 
   it('imports a past run and opens its history', async () => {

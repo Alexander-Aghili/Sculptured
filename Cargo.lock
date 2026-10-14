@@ -333,6 +333,7 @@ dependencies = [
  "interpreter",
  "jsonschema",
  "localops",
+ "madl",
  "model",
  "reqwest",
  "rigspec",
@@ -342,6 +343,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_path_to_error",
+ "serde_yaml_ng",
  "sha2",
  "signing",
  "sysinfo",
@@ -1223,6 +1225,20 @@ name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+
+[[package]]
+name = "madl"
+version = "0.1.0"
+source = "git+https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language?rev=f52bca7bb520b12b5b2caa02ec5c4e6ef95e4301#f52bca7bb520b12b5b2caa02ec5c4e6ef95e4301"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_yaml_ng",
+ "thiserror",
+ "ts-rs",
+]
 
 [[package]]
 name = "matchers"

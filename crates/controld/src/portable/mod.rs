@@ -1,6 +1,7 @@
 //! Portable formats: a team's structure (`sculptured.team/v1`) and a run (`sculptured.session/v1`),
 //! with JSON Schemas generated from these same types and published under `web/public/schema/`.
 pub mod convert;
+pub mod madl;
 pub mod session;
 pub mod team;
 
@@ -14,6 +15,8 @@ pub fn routes() -> Router<AppState> {
         .route("/api/teams/{id}/file", get(team::get_file))
         .route("/api/teams/import-file", post(team::import_file))
         .route("/api/teams/check-file", post(team::check_file))
+        .route("/api/teams/{id}/madl", get(madl::get_madl))
+        .route("/api/teams/import-madl", post(madl::import_madl))
         .route("/api/teams/{id}/deployments/{seq}/session", get(session::get_session))
         // A run file can be large: up to 64 MB on this route only.
         .route("/api/runs/import", post(session::post_import).layer(axum::extract::DefaultBodyLimit::max(64 << 20)))

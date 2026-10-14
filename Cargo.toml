@@ -20,6 +20,7 @@ controld = { path = "crates/controld" }
 signing = { path = "crates/signing" }
 localops = { path = "crates/localops" }
 interpreter = { path = "crates/interpreter" }
+madl = { git = "https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language", rev = "f52bca7bb520b12b5b2caa02ec5c4e6ef95e4301" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 schemars = "1"
