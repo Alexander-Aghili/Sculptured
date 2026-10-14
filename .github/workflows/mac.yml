@@ -1,0 +1,55 @@
+# macOS builds of main, on GitHub's Apple silicon Macs (a Mac build needs Apple's SDK, so the hosted
+# service's Linux server can't make one). Each push replaces the files of the `mac-latest` release:
+# - sculptured-aarch64-apple-darwin.tar.gz (+ .sha256): the runner `install.sh` installs. The hosted
+#   service takes it once its .commit is the commit the service runs (sculptured-cloud's update.sh).
+# - Sculptured-mac-arm64.dmg: the desktop app, offered on the hosted Computers page. It is signed
+#   ad hoc, not with an Apple Developer ID, so macOS asks once before it first opens. Ad hoc signing
+#   needs the hardened runtime off (it would reject Electron's own, differently signed frameworks).
+name: macOS build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: mac-build
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  ACCOUNT_ORIGIN: https://app.usesculptured.com
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the version the hosted image builds with)
+        run: rustup toolchain install 1.98 --profile minimal && rustup default 1.98
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Runner
+        run: deploy/release/build-mac.sh dist
+      - name: Desktop app
+        run: |
+          npm --prefix web ci --no-audit --no-fund && npm --prefix web run build
+          cd desktop && npm ci --no-audit --no-fund
+          npx electron-builder --mac dmg --arm64 --publish never \
+            -c.mac.identity=- -c.mac.hardenedRuntime=false -c.dmg.artifactName=Sculptured-mac-arm64.dmg \
+            -c.extraMetadata.accountOrigin="$ACCOUNT_ORIGIN"
+      - name: Publish to the mac-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view mac-latest >/dev/null 2>&1 || gh release create mac-latest --prerelease --target "$GITHUB_SHA" \
+            --title "macOS builds of main" \
+            --notes "Built on GitHub's Macs from each push to main; the files are replaced each time. sculptured-aarch64-apple-darwin.commit says which commit."
+          gh release upload mac-latest dist/sculptured-aarch64-apple-darwin.tar.gz dist/sculptured-aarch64-apple-darwin.tar.gz.sha256 desktop/dist/Sculptured-mac-arm64.dmg --clobber
+          # Last, so a server never sees this commit before the files it names.
+          gh release upload mac-latest dist/sculptured-aarch64-apple-darwin.commit --clobber

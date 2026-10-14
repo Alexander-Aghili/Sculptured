@@ -44,3 +44,11 @@ test('the window stays on allowed origins and sign-in providers, nowhere else', 
   assert.equal(mayStay('http://accounts.google.com/', allowed), false);
   assert.equal(mayStay('not a url', allowed), false);
 });
+
+test('the account address is pre-filled from the environment, else from the build', async () => {
+  const { defaultAccountOrigin } = await import('../src/mode.mjs');
+  assert.equal(defaultAccountOrigin({}, {}), '');
+  assert.equal(defaultAccountOrigin({}, { accountOrigin: 'https://app.example.com' }), 'https://app.example.com');
+  assert.equal(defaultAccountOrigin({ SCULPTURED_ACCOUNT_ORIGIN: 'https://mine.example.com' }, { accountOrigin: 'https://app.example.com' }), 'https://mine.example.com');
+  assert.equal(defaultAccountOrigin({}, { accountOrigin: 'http://evil.example.com/x' }), '');
+});

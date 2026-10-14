@@ -32,7 +32,11 @@ Upload `dist/*` to a release, or point `GATEWAY_RELEASES_URL` at any folder serv
 
 ### The hosted gateway's macOS build
 
-The gateway image builds Linux and Windows itself, but macOS needs a Mac. On an Apple silicon Mac, build the commit the server runs, then upload it from the computer that deploys:
+The gateway image builds Linux and Windows itself, but macOS needs a Mac. `.github/workflows/mac.yml` builds on GitHub's Apple silicon Macs on every push to main (free for public repositories) and replaces the files of the `mac-latest` release:
+- `sculptured-aarch64-apple-darwin.tar.gz`, `.sha256` and `.commit`: the runner. The server's update timer (sculptured-cloud's `update.sh`) takes it once `.commit` is the commit it runs, checks the checksum, and serves it from `/data/releases`.
+- `Sculptured-mac-arm64.dmg`: the desktop app, linked from the Computers page (`GATEWAY_MAC_APP_URL`). It's signed ad hoc, so macOS asks once before it opens; a Developer ID and notarization would remove that.
+
+If GitHub can't build it, build on a Mac and upload by hand:
 
 ```sh
 git fetch && git checkout origin/main
@@ -40,7 +44,7 @@ deploy/release/build-mac.sh dist                                   # on the Mac
 deploy/aws/deploy.sh --upload-release <folder with dist/*>         # in sculptured-cloud
 ```
 
-The gateway serves uploaded builds from `/data/releases`, beside its own; the image's build wins for the same system. Each deploy (and `deploy.sh --release-status`) warns when an uploaded build is from another commit.
+Each deploy (and `deploy.sh --release-status`) warns when an uploaded build is from another commit.
 
 **The desktop app's installers** are built on each OS with `cd desktop && npm ci && npx electron-builder` (see `desktop/README.md`).
 

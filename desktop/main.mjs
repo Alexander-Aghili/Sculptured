@@ -8,12 +8,14 @@
 // Teams and settings are not synced between the two (later).
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import { spawn } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { allowedOrigins, loadMode, mayStay, saveMode, validOrigin } from './src/mode.mjs';
+import { allowedOrigins, defaultAccountOrigin, loadMode, mayStay, saveMode, validOrigin } from './src/mode.mjs';
 import { startRunner } from './src/runner.mjs';
 
+// Read by the chooser's preload, which starts after this.
+process.env.SCULPTURED_ACCOUNT_ORIGIN = defaultAccountOrigin(process.env, JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')));
 const PORT = Number(process.env.SCULPTURED_PORT || 4410);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const DEV = process.env.SCULPTURED_DEV === '1';

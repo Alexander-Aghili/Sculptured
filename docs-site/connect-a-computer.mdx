@@ -72,9 +72,10 @@ sequenceDiagram
     | Runner data | `~/.sculptured/runner` (owner-only) |
   </Tab>
   <Tab title="macOS">
-    The hosted beta does not publish a macOS build yet. The macOS tab on the Computers page says so instead of offering a command. Connect a Windows or Linux computer for now.
+    Apple silicon Macs only; the installer refuses Intel Macs. There are two ways to connect a Mac:
 
-    When a build is published, the command is the same as on Linux and runs in Terminal. Only Apple silicon Macs will be supported; the installer refuses Intel Macs. The runner keeps itself running with a LaunchAgent, `~/Library/LaunchAgents/dev.sculptured.runner.plist`.
+    - **The app:** on the Computers page, choose **Download Sculptured for Mac**. Open the download and drag Sculptured to Applications. The first time, macOS says it can't check the app, because it isn't signed with an Apple Developer ID yet: open *System Settings → Privacy & Security*, scroll down and choose **Open Anyway**. In the app, under **Sculptured account**, choose **Sign in to my account** and approve the computer. Agents run while the app is open.
+    - **Terminal:** copy the connect command, as on Linux, and paste it into Terminal. The runner keeps itself running in the background with a LaunchAgent, `~/Library/LaunchAgents/dev.sculptured.runner.plist`, even when no window is open.
 
     macOS keeps Desktop, Documents and Downloads from background programs until you allow them. If a project is in one of those, allow Sculptured in *System Settings → Privacy & Security*, under **Files and Folders** or **Full Disk Access**. Folders elsewhere in your home folder need nothing.
 
@@ -186,7 +187,7 @@ You can also run `sculptured connect https://app.usesculptured.com` yourself. It
 
 <AccordionGroup>
   <Accordion title="“There's no Sculptured build for … yet”">
-    The Computers page offers a command only for systems with a published build: today, Windows on x64 and Linux. The installers also stop, without installing anything, on an Intel Mac, on Windows on Arm, or on an unsupported Linux processor.
+    The Computers page offers a command only for systems with a published build: today, Windows on x64, Linux and Apple silicon Macs. The installers also stop, without installing anything, on an Intel Mac, on Windows on Arm, or on an unsupported Linux processor.
   </Accordion>
   <Accordion title="“This connect command was already used or has expired”">
     Each command works once, for 30 minutes. Choose **Copy connect command** again and paste the new one.

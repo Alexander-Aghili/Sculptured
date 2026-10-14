@@ -31,14 +31,50 @@ type Copied = { command: string; copied: boolean };
  * home folder, and keeps it running in the background. */
 export function ConnectComputer({ os: initial = detectOs() }: { os?: Os }) {
   const [os, setOs] = useState<Os>(initial);
-  const [targets, setTargets] = useState<string[] | null>(null);
+  const releases = useReleases();
+  const key = useConnectCommand(os);
+  const sys = SYSTEMS.find((s) => s.os === os)!;
+  const available = releases.targets?.some((t) => sys.target.test(t)) ?? false;
+  return (
+    <div className="connect-computer">
+      <div role="tablist" aria-label="Your computer's system" className="connect-tabs">
+        {SYSTEMS.map((s) => (
+          <button key={s.os} role="tab" type="button" aria-selected={s.os === os} className={s.os === os ? 'on' : ''} onClick={() => { setOs(s.os); key.reset(); }}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" aria-label={sys.label} className="connect-panel">
+        {releases.targets === null ? (
+          <p className="muted">Checking which systems Sculptured has builds for…</p>
+        ) : !available ? (
+          <p>There's no Sculptured build for {sys.label} yet. Connect a computer with another system for now.</p>
+        ) : (
+          <>
+            {os === 'mac' && releases.macApp && <><MacAppSteps href={releases.macApp} /><h3 className="connect-or">Or use Terminal</h3></>}
+            <CopySteps sys={sys} copied={key.copied} busy={key.busy} error={key.error} onCopy={() => void key.copy()} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The systems this gateway has a runner build for (null while asking), and the Mac app's link. */
+function useReleases() {
+  const [r, setR] = useState<{ targets: string[] | null; macApp: string | null }>({ targets: null, macApp: null });
+  useEffect(() => {
+    gw<{ targets: string[]; mac_app?: string | null }>('GET', '/releases')
+      .then((x) => setR({ targets: x.targets, macApp: x.mac_app ?? null }), () => setR({ targets: [], macApp: null }));
+  }, []);
+  return r;
+}
+
+/** Gets a one-time key and copies `os`'s connect command with it. */
+function useConnectCommand(os: Os) {
   const [copied, setCopied] = useState<Copied | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => { gw<{ targets: string[] }>('GET', '/releases').then((r) => setTargets(r.targets), () => setTargets([])); }, []);
-  const sys = SYSTEMS.find((s) => s.os === os)!;
-  const available = (s: System) => targets?.some((t) => s.target.test(t)) ?? false;
-  const choose = (next: Os) => { setOs(next); setCopied(null); setError(''); };
   const copy = async () => {
     setBusy(true); setError('');
     try {
@@ -52,29 +88,25 @@ export function ConnectComputer({ os: initial = detectOs() }: { os?: Os }) {
       setBusy(false);
     }
   };
-  return (
-    <div className="connect-computer">
-      <div role="tablist" aria-label="Your computer's system" className="connect-tabs">
-        {SYSTEMS.map((s) => (
-          <button key={s.os} role="tab" type="button" aria-selected={s.os === os} className={s.os === os ? 'on' : ''} onClick={() => choose(s.os)}>
-            {s.label}
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel" aria-label={sys.label} className="connect-panel">
-        {targets === null ? (
-          <p className="muted">Checking which systems Sculptured has builds for…</p>
-        ) : !available(sys) ? (
-          <p>There's no Sculptured build for {sys.label} yet. Connect a computer with another system for now.</p>
-        ) : (
-          <CopySteps sys={sys} copied={copied} busy={busy} error={error} onCopy={() => void copy()} />
-        )}
-      </div>
-    </div>
-  );
+  return { copied, busy, error, copy, reset: () => { setCopied(null); setError(''); } };
 }
 
 type System = (typeof SYSTEMS)[number];
+
+/** The Mac app: download, open it, choose your account and approve. It's signed ad hoc, not with an
+ * Apple Developer ID, so macOS asks once before it first opens. */
+function MacAppSteps({ href }: { href: string }) {
+  return (
+    <ol className="connect-steps">
+      <li><span>Download the app (Apple silicon Macs).</span>
+        <a className="btn btn-primary" href={href}><Icon name="download" size={14} />Download Sculptured for Mac</a>
+      </li>
+      <li>Open the download and drag Sculptured to Applications, then open it there.</li>
+      <li>The first time, macOS says it can't check the app. Open System Settings → Privacy & Security, scroll down, and choose Open Anyway.</li>
+      <li>In the app, under Sculptured account, choose Sign in to my account, then approve this computer. Agents run while the app is open.</li>
+    </ol>
+  );
+}
 
 /** The three steps for a system that has a build: copy, open a terminal, paste. */
 function CopySteps({ sys, copied, busy, error, onCopy }: { sys: System; copied: Copied | null; busy: boolean; error: string; onCopy: () => void }) {

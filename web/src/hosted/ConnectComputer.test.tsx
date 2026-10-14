@@ -7,11 +7,11 @@ afterEach(() => vi.restoreAllMocks());
 const reply = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }));
 const KEY = 'k'.repeat(64);
 
-function gateway(targets = ['x86_64-pc-windows-gnu', 'x86_64-unknown-linux-gnu']) {
+function gateway(targets = ['x86_64-pc-windows-gnu', 'x86_64-unknown-linux-gnu'], macApp: string | null = null) {
   const calls: string[] = [];
   vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
     calls.push(`${init?.method ?? 'GET'} ${String(url)}`);
-    if (String(url).endsWith('/gw/api/releases')) return reply({ targets });
+    if (String(url).endsWith('/gw/api/releases')) return reply({ targets, mac_app: macApp });
     if (String(url).endsWith('/gw/api/device/connect-key')) return reply({ key: KEY, expires_in: 1800 });
     return reply({}, 404);
   });
@@ -65,4 +65,23 @@ it('still shows the command when the browser will not copy', async () => {
   await userEvent.click(await screen.findByRole('button', { name: 'Copy connect command' }));
   expect(await screen.findByText(/Select it and copy it/)).toBeInTheDocument();
   expect(screen.getByText(new RegExp(`--key ${KEY}`))).toBeInTheDocument();
+});
+
+it('offers Macs the app to download, and the Terminal command too', async () => {
+  const dmg = 'https://example.com/Sculptured-mac-arm64.dmg';
+  gateway(['aarch64-apple-darwin', 'x86_64-unknown-linux-gnu'], dmg);
+  render(<ConnectComputer os="mac" />);
+  const link = await screen.findByRole('link', { name: 'Download Sculptured for Mac' });
+  expect(link).toHaveAttribute('href', dmg);
+  const panel = screen.getByRole('tabpanel');
+  expect(within(panel).getByText(/Open Anyway/)).toBeInTheDocument();
+  expect(within(panel).getByText(/Sculptured account/)).toBeInTheDocument();
+  expect(within(panel).getByRole('button', { name: 'Copy connect command' })).toBeInTheDocument();
+});
+
+it('offers Macs only the Terminal command when there is no app', async () => {
+  gateway(['aarch64-apple-darwin']);
+  render(<ConnectComputer os="mac" />);
+  expect(await screen.findByRole('button', { name: 'Copy connect command' })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Download Sculptured for Mac' })).toBeNull();
 });
