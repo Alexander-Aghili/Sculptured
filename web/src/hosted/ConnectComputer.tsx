@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { gw } from './session';
 import { Icon } from '../shell/ui';
+import { MacAppSteps } from './MacAppPrompt';
 
 export type Os = 'mac' | 'windows' | 'linux';
 
@@ -92,21 +93,6 @@ function useConnectCommand(os: Os) {
 }
 
 type System = (typeof SYSTEMS)[number];
-
-/** The Mac app: download, open it, choose your account and approve. It's signed ad hoc, not with an
- * Apple Developer ID, so macOS asks once before it first opens. */
-function MacAppSteps({ href }: { href: string }) {
-  return (
-    <ol className="connect-steps">
-      <li><span>Download the app (macOS 11 or later, Apple silicon or Intel).</span>
-        <a className="btn btn-primary" href={href}><Icon name="download" size={14} />Download Sculptured for Mac</a>
-      </li>
-      <li>Open the download and drag Sculptured to Applications, then open it there.</li>
-      <li>The first time, macOS says it can't check the app. Open System Settings → Privacy & Security, scroll down, and choose Open Anyway.</li>
-      <li>In the app, under Sculptured account, choose Sign in to my account, then approve this computer. Agents run while the app is open.</li>
-    </ol>
-  );
-}
 
 /** The three steps for a system that has a build: copy, open a terminal, paste. */
 function CopySteps({ sys, copied, busy, error, onCopy }: { sys: System; copied: Copied | null; busy: boolean; error: string; onCopy: () => void }) {

@@ -1,11 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { gw } from './session';
 import { AuthCard, ProviderButtons, type Providers } from './AuthLayout';
+import { MacAppCard, useMacApp } from './MacAppPrompt';
 import './hosted.css';
 
 const WHY: Record<string, string> = { no_account: 'There is no account for that sign-in. You need an invite link first.', login_expired: 'That sign-in took too long or was opened in another browser. Try again.', account_disabled: 'This account is disabled.', email_unverified: 'Verify your email with Google or GitHub first.', cancelled: 'Sign-in was cancelled.', email_taken: 'That email already has an account. Sign in with the method you used before.', invite_used: 'That invite was already used or withdrawn. Ask for a new link.' };
 
 export function LoginPage() {
+  const mac = useMacApp();
+  if (mac.checking) return null;
+  if (mac.href) return <MacAppCard href={mac.href} onBrowser={mac.chooseBrowser} />;
+  return <LoginForm />;
+}
+
+function LoginForm() {
   const [providers, setProviders] = useState<Providers>({ password: true, google: false, github: false });
   const [form, setForm] = useState({ email: '', password: '' });
   const [busy, setBusy] = useState(false);
