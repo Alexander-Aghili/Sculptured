@@ -444,6 +444,16 @@
           "description": "Immutable; becomes the rig name.",
           "type": "string"
         },
+        "input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TeamInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "limits": {
           "description": "Limits on the agents this team's agents spawn (Advanced). Absent = no limits.",
           "$ref": "#/$defs/TeamLimits"
@@ -483,6 +493,36 @@
         "id",
         "name",
         "revision"
+      ]
+    },
+    "TeamInput": {
+      "description": "The project's Input box on the Design board: the goal, links and notes the agents it points\nto get with their Job when the team starts. (A workflow project uses its workflow's Input.)",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "to": {
+          "description": "The agents (ids) it hands to.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "required": [
+        "text",
+        "x",
+        "y"
       ]
     },
     "TeamLimits": {

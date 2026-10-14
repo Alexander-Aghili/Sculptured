@@ -92,7 +92,7 @@ impl Team<'_> {
 
 pub(crate) fn job_of(d: &TeamDraft, seat: &str) -> Option<String> {
     let a = d.agent_for_seat(seat)?;
-    Some(a.job.trim().to_string()).filter(|j| !j.is_empty())
+    Some(d.job_with_input(a)).filter(|j| !j.is_empty())
 }
 
 pub(crate) fn upstreams_of(rig: &CompiledRig) -> Vec<(String, Vec<String>)> {

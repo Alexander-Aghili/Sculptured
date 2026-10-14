@@ -1,0 +1,14 @@
+/* The project's Input box on the Design board, and its editor. */
+.team-input-node { position: absolute; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; text-align: left; color: var(--text); background: var(--panel); border: 1px dashed var(--accent); border-radius: 12px; font: inherit; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.team-input-node:active { cursor: grabbing; }
+.team-input-node.selected, .team-input-node:focus-visible { border-style: solid; outline: 2px solid var(--accent); outline-offset: 2px; }
+.team-input-node strong { font-size: 1rem; }
+.team-input-node .team-input-text { flex: 1; overflow: hidden; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.team-input-node small, .team-input-node .muted { color: var(--muted); }
+.team-input-slot { position: absolute; }
+.team-input-slot .port.out { top: 50%; }
+.edge.input-edge { stroke-dasharray: 2 5; }
+.structure:has(.team-input-editor) { position: relative; }
+.team-input-editor fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 12px 0; }
+.team-input-editor fieldset label { flex-direction: row; align-items: center; gap: 9px; margin: 6px 0; }
+.team-input-editor textarea { width: 100%; box-sizing: border-box; }

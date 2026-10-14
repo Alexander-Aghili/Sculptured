@@ -20,6 +20,9 @@ import type { TeamDraft } from '../generated/TeamDraft';
 import { addAgent, addGroup, connect, reconnect, moveAgent, moveGroup, removeElement, type Selection } from '../draft/edits';
 import { agentAt, agentBox, alignCard, BIG_STEP, drawnGroups, groupAt, nextFreeSlot, STEP, type Point } from '../draft/geometry';
 import { BoardMenu, useBoardClipboard, type MenuOpen } from './BoardMenu';
+import { inputAllowed, teamInputBox, INPUT_H, INPUT_W } from '../draft/input';
+import { InputEdges, InputEditor, InputNode, INPUT_WIRE } from './InputNode';
+import { useTeamInput } from './useTeamInput';
 import { OFFERED_KINDS } from './ModelControls';
 import { groupOf } from '../draft/ids';
 import { errorsOf, FOLDER_ISSUE_WORDS, issuesFor, MARK } from '../draft/issues';
@@ -50,7 +53,7 @@ const PALETTE_WORD: Record<AgentKind, string> = { claude: 'Claude', codex: 'Code
 const cardModel = (d: TeamDraft, a: TeamDraft['agents'][number]) =>
   a.kind === 'practice' ? 'free' : modelLabel(a.kind, effectiveModel(d, a).model);
 
-type Drag = { kind: 'agent' | 'group' | 'input' | 'stage'; id: string; dx: number; dy: number };
+type Drag = { kind: 'agent' | 'group' | 'input' | 'stage' | 'team-input'; id: string; dx: number; dy: number };
 type Wire = { from: string; to: Point };
 type Ghost = { kind: AgentKind; at: Point } | null;
 
@@ -81,6 +84,7 @@ function withDrag(d: TeamDraft, drag: Drag | null, k: number): TeamDraft {
   if (!drag) return d;
   const dx = drag.dx / k;
   const dy = drag.dy / k;
+  if (drag.kind === 'team-input' && d.input) return { ...d, input: { ...d.input, x: d.input.x + dx, y: d.input.y + dy } };
   if (drag.kind === 'input' && d.workflow) { const b=inputBox(d); return {...d,workflow:{...d.workflow,input_position:{x:b.x+dx,y:b.y+dy}}}; }
   if (drag.kind === 'stage' && d.workflow) { const b=stageBoxes(d)[`$stage:${drag.id}`]; return b ? {...d,workflow:{...d.workflow,stages:d.workflow.stages.map(s=>s.id===drag.id?{...s,position:{x:b.x+dx,y:b.y+dy}}:s)}} : d; }
   // A dragged card shows where it will land: where it is, or lined up with a nearby card.
@@ -95,6 +99,8 @@ function withDrag(d: TeamDraft, drag: Drag | null, k: number): TeamDraft {
 function boundsOf(d: TeamDraft): Bounds | null {
   const boxes: Box[] = [...d.agents.map((a) => agentBox(a)), ...drawnGroups(d)];
   if (d.workflow) boxes.push(...workflowBounds(d));
+  const input = teamInputBox(d);
+  if (input) boxes.push(input);
   if (boxes.length === 0) return null;
   return {
     x0: Math.min(...boxes.map((b) => b.x)),
@@ -260,12 +266,12 @@ export function StructureCanvas(p: Props) {
   const [menu, setMenu] = useState<MenuOpen | null>(null);
   const selectNew = (s: Selection) => { onSelect(s); setFocusNext(s); };
   const clip = useBoardClipboard({ draft, selection, edit, locked, groupOnly: p.groupOnly, onPasted: selectNew });
-  const menuAt = (e: React.MouseEvent, target: { kind: 'agent'; id: string } | { kind: 'group'; id: string } | { kind: 'board' }) => {
+  const menuAt = (e: React.MouseEvent, target: { kind: 'agent'; id: string } | { kind: 'group'; id: string } | { kind: 'board' } | { kind: 'input' }) => {
     e.preventDefault();
     e.stopPropagation();
     const at = toWorld(e.clientX, e.clientY);
-    if (target.kind !== 'board') onSelect(target);
-    setMenu(target.kind === 'agent' ? { ...target, x: e.clientX, y: e.clientY } : { ...target, at, x: e.clientX, y: e.clientY });
+    if (target.kind === 'agent' || target.kind === 'group') onSelect(target);
+    setMenu(target.kind === 'agent' || target.kind === 'input' ? { ...target, x: e.clientX, y: e.clientY } : { ...target, at, x: e.clientX, y: e.clientY });
   };
   const boardActions = {
     add: (k: AgentKind, at: Point) => add(k, { x: at.x - CARD_W / 2, y: at.y - 24 }),
@@ -275,6 +281,8 @@ export function StructureCanvas(p: Props) {
     duplicate: clip.duplicate,
     inspect: (s: Selection) => { onSelect(s); p.onInspect?.(s); },
     openAgent: (id: string) => (p.onOpen ? p.onOpen(id) : p.onOpenAgent(id)),
+    addInput: (at: Point) => team.add(at),
+    openInput: () => team.setOpen(true),
     fit,
   };
 
@@ -397,6 +405,7 @@ export function StructureCanvas(p: Props) {
     title:'Drag to move · Arrow keys to move · Enter to open',
   });
   const inputControls = boxControls('input');
+  const team = useTeamInput({ draft, edit, locked, follow, setDrag, vpRef, reveal, dragged, pointerFocus, onSelect, setWire, toWorld, agentAt: (at: Point) => agentAt({ ...draft, agents: draft.agents.filter(a => !projection.hidden.has(a.id)) }, at), menuAt, overViewport });
 
   const groupDown = (id: string) => (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -523,7 +532,7 @@ export function StructureCanvas(p: Props) {
         })()
       : null;
   const wireTarget = wire ? agentAt({ ...draft, agents: draft.agents.filter(a => !projection.hidden.has(a.id)) }, wire.to) : null;
-  const wireFrom = wire ? boxes[wire.from] : null;
+  const wireFrom = wire ? (wire.from === INPUT_WIRE ? teamInputBox(draft) : boxes[wire.from]) : null;
   const lockedNote = locked ? 'Stop the team to add components or change arrows.' : null;
   const empty = draft.agents.length === 0;
 
@@ -557,6 +566,10 @@ export function StructureCanvas(p: Props) {
         })}
         {!p.groupOnly && <Btn onClick={() => newGroup()} icon="group" disabled={locked} aria-describedby={locked ? `${ids}-lock` : undefined} aria-label="Add a group" tip="Add a group">
           Group
+          <Icon name="plus" size={13} className="muted" />
+        </Btn>}
+        {!p.groupOnly && inputAllowed(draft) && !draft.input && <Btn onPointerDown={team.paletteDown} onClick={() => team.add()} icon="list" disabled={locked} aria-describedby={locked ? `${ids}-lock` : undefined} aria-label="Add the Input" tip="Drag onto the board, or click: the goal, links and notes the starting agents get">
+          Input
           <Icon name="plus" size={13} className="muted" />
         </Btn>}
         {!p.groupOnly && <GroupPalette draft={draft} locked={locked} onDrag={blockDown} onAdd={b=>addBlock(b)} />}
@@ -664,10 +677,11 @@ export function StructureCanvas(p: Props) {
                 /></g>
               );
             })}
+            <InputEdges draft={shown} boxes={boxes} marker={`sb-arrow-${ids}`} />
             {wire && wireFrom && (
               <path
                 className="edge wire"
-                d={`M${wireFrom.x + CARD_W},${wireFrom.y + CARD_H / 2} C${wireFrom.x + CARD_W + 60},${wireFrom.y + CARD_H / 2} ${wire.to.x - 60},${wire.to.y} ${wire.to.x},${wire.to.y}`}
+                d={`M${wireFrom.x + wireFrom.w},${wireFrom.y + wireFrom.h / 2} C${wireFrom.x + wireFrom.w + 60},${wireFrom.y + wireFrom.h / 2} ${wire.to.x - 60},${wire.to.y} ${wire.to.x},${wire.to.y}`}
                 markerEnd={`url(#sb-arrow-sel-${ids})`}
               />
             )}
@@ -785,6 +799,8 @@ export function StructureCanvas(p: Props) {
               </div>
             );
           })}
+          {shown.input && teamInputBox(shown) && <InputNode draft={shown} box={teamInputBox(shown)!} selected={team.open} locked={locked} controls={team.controls} onPortDown={team.portDown} />}
+          {team.ghost && <div className="team-input-slot sb-ghost" style={{ left: team.ghost.x, top: team.ghost.y, width: INPUT_W, height: INPUT_H }} aria-hidden="true"><span>Input</span></div>}
           {groupGhost && <div className="group-box sb-group-ghost" style={{left:groupGhost.at.x,top:groupGhost.at.y,width:200,height:132}} aria-hidden="true">{groupGhost.block.name}</div>}
           {ghost && (
             <div className="card-slot sb-ghost" style={{ left: ghost.at.x, top: ghost.at.y, width: CARD_W, height: CARD_H }} aria-hidden="true">
@@ -796,6 +812,7 @@ export function StructureCanvas(p: Props) {
         </div>
       </div>
       </div>
+      {team.open && draft.input && <InputEditor draft={draft} edit={edit} locked={locked} onClose={() => team.setOpen(false)} />}
       {menu && <BoardMenu open={menu} draft={draft} locked={locked} groupOnly={p.groupOnly} edit={edit} act={boardActions} onClose={() => setMenu(null)} />}
     </div>
   );

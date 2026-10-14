@@ -21,7 +21,7 @@ fn link(id: &str, from: &str, to: &str) -> DraftConnection {
 }
 
 fn team(agents: Vec<DraftAgent>, connections: Vec<DraftConnection>) -> TeamDraft {
-    TeamDraft { schedules: vec![], decision_log: false, limits: Default::default(), workflow: None, folder: None, id: "my-team".into(), name: "My team".into(), groups: vec![], agents, connections, models: ModelDefaults::default(), revision: 1 }
+    TeamDraft { input: None, schedules: vec![], decision_log: false, limits: Default::default(), workflow: None, folder: None, id: "my-team".into(), name: "My team".into(), groups: vec![], agents, connections, models: ModelDefaults::default(), revision: 1 }
 }
 
 fn pair() -> TeamDraft {
@@ -410,4 +410,15 @@ fn textbook_template_keeps_source_open_and_groups_the_reusable_review_component(
     assert!(rigspec::from_draft(&d).is_ok());
     let restored=rigspec::exchange::import_yaml(&rigspec::exchange::export_yaml(&d), |_| "book".into()).unwrap();
     assert_eq!(restored.draft.workflow,d.workflow); assert_eq!(restored.draft.groups,d.groups);
+}
+
+#[test]
+fn an_input_that_points_to_no_agent_is_a_warning() {
+    let mut d = pair();
+    d.input = Some(TeamInput { text: "Goal".into(), x: 0, y: 0, to: vec![] });
+    let i = find(&validate_draft(&d), "input-unconnected").clone();
+    assert_eq!(i.severity, IssueSeverity::Warning);
+    assert_eq!(i.message, "The Input isn't connected to an agent, so no agent gets it; drag from the Input to an agent");
+    d.input.as_mut().unwrap().to = vec!["builder".into()];
+    assert!(validate_draft(&d).iter().all(|i| i.code != "input-unconnected"));
 }

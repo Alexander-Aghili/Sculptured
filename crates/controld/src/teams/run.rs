@@ -22,15 +22,16 @@ pub(crate) fn has_upstream(d: &TeamDraft, agent: &str) -> bool {
         .any(|c| c.kind == ConnectionKind::HandsWorkTo && c.to == agent && c.from != agent && d.agent(&c.from).is_some())
 }
 
-/// `(seat id, job)` for every agent with a non-empty Job that nobody hands work to.
+/// `(seat id, job)` for every agent nobody hands work to with a non-empty Job, or the project's
+/// Input pointing to it (`TeamDraft::job_with_input`).
 fn jobs(d: &TeamDraft) -> Vec<(String, String)> {
     d.agents
         .iter()
         .filter(|a| d.workflow.as_ref().is_none_or(|w| a.id == w.dispatcher))
-        .filter(|a| !a.job.trim().is_empty() && !has_upstream(d, &a.id))
+        .filter(|a| !d.job_with_input(a).is_empty() && !has_upstream(d, &a.id))
         .filter_map(|a| Some((d.seat_id(&a.id)?, match &d.workflow {
             Some(w) => format!("{}\n\nOperator Input block:\n{}\n\nIf Input is empty, ask the operator for the source and goal; do not invent a textbook or dispatch placeholder work.", a.job.trim(), w.input),
-            None => a.job.trim().to_string(),
+            None => d.job_with_input(a),
         })))
         .collect()
 }

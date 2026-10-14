@@ -201,12 +201,28 @@ pub struct DraftConnection {
     pub kind: ConnectionKind,
 }
 
+/// The project's Input box on the Design board: the goal, links and notes the agents it points
+/// to get with their Job when the team starts. (A workflow project uses its workflow's Input.)
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct TeamInput {
+    pub text: String,
+    pub x: i32,
+    pub y: i32,
+    /// The agents (ids) it hands to.
+    #[serde(default)]
+    pub to: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
 #[ts(export)]
 pub struct TeamDraft {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub workflow: Option<crate::Workflow>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub input: Option<TeamInput>,
     /// Default working folder for agents without their own override.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -245,6 +261,18 @@ impl TeamDraft {
     pub fn effective_folder<'a>(&'a self, a: &'a DraftAgent) -> Option<&'a str> {
         a.folder.as_deref().map(str::trim).filter(|s| !s.is_empty())
             .or_else(|| self.folder.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    }
+
+/// The agent's Job, with the project's Input after it when the Input points to the agent
+    /// (only the Input when it has no Job). Empty when it has neither.
+    pub fn job_with_input(&self, a: &DraftAgent) -> String {
+        let job = a.job.trim();
+        let input = self.input.as_ref().filter(|i| i.to.contains(&a.id)).map(|i| i.text.trim()).filter(|t| !t.is_empty());
+        match input {
+            Some(text) if job.is_empty() => text.to_string(),
+            Some(text) => format!("{job}\n\n--- Input ---\n{text}"),
+            None => job.to_string(),
+        }
     }
 
     pub fn agent(&self, id: &str) -> Option<&DraftAgent> {

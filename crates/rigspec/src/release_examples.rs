@@ -87,7 +87,7 @@ pub fn template(id: &str, team: &str, name: &str, practice: bool) -> Option<Team
         ),
         _ => return None,
     };
-    Some(TeamDraft { schedules: vec![], decision_log: false, limits: Default::default(),
+    Some(TeamDraft { input: None, schedules: vec![], decision_log: false, limits: Default::default(),
         id: team.into(),
         name: name.into(),
         revision: 0,

@@ -24,7 +24,7 @@ pub use report::{cap_findings, Finding, ReportVerdict, MAX_FINDING, MAX_FINDINGS
 pub use caps::Caps;
 pub use draft::{Schedule, TeamLimits, TokenCount, TokenLimit, 
     AgentAdvanced, AgentKind, ConnectionKind, DraftAgent, DraftConnection, DraftGroup, DraftIssue, ElementKind,
-    ElementRef, IssueSeverity, ModelDefaults, PermissionPosture, ResumeBehaviour, TeamDraft, DEFAULT_GROUP_ID,
+    ElementRef, IssueSeverity, ModelDefaults, PermissionPosture, ResumeBehaviour, TeamDraft, TeamInput, DEFAULT_GROUP_ID,
 };
 pub use event::{
     Actor, ContextBasis, EventBody, EventRecord, HandoffSource, HandoffStuck, Provenance, Subject, ThinkingForm, Wave,

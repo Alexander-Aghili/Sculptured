@@ -40,6 +40,10 @@ fn check_team(d: &TeamDraft, out: &mut Vec<DraftIssue>) {
     if d.name.trim().is_empty() {
         out.push(issue(Team, &d.id, Error, "team-name-missing", "Give the team a name"));
     }
+    if d.workflow.is_none() && d.input.as_ref().is_some_and(|i| !i.to.iter().any(|a| d.agent(a).is_some())) {
+        let message = "The Input isn't connected to an agent, so no agent gets it; drag from the Input to an agent";
+        out.push(issue(Team, &d.id, IssueSeverity::Warning, "input-unconnected", message));
+    }
     if !valid_segment(&d.id) {
         let i = issue(Team, &d.id, Error, "team-id-invalid", GENERIC_TEAM);
         out.push(with_detail(i, format!("team id {:?} must use letters, digits, '_' or '-'", d.id)));

@@ -252,7 +252,7 @@ export function removeElement(d: TeamDraft, s: Selection): { draft: TeamDraft; r
   if (s.kind === 'connection') return { draft: { ...d, connections: d.connections.filter((c) => c.id !== s.id) } };
   const removed = new Set(d.agents.filter(a => s.kind === 'agent' ? a.id === s.id : groupOf(a) === s.id).map(a => a.id));
   const stages = new Set(d.workflow?.stages.filter(stage => removed.has(stage.agent)).map(stage => stage.id) ?? []);
-  d = {...d, agents:d.agents.filter(a=>!removed.has(a.id)), connections:d.connections.filter(c=>!removed.has(c.from)&&!removed.has(c.to)),
+  d = {...d, agents:d.agents.filter(a=>!removed.has(a.id)), connections:d.connections.filter(c=>!removed.has(c.from)&&!removed.has(c.to)), ...(d.input?{input:{...d.input,to:d.input.to.filter(a=>!removed.has(a))}}:{}),
     ...(d.workflow?{workflow:{...d.workflow, dispatcher:removed.has(d.workflow.dispatcher)?'':d.workflow.dispatcher, collector:removed.has(d.workflow.collector)?'':d.workflow.collector, entry:stages.has(d.workflow.entry)?'':d.workflow.entry,
       stages:d.workflow.stages.filter(stage=>!stages.has(stage.id)).map(stage=>({...stage,workers:stage.workers?.filter(id=>!removed.has(id)),routes:Object.fromEntries(Object.entries(stage.routes).filter(([,to])=>to===null||!stages.has(to)))}))}}:{})};
   if (s.kind === 'agent') return {draft:d};

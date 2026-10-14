@@ -72,6 +72,7 @@ erDiagram
 | `folder` | string or null | no | | The default working folder for agents without their own. Kept only when exported with **Include folders**. |
 | `models` | [ModelDefaults](#modeldefaults) | no | | The team's model per provider. Absent means each CLI's own default. |
 | `workflow` | [Workflow](#workflow) or null | no | | Stages that items of work move through. |
+| `input` | object or null | no | | The Input box: `text`, its board position `x` and `y`, and `to`, the agent ids that get it with their Job at start. |
 | `schedules` | [Schedule](#schedule)[] | no | | Messages sent to an agent every N minutes while the team runs. At most 8. |
 | `decision_log` | boolean | no | | People keep a decision log that agents read with [`read_decisions`](/reference/agent-tools#read_decisions). |
 

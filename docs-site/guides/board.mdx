@@ -7,7 +7,7 @@ Every project has two views, chosen with the tabs at the top left: **Design** is
 
 <CardGroup cols={3}>
   <Card title="Add agents" icon="plus" href="#add-agents">Drag, click or right-click to add Claude or Codex.</Card>
-  <Card title="Connect work" icon="arrow-right" href="#connect-work">Arrows decide who starts after whom.</Card>
+  <Card title="Connect work" icon="arrow-right" href="#connect-work">Arrows decide who starts after whom; the Input says what it's all for.</Card>
   <Card title="Get to Ready" icon="check" href="#needs-setup-and-things-to-fix">What Needs setup means and how to clear it.</Card>
 </CardGroup>
 
@@ -52,6 +52,15 @@ The other buttons on the bar:
 - The folder button sets the folder for every agent.
 - **Full text** shows every card's full Job instead of a preview.
 - **Undo** (<kbd>Ctrl+Z</kbd>) and **Redo** (<kbd>Ctrl+Shift+Z</kbd>).
+
+## The Input
+
+The **Input** holds what the project is about: the goal, links and notes. Drag **Input** from the **Edit tools** bar onto the board, click it, or right-click the board and choose **Add the Input here**. It starts out pointing to the agents where the work starts (those nobody hands work to), and its editor opens so you can write it.
+
+- **Give it to more agents:** drag from the Input's <span>●</span> to an agent, or tick the agent under **Goes to** in its editor.
+- **Edit or remove it:** click it, or right-click it. **Remove the Input** (or <kbd>Delete</kbd> on it) takes it off the board.
+
+When the team starts, each agent the Input goes to gets it after its own Job. An agent with no Job gets the Input as its first message. A project has one Input. Workflow projects keep their own Input, which the dispatcher reads.
 
 ## Groups
 

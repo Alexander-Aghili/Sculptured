@@ -640,3 +640,43 @@ describe('Structure board: copy, paste and right-click', () => {
     expect(card('Reviewer 2')).toBeInTheDocument();
   });
 });
+
+describe('Structure board: the Input box', () => {
+  it('Input on the bar adds it pointing to where the work starts; its editor writes the text and picks who gets it', async () => {
+    await board();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Add the Input' }));
+    const editor = screen.getByRole('dialog', { name: 'Input' });
+    await user.type(within(editor).getByRole('textbox', { name: 'Input text' }), 'Ship the landing page');
+    await user.click(within(editor).getByRole('checkbox', { name: 'Reviewer' }));
+    await waitFor(() => expect(lastSaved().input).toMatchObject({ text: 'Ship the landing page', to: ['builder', 'reviewer'] }));
+    expect(screen.queryByRole('button', { name: 'Add the Input' })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Input: Ship the landing page\. Goes to Builder, Reviewer/ })).toBeInTheDocument();
+    await user.click(within(editor).getByRole('button', { name: 'Remove the Input' }));
+    await waitFor(() => expect(lastSaved().input).toBeUndefined());
+  });
+
+  it('drags in from the bar to where it is dropped, moves by keys, and Delete removes it', async () => {
+    await board();
+    sizeViewport();
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Add the Input' }), { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 500, clientY: 500, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 500, clientY: 500, pointerId: 1 });
+    await waitFor(() => expect(lastSaved().input).toMatchObject({ x: 500 - OFFSET - 100, y: 500 - OFFSET - 24 }));
+    const node = screen.getByRole('button', { name: /^Input: empty/ });
+    act(() => node.focus());
+    const user = userEvent.setup();
+    await user.keyboard('{ArrowRight}');
+    await waitFor(() => expect(lastSaved().input!.x).toBe(500 - OFFSET - 100 + 16));
+    await user.keyboard('{Delete}');
+    await waitFor(() => expect(lastSaved().input).toBeUndefined());
+  });
+
+  it('right-click on the board offers Add the Input here', async () => {
+    await board();
+    sizeViewport();
+    fireEvent.contextMenu(screen.getByTestId('structure-viewport'), { clientX: 400, clientY: 500 });
+    await userEvent.setup().click(screen.getByRole('menuitem', { name: 'Add the Input here' }));
+    await waitFor(() => expect(lastSaved().input).toMatchObject({ x: 400 - OFFSET, y: 500 - OFFSET }));
+  });
+});

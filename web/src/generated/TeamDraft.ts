@@ -4,10 +4,11 @@ import type { DraftConnection } from "./DraftConnection";
 import type { DraftGroup } from "./DraftGroup";
 import type { ModelDefaults } from "./ModelDefaults";
 import type { Schedule } from "./Schedule";
+import type { TeamInput } from "./TeamInput";
 import type { TeamLimits } from "./TeamLimits";
 import type { Workflow } from "./Workflow";
 
-export type TeamDraft = { workflow?: Workflow, 
+export type TeamDraft = { workflow?: Workflow, input?: TeamInput, 
 /**
  * Default working folder for agents without their own override.
  */

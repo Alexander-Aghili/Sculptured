@@ -258,6 +258,25 @@ async fn a_chain_runs_in_order_and_only_work_turns_hand_over() {
     assert_eq!((status, body["error"]["code"].clone()), (StatusCode::CONFLICT, json!("no_downstream")), "{body}");
 }
 
+/// The project's Input box: the agents it points to get it with their Job, a starting agent at
+/// start and a downstream agent with its first handoff.
+#[tokio::test]
+async fn the_input_reaches_the_agents_it_points_to() {
+    let (_home, st, router) = served(Arc::new(StubDriver)).await;
+    let id = team(&router, "Input", &[("planner", "Planner", "Plan it"), ("builder", "Builder", "Build it")], &[("planner", "builder", "hands-work-to")]).await;
+    let (_, rec) = call(&router, "GET", &format!("/api/teams/{id}"), json!(null)).await;
+    let mut draft = rec["draft"].clone();
+    draft["input"] = json!({ "text": "Make the landing page", "x": 0, "y": 0, "to": ["planner", "builder"] });
+    let (status, body) = call(&router, "PUT", &format!("/api/teams/{id}"), json!({ "request_id": "put-input", "revision": draft["revision"], "draft": draft })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    start(&router, &id, "s1").await;
+    let builder = seat(&id, "builder");
+    wait_for("the builder's handoff", || !handoffs(&st, &builder).is_empty()).await;
+    let jobs = messages_by(&st, &seat(&id, "planner"), TEAM_START_ACTOR);
+    assert_eq!(jobs[0].2, "Plan it\n\n--- Input ---\nMake the landing page");
+    assert!(handoffs(&st, &builder)[0].2.starts_with("Handed over by Planner\n\nBuild it\n\n--- Input ---\nMake the landing page"), "{}", handoffs(&st, &builder)[0].2);
+}
+
 /// Builder → Reviewer ⇄ CAD: the loop has a starting point (the Builder), so the Reviewer's
 /// first handoff waits only for the Builder. Work then goes round the loop, and stops after
 /// LOOP_ROUNDS rounds of the same work, saying so; Hand over again goes round again.

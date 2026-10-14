@@ -30,7 +30,7 @@ fn reviewer() -> DraftAgent {
 }
 
 fn draft() -> TeamDraft {
-    TeamDraft { schedules: vec![], decision_log: false, limits: Default::default(),
+    TeamDraft { input: None, schedules: vec![], decision_log: false, limits: Default::default(),
         workflow: None,
         folder: None,
         id: "my-team".into(),
@@ -120,4 +120,19 @@ fn model_defaults_are_optional_and_omitted_when_empty() {
     let one: ModelDefaults = serde_json::from_value(json!({ "codex": "gpt-6-luna" })).unwrap();
     assert_eq!(one, ModelDefaults { claude: None, codex: Some("gpt-6-luna".into()) });
     assert!(!one.is_empty());
+}
+
+#[test]
+fn the_input_reaches_the_agents_it_points_to_with_their_job() {
+    let mut d = draft();
+    assert_eq!(d.job_with_input(&d.agents[0]), "Build it");
+    d.input = Some(TeamInput { text: " Ship the landing page.\nLinks: example.test ".into(), x: 0, y: 0, to: vec!["builder".into(), "reviewer".into()] });
+    assert_eq!(d.job_with_input(&d.agents[0]), "Build it\n\n--- Input ---\nShip the landing page.\nLinks: example.test");
+    assert_eq!(d.job_with_input(&d.agents[1]), "Ship the landing page.\nLinks: example.test", "no Job: the Input is the work");
+    d.input.as_mut().unwrap().to = vec![];
+    assert_eq!(d.job_with_input(&d.agents[1]), "");
+    let json = serde_json::to_value(&d).unwrap();
+    assert_eq!(json["input"]["to"], json!([]));
+    assert_eq!(serde_json::from_value::<TeamDraft>(json).unwrap(), d, "round-trips");
+    assert!(serde_json::to_value(draft()).unwrap().get("input").is_none(), "no Input, no field");
 }

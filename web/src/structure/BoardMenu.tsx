@@ -5,6 +5,7 @@ import { copyOf, pasteClip, readClip, writeClip, type PasteAt } from '../draft/c
 import { removeElement, takeOut, ungroup, type Selection } from '../draft/edits';
 import { drawnGroups, looseAllowed, type Point } from '../draft/geometry';
 import { groupOf } from '../draft/ids';
+import { inputAllowed, removeInput } from '../draft/input';
 import { setKind } from '../draft/models';
 import { isTextField } from '../dom';
 import { VendorMark } from '../shell/ui';
@@ -44,7 +45,7 @@ function MenuItem({ children, onClick, disabled, checked, why = LOCK_REASON }: {
 }
 
 /** What was right-clicked: empty board (at a board point), a group, or an agent card. */
-export type MenuTarget = { kind: 'board'; at: Point } | { kind: 'group'; id: string; at: Point } | { kind: 'agent'; id: string };
+export type MenuTarget = { kind: 'board'; at: Point } | { kind: 'group'; id: string; at: Point } | { kind: 'agent'; id: string } | { kind: 'input' };
 export type MenuOpen = MenuTarget & { x: number; y: number };
 
 export type BoardActions = {
@@ -55,6 +56,8 @@ export type BoardActions = {
   duplicate: (s: Selection) => void;
   inspect: (s: Selection) => void;
   openAgent: (id: string) => void;
+  addInput: (at: Point) => void;
+  openInput: () => void;
   fit: () => void;
 };
 
@@ -82,6 +85,7 @@ function BoardItems({ at, c }: { at: Point; c: Ctx }) {
     <>
       <AddItems at={at} c={c} />
       {!c.groupOnly && <MenuItem disabled={c.locked} onClick={c.run(() => c.act.addGroup(at))}>New group here</MenuItem>}
+      {!c.groupOnly && inputAllowed(c.draft) && !c.draft.input && <MenuItem disabled={c.locked} onClick={c.run(() => c.act.addInput(at))}>Add the Input here</MenuItem>}
       <PasteItem where={{ at }} c={c} />
       <Sep />
       <MenuItem onClick={c.run(c.act.fit)}>Fit the board to the view <span className="muted">· f</span></MenuItem>
@@ -142,15 +146,24 @@ function AgentItems({ id, c }: { id: string; c: Ctx }) {
   );
 }
 
+function InputItems({ c }: { c: Ctx }) {
+  return (
+    <>
+      <MenuItem onClick={c.run(c.act.openInput)}>Edit the Input</MenuItem>
+      <MenuItem disabled={c.locked} onClick={c.run(() => c.edit(removeInput))}><span className="tone-red">Remove the Input</span></MenuItem>
+    </>
+  );
+}
+
 const menuName = (d: TeamDraft, t: MenuTarget) =>
-  t.kind === 'agent' ? `${d.agents.find((a) => a.id === t.id)?.name || 'Agent'} actions` : t.kind === 'group' ? `${d.groups.find((g) => g.id === t.id)?.label || 'Group'} actions` : 'Board actions';
+  t.kind === 'input' ? 'Input actions' : t.kind === 'agent' ? `${d.agents.find((a) => a.id === t.id)?.name || 'Agent'} actions` : t.kind === 'group' ? `${d.groups.find((g) => g.id === t.id)?.label || 'Group'} actions` : 'Board actions';
 
 /** The right-click menu on the Design board, a group or an agent card. */
 export function BoardMenu({ open, onClose, ...rest }: { open: MenuOpen; draft: TeamDraft; locked: boolean; groupOnly?: boolean; edit: Edit; act: BoardActions; onClose: () => void }) {
   const box = useRef<HTMLUListElement>(null);
   useDismiss(box, onClose);
   useEffect(() => box.current?.querySelector('button')?.focus(), []);
-  const gone = open.kind === 'agent' ? !rest.draft.agents.some((a) => a.id === open.id) : open.kind === 'group' && !rest.draft.groups.some((g) => g.id === open.id);
+  const gone = open.kind === 'agent' ? !rest.draft.agents.some((a) => a.id === open.id) : open.kind === 'group' ? !rest.draft.groups.some((g) => g.id === open.id) : open.kind === 'input' && !rest.draft.input;
   if (gone) return null;
   const c: Ctx = { ...rest, run: (fn) => () => { fn(); onClose(); } };
   return (
@@ -158,6 +171,7 @@ export function BoardMenu({ open, onClose, ...rest }: { open: MenuOpen; draft: T
       {open.kind === 'board' && <BoardItems at={open.at} c={c} />}
       {open.kind === 'group' && <GroupItems id={open.id} at={open.at} c={c} />}
       {open.kind === 'agent' && <AgentItems id={open.id} c={c} />}
+      {open.kind === 'input' && <InputItems c={c} />}
     </ul>
   );
 }
