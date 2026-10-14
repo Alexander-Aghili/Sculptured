@@ -33,6 +33,8 @@ import { usePanZoom, type Bounds } from '../shell/viewport';
 import { CONNECTION_WORDS, NOT_ENFORCED } from '../vocab';
 import { FolderPicker, shortPath, useHome } from './FolderPicker';
 import { connectionSentence, kindVendor, LOCK_REASON, nameOf, type Edit } from './Panels';
+import { markClass, type Marks } from './assistant/compare';
+import { ChangeBadge } from './assistant/ChangeBadge';
 import { handoffWords } from '../shell/model';
 import { plural } from '../format';
 import { workflowBounds, inputBox, stageBoxes, workflowLinks, WorkflowGraph, WorkflowAgentActions, type WorkflowTarget } from '../workflow/WorkflowGraph';
@@ -77,6 +79,8 @@ type Props = {
   onUndo: () => void;
   onRedo: () => void;
   ref?: Ref<CanvasHandle>;
+  /** A proposal is shown: what each card, group and arrow is in it (see `assistant/compare.ts`). */
+  marks?: Marks;
 };
 
 /** The draft with a drag in progress applied, for drawing only. */
@@ -118,6 +122,7 @@ function boundsOf(d: TeamDraft): Bounds | null {
 const bundleWords = (n: number) => `${n} arrows`;
 
 export function StructureCanvas(p: Props) {
+  const mark = (id: string) => markClass(p.marks, id);
   const { teamId, draft, issues, selection, onSelect, edit, locked } = p;
   const ids = useId();
   const { collapsed, setCollapsed } = useGroupVisibility(teamId);
@@ -533,7 +538,7 @@ export function StructureCanvas(p: Props) {
       : null;
   const wireTarget = wire ? agentAt({ ...draft, agents: draft.agents.filter(a => !projection.hidden.has(a.id)) }, wire.to) : null;
   const wireFrom = wire ? (wire.from === INPUT_WIRE ? teamInputBox(draft) : boxes[wire.from]) : null;
-  const lockedNote = locked ? 'Stop the team to add components or change arrows.' : null;
+  const lockedNote = !locked ? null : p.marks ? 'Approve or reject the proposal to change the board.' : 'Stop the team to add components or change arrows.';
   const empty = draft.agents.length === 0;
 
   return (
@@ -627,7 +632,7 @@ export function StructureCanvas(p: Props) {
             return (
               <div
                 key={g.id}
-                className={`group-box sb-group${hidden ? ' group-collapsed' : ''}${sel ? ' selected' : ''}${dropGroup === g.id ? ' drop-target' : ''}${drag?.kind === 'group' && drag.id === g.id ? ' dragging' : ''}`}
+                className={`group-box sb-group${hidden ? ' group-collapsed' : ''}${sel ? ' selected' : ''}${dropGroup === g.id ? ' drop-target' : ''}${drag?.kind === 'group' && drag.id === g.id ? ' dragging' : ''}${mark(g.id)}`}
                 style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
                 onPointerDown={hidden ? groupDown(g.id) : undefined}
                 onContextMenu={(e) => menuAt(e, { kind: 'group', id: g.id })}
@@ -672,7 +677,7 @@ export function StructureCanvas(p: Props) {
                 <g key={c.id}><path className="edge-hit" d={g.d} onPointerDown={e => e.stopPropagation()} onClick={() => onSelect(g.merged.length > 1 ? bundleGroup(c) : {kind:'connection',id:c.id})} />
                 <path
                   d={g.d}
-                  className={`edge ${c.kind === 'hands-work-to' ? 'enforced' : 'intent'}${sel ? ' selected' : ''}`}
+                  className={`edge ${c.kind === 'hands-work-to' ? 'enforced' : 'intent'}${sel ? ' selected' : ''}${mark(c.id)}`}
                   markerEnd={`url(#${sel ? `sb-arrow-sel-${ids}` : `sb-arrow-${ids}`})`}
                 /></g>
               );
@@ -710,7 +715,7 @@ export function StructureCanvas(p: Props) {
               <button
                 key={`l-${c.id}`}
                 type="button"
-                className={`edge-label sb-edge-label ${c.kind === 'hands-work-to' ? 'enforced' : 'intent'}${g.wrap ? ' wrap' : ''}${sel ? ' selected' : ''}`}
+                className={`edge-label sb-edge-label ${c.kind === 'hands-work-to' ? 'enforced' : 'intent'}${g.wrap ? ' wrap' : ''}${sel ? ' selected' : ''}${mark(c.id)}`}
                 style={{ left: g.x, top: g.y, maxWidth: g.maxWidth }}
                 data-connection={c.id}
                 aria-label={`${connectionSentence(draft, c)}${ci.length ? `, ${ci.length} to fix` : ''}`}
@@ -741,7 +746,7 @@ export function StructureCanvas(p: Props) {
                 style={{ left: a.x, top: a.y, width: CARD_W, height: fullText ? 'auto' : CARD_H, minHeight: CARD_H }}
                 ref={(el) => { if (el) slots.current.set(a.id, el); else slots.current.delete(a.id); }}
               >
-                <div className={`sb-card ${v.cls}${sel ? ' selected' : ''}${errs.length ? ' has-error' : ''}${wireTarget === a.id && wire?.from !== a.id ? ' wire-target' : ''}`}>
+                <div className={`sb-card ${v.cls}${sel ? ' selected' : ''}${errs.length ? ' has-error' : ''}${wireTarget === a.id && wire?.from !== a.id ? ' wire-target' : ''}${mark(a.id)}`}>
                   <button
                     type="button"
                     className="sb-main"
@@ -760,6 +765,7 @@ export function StructureCanvas(p: Props) {
                     <span className="box-head">
                       <VendorMark v={v} size="md" />
                       <span className="box-name" title={a.name.trim() || undefined}>{a.name.trim() || 'Unnamed agent'}</span>
+                      <ChangeBadge marks={p.marks} id={a.id} />
                       {ai.length > 0 && (
                         <span className={`marker ${errs.length ? 'tone-red' : 'tone-amber'}`} title={ai.map((i) => i.message).join('\n')}>
                           {MARK[errs.length ? 'error' : 'warning']}

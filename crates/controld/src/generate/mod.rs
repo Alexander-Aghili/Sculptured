@@ -1,6 +1,8 @@
 //! Generating a team with the user's own Claude Code or Codex: optional clarifying questions, then
 //! 1 or 3 team sketches, each turned into a laid-out `sculptured.team/v1` file with its issues.
 //! The CLI runs on the user's computer (`LocalOp::Generate`), with no tools.
+mod assistant;
+mod assistant_layout;
 mod improve;
 pub mod sketch;
 
@@ -22,6 +24,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/generate/questions", post(questions))
         .route("/api/generate/teams", post(teams))
         .route("/api/teams/{id}/improve-from-run", post(improve::improve))
+        .route("/api/teams/{id}/assistant", post(assistant::assistant))
 }
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]

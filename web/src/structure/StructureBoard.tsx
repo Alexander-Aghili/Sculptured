@@ -17,13 +17,16 @@ import { useRequestOnce } from '../useRequestOnce';
 import { isTextField } from '../dom';
 import { AgentSheet } from './AgentSheet';
 import { OFFERED_KINDS } from './ModelControls';
-import { AgentPanel, ConnectionPanel, GroupPanel, kindVendor, LOCK_REASON, TeamPanel } from './Panels';
+import { AgentPanel, ConnectionPanel, GroupPanel, kindVendor, LOCK_REASON, TeamPanel, type Edit } from './Panels';
 import { StructureCanvas, type CanvasHandle } from './StructureCanvas';
 import { TeamAdvanced } from './TeamAdvanced';
 import { useHome } from './FolderPicker';
 import { WorkflowInspector } from '../workflow/WorkflowInspector';
 import type { WorkflowTarget } from '../workflow/WorkflowGraph';
 import { startConfirmation, useStartConfirm } from './StartConfirm';
+import { useDesignAssistant } from './assistant/useDesignAssistant';
+import { DesignAssistant, ProposalBar } from './assistant/DesignAssistant';
+import { compareDesigns } from './assistant/compare';
 
 export type BoardHandle = { fit: () => void; zoomBy: (f: number) => void; addKey: () => void };
 
@@ -199,15 +202,22 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
   const canvas = useRef<CanvasHandle | null>(null);
   const nameRef = useRef<HTMLInputElement | null>(null);
   const focusName = useRef(false);
-  const draft = t.draft;
+  const a = useDesignAssistant(teamId);
+  const comparison = useMemo(() => (t.draft && a.proposal ? compareDesigns(t.draft, a.proposal.draft) : null), [t.draft, a.proposal]);
+  // While the design assistant's proposal is open the board shows it, read-only; the saved design is untouched.
+  const draft = comparison?.shown ?? t.draft;
+  const edit: Edit = comparison ? () => null : t.edit;
+  const proposing = useRef(false);
+  proposing.current = comparison !== null;
   const selection = draft ? selectionExists(draft, sel) : null;
-  const locked = running !== null ? running : t.serverLive;
-  const issues = useMemo(() => (draft ? liveIssues(draft, t.issues) : []), [draft, t.issues]);
+  const runLocked = running !== null ? running : t.serverLive;
+  const locked = runLocked || comparison !== null;
+  const issues = useMemo(() => (a.proposal ? a.proposal.issues : draft ? liveIssues(draft, t.issues) : []), [a.proposal, draft, t.issues]);
   const errors = errorsOf(issues);
 
   useEffect(() => {
-    if (draft) onDraft?.(draft);
-  }, [draft, onDraft]);
+    if (t.draft) onDraft?.(t.draft);
+  }, [t.draft, onDraft]);
   useEffect(() => {
     onLoadError?.(t.loadError);
   }, [t.loadError, onLoadError]);
@@ -267,7 +277,7 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
   // Undo / redo, unless typing (a text field keeps its own undo).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey || isTextField(e.target)) return;
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || isTextField(e.target) || proposing.current) return;
       const k = e.key.toLowerCase();
       if (k === 'z' && !e.shiftKey) {
         e.preventDefault();
@@ -281,7 +291,7 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
     return () => window.removeEventListener('keydown', onKey);
   }, [t]);
 
-  const reason = draft ? startReason({ issues, saveState: t.saveState, running: locked, starting, empty: draft.agents.length === 0 }) : 'Loading…';
+  const reason = comparison ? 'Approve or reject the design assistant\'s proposal first' : draft ? startReason({ issues, saveState: t.saveState, running: runLocked, starting, empty: draft.agents.length === 0 }) : 'Loading…';
 
   const home = useHome();
   const confirmStart = useStartConfirm();
@@ -336,19 +346,30 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
       </section>
     );
 
-  const advanced = <TeamAdvanced teamId={teamId} draft={draft} flush={t.flush} edit={t.edit} locked={locked} />;
+  const advanced = <TeamAdvanced teamId={teamId} draft={draft} flush={t.flush} edit={edit} locked={locked} />;
   const panel =
     selection?.kind === 'agent' && selection.id !== sheet ? (
-      <AgentPanel key={selection.id} draft={draft} agentId={selection.id} issues={issues} edit={t.edit} locked={locked} onSelect={inspectSelection} nameRef={nameRef} />
+      <AgentPanel key={selection.id} draft={draft} agentId={selection.id} issues={issues} edit={edit} locked={locked} onSelect={inspectSelection} nameRef={nameRef} />
     ) : selection?.kind === 'group' ? (
-      <GroupPanel key={selection.id} draft={draft} groupId={selection.id} issues={issues} edit={t.edit} locked={locked} onSelect={inspectSelection} />
+      <GroupPanel key={selection.id} draft={draft} groupId={selection.id} issues={issues} edit={edit} locked={locked} onSelect={inspectSelection} />
     ) : selection?.kind === 'connection' ? (
-      <ConnectionPanel key={selection.id} draft={draft} connectionId={selection.id} issues={issues} edit={t.edit} locked={locked} onSelect={inspectSelection} />
+      <ConnectionPanel key={selection.id} draft={draft} connectionId={selection.id} issues={issues} edit={edit} locked={locked} onSelect={inspectSelection} />
     ) : (
-      <TeamPanel draft={draft} edit={t.edit} locked={locked} origin={t.origin} notRunYet={t.startedRevision === null}>
+      <TeamPanel draft={draft} edit={edit} locked={locked} origin={t.origin} notRunYet={t.startedRevision === null}>
         {advanced}
       </TeamPanel>
     );
+
+  const approve = () => {
+    const p = a.proposal;
+    if (!p) return;
+    t.edit((d) => ({ ...p.draft, id: d.id, revision: d.revision }), 'design-assistant');
+    a.end('approved');
+  };
+  const assistant = (
+    <DesignAssistant a={a} revision={t.draft?.revision ?? 0} lockedReason={runLocked ? 'Stop the team to change its design.' : null} comparison={comparison} onApprove={approve}
+      onInspect={(target) => { inspectSelection(target); canvas.current?.show(target); }} />
+  );
 
   const fixes = issues.length > 0 && (
     <section className={`panel fix-box${fixOpen ? '' : ' closed'}`} aria-label="Things to fix">
@@ -399,16 +420,17 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
     <section className={`panel structure${narrow ? ' narrow-structure' : ''}`} aria-label={`Structure of ${draft.name || 'this team'}`}>
       <div className="panel-bar">
         <span className="panel-title">
-          <ModeTabs teamId={teamId} mode="structure" started={started} name={draft.name || 'Unnamed team'} title={<RenameProject draft={draft} edit={t.edit} />} />
+          <ModeTabs teamId={teamId} mode="structure" started={started} name={draft.name || 'Unnamed team'} title={<RenameProject draft={draft} edit={edit} />} />
         </span>
         <span className="panel-rule" aria-hidden="true" />
         <span className="panel-tools">
           {draft.workflow && <Btn onClick={() => setWorkflowTarget('list')}>Workflow list</Btn>}
+          <Btn icon="bot" aria-pressed={a.open} onClick={() => { a.setOpen(!a.open || !!a.proposal); onShowDetails?.(); }}>Design assistant</Btn>
           <SaveStatus state={t.saveState} error={t.saveError} onRetry={() => void t.retry()} onReload={() => void t.reload()} onKeepMine={() => void t.keepMine()} />
           <details className="structure-status" open={statusOpen} onToggle={e=>setStatusOpen(e.currentTarget.open)} onKeyDown={e=>{if(e.key==='Escape')setStatusOpen(false);}}>
-            <summary className={locked ? 'st-running' : reason ? 'st-setup' : 'st-ready'}>{locked ? 'Running' : reason ? 'Needs setup' : 'Ready'}</summary>
-          <div className="sb-status"><header className="setup-notice-head"><strong>{errors.length?`${errors.length} things to fix`:locked?'Project running':'Project status'}</strong><button className="btn" aria-label="Dismiss setup notice" onClick={()=>setStatusOpen(false)}>×</button></header>
-            {locked ? (
+            <summary className={runLocked ? 'st-running' : reason ? 'st-setup' : 'st-ready'}>{runLocked ? 'Running' : reason ? 'Needs setup' : 'Ready'}</summary>
+          <div className="sb-status"><header className="setup-notice-head"><strong>{errors.length?`${errors.length} things to fix`:runLocked?'Project running':'Project status'}</strong><button className="btn" aria-label="Dismiss setup notice" onClick={()=>setStatusOpen(false)}>×</button></header>
+            {runLocked ? (
               <p id={`${ids}-why`} className="run-banner tone-amber" role="status">
                 <span aria-hidden="true">◑ </span>This team is running. You can rename agents, edit their jobs and move cards. To add, remove or reconnect
                 agents, stop the team first{started ? ' on the ' : '.'}
@@ -416,13 +438,13 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
                 {started ? '.' : ''}
               </p>
             ) : null}
-            {reason && !locked && (
+            {reason && !runLocked && (
               <div className={`start-why ${errors.length ? 'tone-red' : 'muted'}`}>
                 <span id={`${ids}-why`} className="sr-only">Start team: {reason}</span>
                 {errors.length?<ul>{errors.map((issue,i)=><li key={i}>{issue.message}</li>)}</ul>:<p>{reason}</p>}
               </div>
             )}
-            {!reason && !locked && (
+            {!reason && !runLocked && (
               <p className="start-why tone-green">
                 <span aria-hidden="true">✓ </span>{draft.workflow ? 'Ready to start. The dispatcher reads Input first; workers wait for assignments.' : 'Ready to start. Each agent gets its job as its first message.'}
               </p>
@@ -464,11 +486,13 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
       {narrow && !draft.workflow ? (
         <div className="sb-narrow">
           {fixes}
-          <FormEditor draft={draft} issues={issues} edit={t.edit} locked={locked} onAdd={addKind} advanced={advanced} />
+          {a.open && assistant}
+          <FormEditor draft={draft} issues={issues} edit={edit} locked={locked} onAdd={addKind} advanced={advanced} />
         </div>
       ) : (
         <div className={`sb-body${detailsShown ? '' : ' inspector-hidden'}`}>
           <div className="sb-stage">
+            {comparison && <ProposalBar a={a} comparison={comparison} onApprove={approve} />}
             <StructureCanvas
               ref={canvas}
               teamId={teamId}
@@ -477,7 +501,7 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
               selection={selection}
               onSelect={setSel}
               onInspect={inspectSelection}
-              edit={t.edit}
+              edit={edit}
               locked={locked}
               onOpen={setSheet}
               onWorkflow={setWorkflowTarget}
@@ -486,18 +510,19 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
                 focusName.current = true;
                 setSel({ kind: 'agent', id });
               }}
-              canUndo={t.canUndo}
-              canRedo={t.canRedo}
+              canUndo={t.canUndo && !comparison}
+              canRedo={t.canRedo && !comparison}
+              marks={comparison?.marks}
               onUndo={t.undo}
               onRedo={t.redo}
             />
             {fixes}
           </div>
-          <div id="workspace-details" className="sb-side" hidden={!detailsShown}>{panel}</div>
+          <div id="workspace-details" className="sb-side" hidden={!detailsShown}>{a.open ? <>{assistant}{selection && panel}</> : panel}</div>
         </div>
       )}
-      {draft.workflow && workflowTarget && <WorkflowInspector draft={draft} target={workflowTarget} locked={locked} edit={fn => t.edit(fn)} onOpen={setSheet} onClose={() => setWorkflowTarget(null)} />}
-      {sheet && draft && <AgentSheet draft={draft} agentId={sheet} issues={issues} edit={t.edit} locked={locked} onSelect={inspectSelection} onClose={() => setSheet(null)} />}
+      {draft.workflow && workflowTarget && <WorkflowInspector draft={draft} target={workflowTarget} locked={locked} edit={fn => edit(fn)} onOpen={setSheet} onClose={() => setWorkflowTarget(null)} />}
+      {sheet && draft && <AgentSheet draft={draft} agentId={sheet} issues={issues} edit={edit} locked={locked} onSelect={inspectSelection} onClose={() => setSheet(null)} />}
       {confirmStart.dialog}
     </section>
   );

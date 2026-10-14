@@ -1,0 +1,38 @@
+/* The design assistant: its panel, and the proposal layer on the board. */
+.design-assistant { display: grid; align-content: start; }
+.da-body { display: grid; gap: 12px; padding: 12px; }
+.da-body p { margin: 0; }
+.da-talk { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.da-turn { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.da-turn.da-person { background: var(--raised); }
+.da-who { font-size: 11px; font-weight: 600; color: var(--muted); }
+.da-turn .badge { justify-self: start; }
+.da-review { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--accent-soft); border-radius: 8px; background: var(--panel); }
+.da-changes { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.da-changes li { line-height: 1.45; }
+.da-job { margin-top: 4px; }
+.da-job-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.da-job-grid pre { margin: 2px 0 0; padding: 6px 8px; max-height: 220px; overflow: auto; white-space: pre-wrap; font-size: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.da-dropped ul { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 4px; font-size: 12px; }
+.da-ask { display: grid; gap: 6px; }
+.da-ask-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (max-width: 640px) { .da-job-grid { grid-template-columns: 1fr; } }
+
+/* What a part is in the proposal: a word on the card, a coloured outline, removed parts faded. */
+.change-badge { display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 10.5px; font-weight: 600; line-height: 16px; border: 1px solid currentColor; white-space: nowrap; }
+.change-badge.change-added { color: var(--green); background: var(--green-soft); }
+.change-badge.change-changed { color: var(--amber); background: var(--amber-soft); }
+.change-badge.change-removed { color: var(--red); background: var(--red-soft); }
+.sb-card.change-added { box-shadow: 0 0 0 2px var(--green); }
+.sb-card.change-changed { box-shadow: 0 0 0 2px var(--amber); }
+.sb-card.change-removed { opacity: 0.45; box-shadow: 0 0 0 2px var(--red); }
+.sb-card.change-removed .box-name { text-decoration: line-through; }
+.group-box.change-added { outline: 2px dashed var(--green); }
+.group-box.change-changed { outline: 2px dashed var(--amber); }
+.group-box.change-removed { outline: 2px dashed var(--red); opacity: 0.5; }
+.edge.change-added { stroke: var(--green); }
+.edge.change-removed { stroke: var(--red); stroke-dasharray: 4 4; opacity: 0.6; }
+.edge-label.change-added { border-color: var(--green); }
+.edge-label.change-removed { border-color: var(--red); text-decoration: line-through; opacity: 0.7; }
+.proposal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--accent-soft); background: var(--panel); }
+.proposal-bar p { margin: 0; flex: 1 1 auto; }
