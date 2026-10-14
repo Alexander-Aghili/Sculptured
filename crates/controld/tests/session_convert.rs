@@ -182,3 +182,51 @@ fn claude_and_codex_files_together_are_refused() {
     let e = convert(&[fixture("codex/rollout.jsonl"), fixture("claude/main.jsonl")]).unwrap_err();
     assert!(e.message.contains("different tools"));
 }
+
+fn team_of(files: &[Upload]) -> model::TeamDraft {
+    parse_session(&convert(files).unwrap().session).unwrap().0.team.unwrap().team
+}
+
+#[test]
+fn the_team_has_one_agent_per_distinct_subagent_with_arrows_from_the_parent() {
+    let t = team_of(&claude_with_agents(true));
+    // Explore ×2 (auth, db) share one Explore agent; general-purpose is the other.
+    assert_eq!(t.agents.len(), 3);
+    let main = t.agents.iter().find(|a| a.id == "main").unwrap();
+    assert!(main.job.starts_with("Add a login page"));
+    assert!(main.job.contains("send_agent_message"));
+    assert_eq!(t.connections.len(), 2);
+    assert!(t.connections.iter().all(|c| c.from == "main" && c.kind == model::ConnectionKind::HandsWorkTo));
+    let explore = t.agents.iter().find(|a| a.name == "Explore auth").unwrap();
+    assert_eq!(explore.kind, model::AgentKind::Claude);
+    assert_eq!(explore.advanced.model.as_deref(), Some("claude-haiku-5-5"));
+    assert!(explore.job.starts_with("Find how auth works"));
+    assert!(explore.job.contains("started 2 times"));
+}
+
+#[test]
+fn the_team_keeps_the_session_folder_and_main_model() {
+    let t = team_of(&[fixture("claude/main.jsonl")]);
+    assert_eq!(t.agents[0].folder.as_deref(), Some("/work/app"));
+    assert_eq!(t.agents[0].advanced.model.as_deref(), Some("claude-opus-5-5"));
+    assert_eq!(t.name, "Login page");
+    assert!(!t.agents[0].job.contains("send_agent_message"), "no teammates, no handoff line");
+}
+
+#[test]
+fn a_codex_session_rebuilds_a_codex_team() {
+    let t = team_of(&[fixture("codex/rollout.jsonl"), fixture("codex/child.jsonl")]);
+    assert!(t.agents.iter().all(|a| a.kind == model::AgentKind::Codex));
+    assert_eq!(t.agents.len(), 2);
+    assert_eq!(t.name, "Imported Codex session");
+    assert!(t.agents.iter().any(|a| a.job == "Check the linter"));
+}
+
+#[test]
+fn the_rebuilt_team_holds_together() {
+    for files in [claude_with_agents(true), vec![fixture("codex/rollout.jsonl"), fixture("codex/child.jsonl")]] {
+        let t = team_of(&files);
+        let errors: Vec<_> = rigspec::validate_draft(&t).into_iter().filter(|d| d.severity == model::IssueSeverity::Error).collect();
+        assert!(errors.is_empty(), "{errors:?}");
+    }
+}

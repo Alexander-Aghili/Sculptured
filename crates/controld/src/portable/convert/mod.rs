@@ -4,6 +4,7 @@
 mod claude;
 mod claude_links;
 mod codex;
+mod team;
 mod time;
 mod write;
 
@@ -102,7 +103,8 @@ pub fn convert(files: &[Upload]) -> Result<Converted, ApiError> {
         (false, false) => return Err(invalid("These files hold no session: choose the session's .jsonl file", 1, "no .jsonl file")),
     };
     let read = if source == Source::Codex { codex::read(files)? } else { claude::read(files)? };
-    let (session, preview) = write::write(&read.threads, source, read.missing, None);
+    let team = team::rebuild(&read.threads, source);
+    let (session, preview) = write::write(&read.threads, source, read.missing, Some(team));
     Ok(Converted { preview, session, warnings: read.warnings })
 }
 

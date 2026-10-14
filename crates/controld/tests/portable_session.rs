@@ -197,3 +197,19 @@ async fn a_run_whose_team_cannot_be_imported_says_why() {
     let codes: Vec<&str> = imported["warnings"].as_array().unwrap().iter().filter_map(|w| w["code"].as_str()).collect();
     assert!(codes.contains(&"connection-dangling"), "the reason the team was left out: {imported}");
 }
+
+fn claude_fixture(path: &str) -> controld::portable::convert::Upload {
+    let full = format!("{}/tests/fixtures/sessions/claude/{path}", env!("CARGO_MANIFEST_DIR"));
+    controld::portable::convert::Upload { name: path.rsplit('/').next().unwrap().into(), text: std::fs::read_to_string(full).unwrap() }
+}
+
+#[tokio::test]
+async fn a_converted_session_whose_folder_is_not_allowed_imports_with_a_warning() {
+    let s = serve().await;
+    let c = controld::portable::convert::convert(&[claude_fixture("main.jsonl")]).unwrap();
+    let (status, body) = post_text(&s.router, "/api/runs/import", &c.session).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["team"]["draft"]["agents"].as_array().unwrap().len(), 1);
+    let warnings = body["warnings"].to_string();
+    assert!(warnings.contains("/work/app") || warnings.to_lowercase().contains("folder"), "{warnings}");
+}
