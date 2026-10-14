@@ -136,3 +136,49 @@ fn two_different_claude_sessions_are_refused() {
     let e = convert(&[fixture("claude/main-with-agents.jsonl"), other]).unwrap_err();
     assert!(e.message.contains("2 different sessions"));
 }
+
+#[test]
+fn a_codex_rollout_converts_with_prompts_tools_and_turns() {
+    let c = convert(&[fixture("codex/rollout.jsonl")]).unwrap();
+    let (h, _) = parse_session(&c.session).unwrap();
+    assert_eq!(h.source, Source::Codex);
+    let b = bodies(&c.session);
+    let prompts: Vec<_> = b.iter().filter_map(|x| match x { EventBody::MessageQueued { text, .. } => Some(text.as_str()), _ => None }).collect();
+    assert_eq!(prompts, ["Fix the tests"], "environment context is not a prompt");
+    assert_eq!(b.iter().filter(|x| matches!(x, EventBody::ToolCalled { .. })).count(), 2);
+    assert_eq!(b.iter().filter(|x| matches!(x, EventBody::ToolResulted { .. })).count(), 2);
+    assert_eq!(b.iter().filter(|x| matches!(x, EventBody::TurnStarted { .. })).count(), 1);
+    assert!(b.iter().any(|x| matches!(x, EventBody::TurnEnded { .. })));
+    assert!(b.iter().any(|x| matches!(x, EventBody::ThinkingRecorded { text, .. } if text == "Run them first")));
+    assert_eq!(c.preview.unknown_lines, 1);
+}
+
+#[test]
+fn codex_token_counts_are_cumulative_so_usage_is_the_difference() {
+    let c = convert(&[fixture("codex/rollout.jsonl")]).unwrap();
+    let t = parse_session(&c.session).unwrap().0.tokens;
+    assert_eq!((t.input, t.cache_read, t.output), (350, 150, 50));
+}
+
+#[test]
+fn a_codex_child_rollout_is_a_subagent_of_its_parent_thread() {
+    let c = convert(&[fixture("codex/rollout.jsonl"), fixture("codex/child.jsonl")]).unwrap();
+    let h = parse_session(&c.session).unwrap().0;
+    assert_eq!(h.agents.len(), 2);
+    assert!(h.agents.iter().any(|a| a.parent.is_some()));
+    assert!(c.preview.missing.is_empty());
+}
+
+#[test]
+fn two_unrelated_codex_sessions_are_refused() {
+    let mut other = fixture("codex/rollout.jsonl");
+    other.text = other.text.replace("\"id\":\"t1\"", "\"id\":\"t9\"");
+    let e = convert(&[fixture("codex/rollout.jsonl"), other]).unwrap_err();
+    assert!(e.message.contains("different sessions"));
+}
+
+#[test]
+fn claude_and_codex_files_together_are_refused() {
+    let e = convert(&[fixture("codex/rollout.jsonl"), fixture("claude/main.jsonl")]).unwrap_err();
+    assert!(e.message.contains("different tools"));
+}

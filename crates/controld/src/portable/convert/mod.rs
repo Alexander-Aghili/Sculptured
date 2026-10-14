@@ -3,6 +3,7 @@
 //! every line is `origin: converted`. Nothing here touches the store; `/api/runs/import` stores it.
 mod claude;
 mod claude_links;
+mod codex;
 mod time;
 mod write;
 
@@ -87,17 +88,21 @@ pub struct Converted {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
     Claude,
+    Codex,
     Meta,
 }
 
 /// The session files as one run, or why they can't be read.
 pub fn convert(files: &[Upload]) -> Result<Converted, ApiError> {
     let kinds = files.iter().map(kind_of).collect::<Result<Vec<_>, _>>()?;
-    if !kinds.contains(&Kind::Claude) {
-        return Err(invalid("These files hold no session: choose the session's .jsonl file", 1, "no .jsonl file"));
-    }
-    let read = claude::read(files)?;
-    let (session, preview) = write::write(&read.threads, Source::ClaudeCode, read.missing, None);
+    let source = match (kinds.contains(&Kind::Claude), kinds.contains(&Kind::Codex)) {
+        (true, true) => return Err(invalid("These files are from different tools; import one session at a time", 1, "Claude Code and Codex files")),
+        (true, false) => Source::ClaudeCode,
+        (false, true) => Source::Codex,
+        (false, false) => return Err(invalid("These files hold no session: choose the session's .jsonl file", 1, "no .jsonl file")),
+    };
+    let read = if source == Source::Codex { codex::read(files)? } else { claude::read(files)? };
+    let (session, preview) = write::write(&read.threads, source, read.missing, None);
     Ok(Converted { preview, session, warnings: read.warnings })
 }
 
@@ -106,7 +111,11 @@ fn kind_of(f: &Upload) -> Result<Kind, ApiError> {
     if f.name.ends_with(".json") {
         return Ok(Kind::Meta);
     }
-    let lines = f.text.lines().filter(|l| !l.trim().is_empty()).take(50);
+    let mut lines = f.text.lines().filter(|l| !l.trim().is_empty()).take(50).peekable();
+    let first = lines.peek().and_then(|l| serde_json::from_str::<Value>(l).ok());
+    if first.is_some_and(|v| v["type"] == "session_meta" && v["payload"].is_object()) {
+        return Ok(Kind::Codex);
+    }
     for l in lines {
         let Ok(v) = serde_json::from_str::<Value>(l) else { continue };
         let message = (v["type"] == "user" || v["type"] == "assistant") && v["message"].is_object();

@@ -1,0 +1,17 @@
+{"timestamp":"2026-10-01T10:00:00.000Z","type":"session_meta","payload":{"id":"t1","cwd":"/work/app","cli_version":"0.50.0","source":"cli","thread_source":"user","originator":"codex_cli_rs"}}
+{"timestamp":"2026-10-01T10:00:00.100Z","type":"turn_context","payload":{"model":"gpt-5.5-codex","cwd":"/work/app"}}
+{"timestamp":"2026-10-01T10:00:00.200Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>cwd</environment_context>"}]}}
+{"timestamp":"2026-10-01T10:00:01.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Fix the tests"}]}}
+{"timestamp":"2026-10-01T10:00:01.050Z","type":"event_msg","payload":{"type":"user_message","message":"Fix the tests"}}
+{"timestamp":"2026-10-01T10:00:01.100Z","type":"event_msg","payload":{"type":"task_started"}}
+{"timestamp":"2026-10-01T10:00:02.000Z","type":"response_item","payload":{"type":"reasoning","summary":[{"type":"summary_text","text":"Run them first"}]}}
+{"timestamp":"2026-10-01T10:00:03.000Z","type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{\"command\":[\"npm\",\"test\"]}","call_id":"c1"}}
+{"timestamp":"2026-10-01T10:00:04.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"c1","output":"1 failing"}}
+{"timestamp":"2026-10-01T10:00:04.500Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":300,"cached_input_tokens":100,"output_tokens":20}}}}
+{"timestamp":"2026-10-01T10:00:05.000Z","type":"response_item","payload":{"type":"custom_tool_call","name":"apply_patch","input":"*** Begin Patch","call_id":"c2"}}
+{"timestamp":"2026-10-01T10:00:06.000Z","type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"c2","output":"Done"}}
+{"timestamp":"2026-10-01T10:00:07.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Fixed."}]}}
+{"timestamp":"2026-10-01T10:00:07.500Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":500,"cached_input_tokens":150,"output_tokens":50}}}}
+{"timestamp":"2026-10-01T10:00:08.000Z","type":"event_msg","payload":{"type":"task_complete"}}
+{"timestamp":"2026-10-01T10:00:09.000Z","type":"compacted","payload":{"message":"summary"}}
+{"timestamp":"2026-10-01T10:00:09.500Z","type":"brand_new_kind","payload":{}}
