@@ -2,7 +2,7 @@ import type { StageKind } from '../generated/StageKind';
 import type { TeamDraft } from '../generated/TeamDraft';
 import type { Workflow } from '../generated/Workflow';
 import type { WorkflowStage } from '../generated/WorkflowStage';
-import { stageOrder } from './itemBoard';
+import { stageOrder } from './itemBoardModel';
 
 /** A stage's type as the editor offers it: the four kinds, plus a review panel (an agent stage with reviewers). */
 export type StageType = StageKind | 'panel';

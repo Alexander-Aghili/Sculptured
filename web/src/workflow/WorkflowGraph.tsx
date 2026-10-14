@@ -8,7 +8,7 @@ import { groupOf } from '../draft/ids';
 import { drawnGroups } from '../draft/geometry';
 import { placeLabels } from '../shell/labels';
 import type { WorkflowStage } from '../generated/WorkflowStage';
-import { stageOrder } from './itemBoard';
+import { stageOrder } from './itemBoardModel';
 import './workflow.css';
 
 export type WorkflowTarget = 'input' | 'settings' | 'run' | { stage: string };

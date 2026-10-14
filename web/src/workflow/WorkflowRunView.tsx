@@ -14,7 +14,7 @@ import { DecisionCard, provenance } from './DecisionCard';
 import { ItemBoard, costText, costTitle } from './ItemBoard';
 import { DecisionLog } from './DecisionLog';
 import type { CostSource } from '../generated/CostSource';
-import { usesPipeline } from './itemBoard';
+import { usesPipeline } from './itemBoardModel';
 import type { TurnTokens } from '../generated/TurnTokens';
 import type { WorkflowStep } from '../generated/WorkflowStep';
 

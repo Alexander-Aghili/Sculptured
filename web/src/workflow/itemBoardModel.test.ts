@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { itemBoard, stageOrder, usesPipeline } from './itemBoard';
+import { itemBoard, stageOrder, usesPipeline } from './itemBoardModel';
 import type { Workflow } from '../generated/Workflow';
 import type { WorkflowRun } from '../generated/WorkflowRun';
 import type { WorkflowTask } from '../generated/WorkflowTask';

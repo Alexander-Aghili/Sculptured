@@ -1,7 +1,7 @@
 import type { CostSource } from '../generated/CostSource';
 import type { TurnTokens } from '../generated/TurnTokens';
 import type { WorkflowRun } from '../generated/WorkflowRun';
-import { itemBoard, type Card } from './itemBoard';
+import { itemBoard, type Card } from './itemBoardModel';
 
 const TOKENS_NOTE = 'Input + output tokens as Claude Code or Codex reported them (cache reads not included); they may arrive up to one turn late.';
 
