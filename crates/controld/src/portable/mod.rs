@@ -17,6 +17,8 @@ pub fn routes() -> Router<AppState> {
         .route("/api/teams/{id}/deployments/{seq}/session", get(session::get_session))
         // A run file can be large: up to 64 MB on this route only.
         .route("/api/runs/import", post(session::post_import).layer(axum::extract::DefaultBodyLimit::max(64 << 20)))
+        // Claude Code / Codex session files, converted to a run file: the same 64 MB.
+        .route("/api/runs/convert", post(convert::post_convert).layer(axum::extract::DefaultBodyLimit::max(64 << 20)))
 }
 
 /// (file name under `web/public/schema`, schema) for each published format.

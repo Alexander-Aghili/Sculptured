@@ -213,3 +213,48 @@ async fn a_converted_session_whose_folder_is_not_allowed_imports_with_a_warning(
     let warnings = body["warnings"].to_string();
     assert!(warnings.contains("/work/app") || warnings.to_lowercase().contains("folder"), "{warnings}");
 }
+
+#[tokio::test]
+async fn a_claude_session_converts_imports_and_downloads_unchanged() {
+    let s = serve().await;
+    let files: Vec<_> = ["main-with-agents.jsonl", "subagents/agent-a1.jsonl", "subagents/agent-a1.meta.json"]
+        .iter()
+        .map(|p| { let u = claude_fixture(p); json!({ "name": u.name, "text": u.text }) })
+        .collect();
+    let (status, c) = call(&s.router, "POST", "/api/runs/convert", json!({ "files": files })).await;
+    assert_eq!(status, StatusCode::OK, "{c}");
+    assert_eq!(c["preview"]["subagents"], 3);
+    assert_eq!(c["preview"]["source"], "imported:claude-code");
+    let session = c["session"].as_str().unwrap();
+    let (status, imported) = post_text(&s.router, "/api/runs/import", session).await;
+    assert_eq!(status, StatusCode::OK, "{imported}");
+    let team = imported["team"]["draft"]["id"].as_str().unwrap();
+    let seq = imported["run"]["start_seq"].as_i64().unwrap();
+    let (_, detail) = get(&s.router, &format!("/api/teams/{team}/deployments/{seq}")).await;
+    assert_eq!(detail["agents"].as_array().unwrap().len(), 4, "{detail}");
+    let (_, back, _) = text(&s.router, &format!("/api/teams/{team}/deployments/{seq}/session")).await;
+    assert_eq!(back.lines().skip(1).collect::<Vec<_>>(), session.lines().skip(1).collect::<Vec<_>>());
+    assert_eq!(imported["team"]["draft"]["agents"].as_array().unwrap().len(), 3);
+    assert_eq!(live_events(&s), live_events(&s), "nothing enters the live log");
+}
+
+#[tokio::test]
+async fn an_unreadable_upload_says_so_and_creates_nothing() {
+    let s = serve().await;
+    let before = team_count(&s).await;
+    let (status, body) = call(&s.router, "POST", "/api/runs/convert", json!({ "files": [{ "name": "x.jsonl", "text": "nope" }] })).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert_eq!(team_count(&s).await, before);
+}
+
+#[test]
+fn fifty_thousand_lines_convert_quickly() {
+    let mut text = String::new();
+    for i in 0..25_000 {
+        text.push_str(&format!("{{\"type\":\"user\",\"sessionId\":\"s\",\"timestamp\":\"2026-10-01T10:00:00Z\",\"message\":{{\"role\":\"user\",\"content\":\"p{i}\"}}}}\n"));
+        text.push_str(&format!("{{\"type\":\"assistant\",\"sessionId\":\"s\",\"timestamp\":\"2026-10-01T10:00:01Z\",\"message\":{{\"id\":\"m{i}\",\"role\":\"assistant\",\"model\":\"m\",\"content\":[{{\"type\":\"text\",\"text\":\"ok\"}}]}}}}\n"));
+    }
+    let t = std::time::Instant::now();
+    controld::portable::convert::convert(&[controld::portable::convert::Upload { name: "big.jsonl".into(), text }]).unwrap();
+    assert!(t.elapsed() < std::time::Duration::from_secs(5), "{:?}", t.elapsed());
+}

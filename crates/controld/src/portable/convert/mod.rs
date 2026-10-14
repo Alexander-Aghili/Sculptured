@@ -132,3 +132,21 @@ fn kind_of(f: &Upload) -> Result<Kind, ApiError> {
 pub(crate) fn invalid(message: &str, line: usize, detail: &str) -> ApiError {
     ApiError::unprocessable("session_file_invalid", message.to_string(), vec![at_line(line, detail.to_string())])
 }
+
+#[derive(Deserialize)]
+pub(crate) struct ConvertReq {
+    files: Vec<Upload>,
+}
+
+#[derive(Serialize)]
+struct ConvertReply {
+    preview: Preview,
+    warnings: Vec<String>,
+    session: String,
+}
+
+/// `POST /api/runs/convert`: the session files as a run file, with what was found. Nothing is stored;
+/// the browser sends `session` to `/api/runs/import` once the person has seen the preview.
+pub(crate) async fn post_convert(crate::extract::Json(req): crate::extract::Json<ConvertReq>) -> axum::response::Response {
+    crate::error::respond(convert(&req.files).map(|c| ConvertReply { preview: c.preview, warnings: c.warnings, session: c.session }))
+}

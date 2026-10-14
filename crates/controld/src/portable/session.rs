@@ -201,6 +201,10 @@ pub fn import_run(st: &AppState, text: &str) -> Result<(model::TeamDraft, histor
         });
     let draft = super::team::create(st, file)?;
     crate::analytics::emit(st, "team.created", serde_json::json!({ "template": "run-import" }));
+    if header.source != Source::Sculptured {
+        // Only that it happened, which tool, and how many agents: never content.
+        crate::analytics::emit(st, "run.imported", serde_json::json!({ "source": header.source, "agents": header.agents.len() }));
+    }
     header.team_id = draft.id.clone();
     let rows: Vec<(i64, String, &str)> = lines.iter().map(|(raw, l)| (l.event.seq, l.event.subject.key(), raw.as_str())).collect();
     let header_json = serde_json::to_string(&header).expect("header serializes");
