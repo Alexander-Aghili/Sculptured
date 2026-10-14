@@ -2,6 +2,7 @@
 //! run: each agent becomes a *thread* of steps, and the writer turns the threads into one run whose
 //! every line is `origin: converted`. Nothing here touches the store; `/api/runs/import` stores it.
 mod claude;
+mod claude_links;
 mod time;
 mod write;
 

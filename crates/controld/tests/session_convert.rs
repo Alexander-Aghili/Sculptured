@@ -75,3 +75,64 @@ fn a_file_that_is_neither_format_is_refused() {
     let e = convert(&[Upload { name: "x.jsonl".into(), text: "{\"hello\":1}\n".into() }]).unwrap_err();
     assert!(e.message.contains("isn't a Claude Code or Codex session file"));
 }
+
+fn claude_with_agents(include_a2: bool) -> Vec<Upload> {
+    let mut v = vec![fixture("claude/main-with-agents.jsonl"), fixture("claude/subagents/agent-a1.jsonl"), fixture("claude/subagents/agent-a1.meta.json")];
+    if include_a2 {
+        v.extend([fixture("claude/subagents/agent-a2.jsonl"), fixture("claude/subagents/agent-a2.meta.json")]);
+    }
+    v
+}
+
+#[test]
+fn subagents_become_child_agents_with_their_parent_and_task() {
+    let c = convert(&claude_with_agents(true)).unwrap();
+    let h = parse_session(&c.session).unwrap().0;
+    let main = h.agents.iter().find(|a| a.parent.is_none()).unwrap();
+    let kids: Vec<_> = h.agents.iter().filter(|a| a.parent.as_deref() == Some(main.id.as_str())).collect();
+    assert_eq!(kids.len(), 3, "two with files, one missing");
+    assert_eq!(c.preview.subagents, 3);
+    assert!(c.preview.missing.len() == 1 && c.preview.missing[0].starts_with("Explore db"));
+}
+
+#[test]
+fn a_subagent_without_its_file_is_listed_as_missing_and_still_shown() {
+    let c = convert(&claude_with_agents(false)).unwrap();
+    assert_eq!(c.preview.missing.len(), 2);
+    assert!(c.preview.missing[0].contains("subagents"));
+    assert_eq!(parse_session(&c.session).unwrap().0.agents.len(), 4);
+}
+
+#[test]
+fn the_parent_hands_the_subagent_its_task_as_a_message() {
+    let c = convert(&claude_with_agents(true)).unwrap();
+    let (h, lines) = parse_session(&c.session).unwrap();
+    let main = h.agents.iter().find(|a| a.parent.is_none()).unwrap();
+    let a1 = h.agents.iter().find(|a| a.name.as_deref() == Some("Explore auth")).unwrap();
+    let task = lines.iter().find(|(_, l)| l.event.subject.key() == format!("seat:{}", a1.id) && matches!(l.event.body, EventBody::MessageQueued { .. })).unwrap();
+    assert_eq!(task.1.event.actor, model::Actor::Seat(main.id.clone()));
+    assert!(matches!(&task.1.event.body, EventBody::MessageQueued { text, .. } if text == "Find how auth works"));
+}
+
+#[test]
+fn subagent_tokens_count_toward_the_run() {
+    let c = convert(&claude_with_agents(true)).unwrap();
+    let t = parse_session(&c.session).unwrap().0.tokens;
+    assert_eq!((t.input, t.output), (50 + 20 + 30 + 40, 10 + 5 + 6 + 8));
+}
+
+#[test]
+fn inline_sidechains_from_older_sessions_become_subagents() {
+    let c = convert(&[fixture("claude/inline.jsonl")]).unwrap();
+    let h = parse_session(&c.session).unwrap().0;
+    assert_eq!(h.agents.len(), 2);
+    let kid = h.agents.iter().find(|a| a.parent.is_some()).unwrap();
+    assert_eq!(kid.name.as_deref(), Some("Search logs"));
+}
+
+#[test]
+fn two_different_claude_sessions_are_refused() {
+    let other = fixture("claude/main.jsonl");
+    let e = convert(&[fixture("claude/main-with-agents.jsonl"), other]).unwrap_err();
+    assert!(e.message.contains("2 different sessions"));
+}

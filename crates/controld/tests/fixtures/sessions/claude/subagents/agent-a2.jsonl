@@ -1,0 +1,2 @@
+{"type":"user","uuid":"s2u","parentUuid":null,"isSidechain":true,"agentId":"a2","sessionId":"s2","cwd":"/work/app","timestamp":"2026-10-01T10:00:04.500Z","message":{"role":"user","content":"Write login tests"}}
+{"type":"assistant","uuid":"s2a","parentUuid":"s2u","isSidechain":true,"agentId":"a2","sessionId":"s2","timestamp":"2026-10-01T10:01:20.000Z","message":{"id":"sm2","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"Tests written"}],"usage":{"input_tokens":40,"output_tokens":8,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}

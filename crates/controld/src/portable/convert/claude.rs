@@ -5,21 +5,72 @@ use crate::error::ApiError;
 use model::cap::{cap_input, truncate, MAX_TEXT};
 use model::{EventBody, Provenance, TurnStatus};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// Lines that only keep Claude Code's own books: nothing to show.
 const BOOKKEEPING: &[&str] = &["system", "summary", "queue-operation", "attachment", "last-prompt", "atis-latch", "file-history-snapshot"];
 
 pub(super) fn read(files: &[Upload]) -> Result<Read, ApiError> {
-    let main = files.iter().find(|f| f.name.ends_with(".jsonl")).expect("convert checked for a session file");
-    let mut r = Reader::new("main");
-    for line in main.text.lines().filter(|l| !l.trim().is_empty()) {
+    let (subs, mains): (Vec<&Upload>, Vec<&Upload>) = files.iter().filter(|f| f.name.ends_with(".jsonl")).partition(|f| is_subagent_file(f));
+    let main = one_main(&mains)?;
+    let mut readers = read_main(main);
+    readers.extend(subs.into_iter().map(read_sub));
+    Ok(super::claude_links::link(readers, &metas(files)))
+}
+
+/// A subagent's own file: `agent-<id>.jsonl`, or lines marked as a sidechain with their agent's id.
+fn is_subagent_file(f: &Upload) -> bool {
+    let first = f.text.lines().find(|l| !l.trim().is_empty()).and_then(|l| serde_json::from_str::<Value>(l).ok());
+    f.name.starts_with("agent-") || first.is_some_and(|v| v["isSidechain"] == true && v["agentId"].is_string())
+}
+
+fn one_main<'a>(mains: &[&'a Upload]) -> Result<&'a Upload, ApiError> {
+    match mains {
+        [one] => Ok(one),
+        [] => Err(super::invalid("Choose the session's own .jsonl file too, not only its subagents' files", 1, "no main session file")),
+        many => Err(super::invalid(&format!("These files are from {} different sessions; import them one at a time", many.len()), 1, &many.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", "))),
+    }
+}
+
+/// The main file: its own lines, and (older sessions) the sidechain lines of its subagents.
+fn read_main(f: &Upload) -> Vec<Reader> {
+    let mut main = Reader::new("main");
+    let mut side: Vec<Reader> = Vec::new();
+    for line in f.text.lines().filter(|l| !l.trim().is_empty()) {
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            main.push(main.prev, unrecognized(Value::String(line.to_string())));
+            continue;
+        };
+        if v["isSidechain"] != true {
+            main.line(&v);
+            continue;
+        }
+        if side.is_empty() || (v["parentUuid"].is_null() && v["type"] == "user") {
+            side.push(Reader::new(&format!("sidechain-{}", side.len() + 1)));
+        }
+        side.last_mut().expect("just pushed").line(&v);
+    }
+    std::iter::once(main).chain(side).collect()
+}
+
+fn read_sub(f: &Upload) -> Reader {
+    let stem = f.name.trim_end_matches(".jsonl").to_string();
+    let lines: Vec<&str> = f.text.lines().filter(|l| !l.trim().is_empty()).collect();
+    let id = lines.first().and_then(|l| serde_json::from_str::<Value>(l).ok()).and_then(|v| v["agentId"].as_str().map(str::to_string));
+    let mut r = Reader::new(&id.unwrap_or_else(|| stem.clone()));
+    r.stem = Some(stem);
+    for line in lines {
         match serde_json::from_str::<Value>(line) {
             Ok(v) => r.line(&v),
             Err(_) => r.push(r.prev, unrecognized(Value::String(line.to_string()))),
         }
     }
-    Ok(Read { threads: vec![r.finish()], ..Read::default() })
+    r
+}
+
+/// `agent-<id>.meta.json` files, by their stem (`agent-<id>`).
+fn metas(files: &[Upload]) -> HashMap<String, Value> {
+    files.iter().filter(|f| f.name.ends_with(".meta.json")).filter_map(|f| Some((f.name.trim_end_matches(".meta.json").to_string(), serde_json::from_str(&f.text).ok()?))).collect()
 }
 
 fn body(b: EventBody) -> Ev {
@@ -37,13 +88,17 @@ pub(super) struct Reader {
     pub(super) prev: i64,
     turn: Option<String>,
     turns: u32,
+    /// Its file's stem (`agent-<id>`), to find its `.meta.json`.
+    pub(super) stem: Option<String>,
+    /// The subagents it started (`Agent` / `Task` calls), in order.
+    pub(super) calls: Vec<Call>,
     /// `message.id`s whose usage was already counted (a message spans several lines).
     seen: HashSet<String>,
 }
 
 impl Reader {
     pub(super) fn new(key: &str) -> Self {
-        Self { t: Thread { key: key.into(), runtime: "claude-stream", ..Thread::default() }, prev: 0, turn: None, turns: 0, seen: HashSet::new() }
+        Self { t: Thread { key: key.into(), runtime: "claude-stream", ..Thread::default() }, prev: 0, turn: None, turns: 0, stem: None, calls: Vec::new(), seen: HashSet::new() }
     }
 
     pub(super) fn push(&mut self, at_ms: i64, ev: Ev) {
@@ -94,6 +149,9 @@ impl Reader {
             self.t.models.push(model.to_string());
         }
         for b in m["content"].as_array().into_iter().flatten() {
+            if let Some(call) = Call::of(b) {
+                self.calls.push(call);
+            }
             if let Some(ev) = block(b, &turn) {
                 self.push(at, ev);
             }
@@ -119,6 +177,25 @@ impl Reader {
         if let Some(turn_id) = self.turn.take() {
             self.push(at, body(EventBody::TurnEnded { turn_id, status: TurnStatus::Completed }));
         }
+    }
+}
+
+/// A subagent an agent started: its `Agent` (or older `Task`) tool call.
+#[derive(Clone, Debug)]
+pub(super) struct Call {
+    pub(super) id: String,
+    pub(super) description: Option<String>,
+    pub(super) agent_type: Option<String>,
+    pub(super) prompt: Option<String>,
+}
+
+impl Call {
+    fn of(b: &Value) -> Option<Self> {
+        if b["type"] != "tool_use" || !matches!(b["name"].as_str(), Some("Agent" | "Task")) {
+            return None;
+        }
+        let s = |k: &str| b["input"][k].as_str().map(str::to_string);
+        Some(Self { id: b["id"].as_str()?.to_string(), description: s("description"), agent_type: s("subagent_type"), prompt: s("prompt") })
     }
 }
 
