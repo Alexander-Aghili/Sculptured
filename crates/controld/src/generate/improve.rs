@@ -30,7 +30,7 @@ async fn improve_team(st: &AppState, team: &str, req: &ImproveReq) -> Result<Off
     }
     let summary = run_summary(&st.store.lock().unwrap(), team, -req.start_seq)?;
     let current = crate::portable::team::export_team(st, team, true)?;
-    let rebuilt = serde_json::to_string_pretty(&current.team).expect("draft serializes");
+    let rebuilt = team_brief(&current.team);
     let prompt = format!(
         "{ABOUT}\n\nThis team was rebuilt from a past Claude Code or Codex session. Propose a better, reusable version: general roles and jobs instead of one-off prompts, the handoffs that actually happened, and checks where they help. Keep agent kinds unless there is a clear reason.\n\nThe session:\n{summary}\n\nThe team as rebuilt:\n{rebuilt}\n\nGive 1 team, labelled \"team\", with a 2-3 sentence rationale. Use short, distinct agent names. Groups are optional; an agent's group is a group name or null."
     );
@@ -69,9 +69,9 @@ fn cut(s: &str, n: usize) -> String {
 impl Facts {
     fn take(&mut self, b: &EventBody) {
         match b {
-            EventBody::MessageQueued { text, .. } if self.task.is_none() => self.task = Some(cut(text, 500)),
+            EventBody::MessageQueued { text, .. } if self.task.is_none() => self.task = Some(cut(text, 300)),
             EventBody::ToolCalled { name, .. } => *self.tools.entry(name.clone()).or_default() += 1,
-            EventBody::AgentText { text, .. } => self.last = Some(cut(text, 300)),
+            EventBody::AgentText { text, .. } => self.last = Some(cut(text, 200)),
             _ => {}
         }
     }
@@ -93,5 +93,34 @@ fn run_summary(store: &crate::store::Store, team: &str, id: i64) -> Result<Strin
         let tools = f.tools.iter().map(|(t, n)| format!("{t} ×{n}")).collect::<Vec<_>>().join(", ");
         format!("- {} ({by}). Asked: {:?}. Tools: {}. Last said: {:?}.", name(&a.id), f.task.unwrap_or_default(), if tools.is_empty() { "none" } else { &tools }, f.last.unwrap_or_default())
     });
-    Ok(lines.collect::<Vec<_>>().join("\n"))
+    Ok(fit(lines.collect(), SUMMARY_BUDGET))
+}
+
+/// The CLI takes at most 32 KB of prompt: room for the instructions, the summary and the team.
+const SUMMARY_BUDGET: usize = 12 * 1024;
+const TEAM_BUDGET: usize = 14 * 1024;
+
+/// As many lines as fit in `budget` bytes, then how many were left out.
+fn fit(lines: Vec<String>, budget: usize) -> String {
+    let mut out = String::new();
+    for (i, l) in lines.iter().enumerate() {
+        if out.len() + l.len() + 1 > budget {
+            out.push_str(&format!("…and {} more agents", lines.len() - i));
+            break;
+        }
+        out.push_str(l);
+        out.push('\n');
+    }
+    out
+}
+
+/// The rebuilt team, short: each agent's name, kind, model and the start of its job, and the arrows.
+fn team_brief(t: &TeamDraft) -> String {
+    let name = |id: &str| t.agents.iter().find(|a| a.id == id).map_or(id.to_string(), |a| a.name.clone());
+    let agents = t.agents.iter().map(|a| {
+        let model = a.advanced.model.as_deref().unwrap_or("default");
+        format!("- {} ({:?}, {model}): {:?}", a.name, a.kind, cut(&a.job, 400))
+    });
+    let arrows = t.connections.iter().map(|c| format!("- {} {:?} {}", name(&c.from), c.kind, name(&c.to)));
+    format!("Agents:\n{}Arrows:\n{}", fit(agents.collect(), TEAM_BUDGET - 2048), fit(arrows.collect(), 2048))
 }

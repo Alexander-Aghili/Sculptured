@@ -232,3 +232,36 @@ async fn only_an_imported_run_can_improve_a_team() {
     assert_eq!(status, StatusCode::BAD_REQUEST, "{v}");
     assert_eq!(v["error"]["code"], "not_imported");
 }
+
+#[tokio::test]
+async fn a_large_session_still_fits_the_improve_prompt() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::write(d.path().join("teams.json"), result(json!({ "alternatives": [
+        { "label": "team", "rationale": "Smaller.", "team": sketch("Big", &["Lead", "Helper"], &[("Lead", "Helper")]) },
+    ]}))).unwrap();
+    let s = served_with(fake_claude(d.path(), BY_SCHEMA)).await;
+    // 40 subagents, each given a 5 KB task: about 200 KB of jobs.
+    let agent_call = |i: usize| json!({"type":"assistant","sessionId":"s","timestamp":"2026-10-01T10:00:01Z","message":{"id":format!("m{i}"),"role":"assistant","model":"m","content":[{"type":"tool_use","id":format!("t{i}"),"name":"Agent","input":{"description":format!("Helper {}{}", (b'a' + (i / 26) as u8) as char, (b'a' + (i % 26) as u8) as char),"subagent_type":"general-purpose","prompt":"x".repeat(5000)}}]}});
+    let mut text = json!({"type":"user","sessionId":"s","timestamp":"2026-10-01T10:00:00Z","message":{"role":"user","content":"Go"}}).to_string() + "\n";
+    for i in 0..40 { text.push_str(&format!("{}\n", agent_call(i))); }
+    let (status, c) = call_route(&s, json!({ "files": [{ "name": "big.jsonl", "text": text }] })).await;
+    assert_eq!(status, StatusCode::OK, "{c}");
+    let (team, seq) = import_text(&s, c["session"].as_str().unwrap()).await;
+    let (status, v) = call(&s.router, "POST", &format!("/api/teams/{team}/improve-from-run"), json!({ "options": opts(json!({})), "start_seq": seq })).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    let prompt = std::fs::read_to_string(d.path().join("prompts")).unwrap();
+    assert!(prompt.len() <= 32 * 1024, "{}", prompt.len());
+}
+
+async fn call_route(s: &Served, body: Value) -> (StatusCode, Value) {
+    call(&s.router, "POST", "/api/runs/convert", body).await
+}
+
+async fn import_text(s: &Served, session: &str) -> (String, i64) {
+    let req = axum::http::Request::builder().method("POST").uri("/api/runs/import").header("host", "test").header("content-type", "application/x-ndjson")
+        .body(axum::body::Body::from(session.to_string())).unwrap();
+    let resp = tower::ServiceExt::oneshot(s.router.clone(), req).await.unwrap();
+    let bytes = http_body_util::BodyExt::collect(resp.into_body()).await.unwrap().to_bytes();
+    let v: Value = serde_json::from_slice(&bytes).unwrap();
+    (v["team"]["draft"]["id"].as_str().unwrap().to_string(), v["run"]["start_seq"].as_i64().unwrap())
+}
