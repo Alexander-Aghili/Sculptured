@@ -297,9 +297,10 @@ describe('chipRow', () => {
 describe('many spawned agents', () => {
   const spec = (member: string) => ({ ...compiledRig().seats[0], id: `dev.${member}@r`, member });
   /** The fixture team plus `children` as `[member, parent member]`, spawned in that order. */
+  /** Spawned children as the Run board receives them from the live projection: arrows parent → child. */
   function spawned(children: [string, string][]) {
     const base = compiledRig();
-    const rig = { ...base, seats: [...base.seats, ...children.map(([m]) => spec(m))], edges: [...base.edges, ...children.map(([m, p]) => ({ kind: 'spawned_by' as const, from: `dev.${m}@r`, to: `dev.${p}@r`, enforced: true }))] };
+    const rig = { ...base, seats: [...base.seats, ...children.map(([m]) => spec(m))], edges: [...base.edges, ...children.map(([m, p]) => ({ kind: 'spawned_by' as const, from: `dev.${p}@r`, to: `dev.${m}@r`, enforced: true }))] };
     const views = Object.fromEntries(rig.seats.map((s) => [s.id, seatView(s.member, { label: s.member })]));
     const agents = Object.fromEntries(teamAgents('r', rig, views).map((a) => [a.id, a]));
     return { rig, agents };
@@ -311,7 +312,7 @@ describe('many spawned agents', () => {
     render(graph({ compiled: rig, agents, onOpen }));
     for (let i = 0; i < 5; i++) expect(screen.getByRole('button', { name: `c${i} — idle` })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'c5 — idle' })).toBeNull();
-    expect(screen.queryByTestId('edge-dev.c5@r-dev.a@r')).toBeNull();
+    expect(screen.queryByTestId('edge-dev.a@r-dev.c5@r')).toBeNull();
     const more = screen.getByRole('button', { name: '+3 more agents spawned by a' });
     expect(more).toHaveAttribute('aria-expanded', 'false');
     more.focus();

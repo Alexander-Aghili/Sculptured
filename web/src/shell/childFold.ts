@@ -20,9 +20,13 @@ function descendants(id: string, kids: Map<string, string[]>): string[] {
   return (kids.get(id) ?? []).flatMap((k) => [k, ...descendants(k, kids)]);
 }
 
-/** Which spawned agents to draw: the board stays readable however many there are. Pure. */
+/**
+ * Which spawned agents to draw: the board stays readable however many there are. Pure. `rig` is the live
+ * projection the Run board draws, whose `spawned_by` arrows point down, parent → child (`liveProjection`);
+ * the compiled rig's own edges point the other way.
+ */
 export function foldChildren(rig: CompiledRig): ChildFold {
-  const parentOf = new Map(rig.edges.filter((e) => e.kind === 'spawned_by').map((e) => [e.from, e.to]));
+  const parentOf = new Map(rig.edges.filter((e) => e.kind === 'spawned_by').map((e) => [e.to, e.from]));
   const kids = new Map<string, string[]>();
   for (const s of rig.seats) {
     const p = parentOf.get(s.id);

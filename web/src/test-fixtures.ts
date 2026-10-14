@@ -40,7 +40,7 @@ export class FakeEventSource implements EventSourceLike {
 /** Module-level so its identity is stable across renders. */
 export const openFake: OpenStream = (url) => new FakeEventSource(url);
 
-function seatSpec(member: string): CompiledSeat {
+export function seatSpec(member: string): CompiledSeat {
   return {
     id: `dev.${member}@r`,
     pod: 'dev',
