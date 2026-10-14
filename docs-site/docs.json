@@ -41,7 +41,8 @@
           "guides/control",
           "guides/context",
           "guides/offline",
-          "guides/git"
+          "guides/git",
+          "guides/import-a-session"
         ]
       },
       {

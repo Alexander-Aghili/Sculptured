@@ -7,7 +7,7 @@ Two versioned file formats let a team, or a run, leave one Sculptured and arrive
 | `sculptured.team/v1` | `<team>.sculptured-team.json` | Every structural detail of a team | Design → Team → Advanced → *Export team file*; *Start from…* → Advanced → *Import* |
 | `sculptured.session/v1` | `<team>-run-<n>.sculptured-session.jsonl` | One run: the team as it started, then every event in order | History → *Download run*; *Start from…* → Advanced → *Import a past run* |
 
-The team file is also the output format of the AI team generator (a later plan). The run file is also the target of importing sessions that ran outside Sculptured (a later plan).
+The team file is also the output format of the AI team generator. The run file is also the target of importing Claude Code and Codex sessions that ran outside Sculptured (§5a).
 
 Sources:
 - `crates/controld/src/portable/{mod,team,session}.rs`
@@ -134,13 +134,89 @@ flowchart LR
 - **Size:** files up to 64 MB are accepted on this route only (controld's `DefaultBodyLimit`). The gateway streams request bodies, and gives this upload and run-file downloads 10 minutes to start answering instead of 30 s (Gateway (in the private sculptured-cloud repo)).
 - **Line-numbered errors:** a malformed file is refused with up to 20 problems, each by line (`line 3`), and nothing is created.
 
+## 5a. Converting Claude Code and Codex sessions
+
+`crates/controld/src/portable/convert/` turns a session that ran outside Sculptured into a run file. That file then goes through the import in §5 unchanged.
+
+```mermaid
+flowchart LR
+  F["uploaded files<br/>(.jsonl, .meta.json)"] --> K{"which tool?<br/>(by line shape)"}
+  K -- Claude Code --> C["claude.rs + claude_links.rs<br/>main, subagent files, inline sidechains"]
+  K -- Codex --> X["codex.rs<br/>one rollout per thread"]
+  C --> T["threads<br/>(steps: events, prompts)"]
+  X --> T
+  T --> TM["team.rs<br/>rebuilt team file"]
+  T --> W["write.rs<br/>one run, merged by time"]
+  TM --> W
+  W --> P["POST /api/runs/convert<br/>{preview, warnings, session}"]
+  P --> I["browser shows the preview,<br/>then POST /api/runs/import"]
+```
+
+- **Two steps:** `POST /api/runs/convert` stores nothing. It answers with a preview (agents, subagents, time span, tokens, missing subagent files, unrecognised lines) and the run file text. The browser sends that text to `/api/runs/import` once the person agrees.
+- **Detection:**
+  - Codex: the first line is `session_meta`.
+  - Claude Code: early lines are `user`/`assistant` lines with a `message`, or carry a `sessionId`.
+  - `*.meta.json` files belong to Claude Code subagents.
+  - Mixing the two tools, uploading two main sessions, or uploading only subagent files is refused with words, and nothing is created.
+- **Threads:** each agent is a thread of steps. A step is an event body (with its provenance) or a prompt (the person's, or the task its parent gave it).
+- **Writing the run:** the writer gives each thread `TenureStarted` and `Running` at its first step, and `TenureEnded` and `Stopped` at its last. A child also gets `TeamTopologyChanged` from its parent. It then merges all threads by time (stable) and numbers them with `seq`, host `imported`. Seats are `imported.<key>@imported`.
+- **Its own mapping:** the converter maps lines straight to event bodies, with the same caps as the live path (`model::cap`). It doesn't reuse the drivers' parsers, because `drivers` and `hostd` are only test dependencies of controld, and because session files lack the `result` lines the live Claude parser needs.
+
+**Claude Code lines:**
+
+| Line | Becomes |
+|---|---|
+| `user` with string or text-only content, not `isMeta`, not `<command-…>`, `<local-command-…>` or `[Request interrupted…` | ends the open turn; a prompt (`MessageQueued`) |
+| `user` with `tool_result` blocks | `ToolResulted`, one per block |
+| `assistant` | starts a turn if none is open; `AgentText` per text block, `ToolCalled` per `tool_use` (thinking is not shown) |
+| `assistant` `message.usage` | `UsageReported` **once per `message.id`** (one message spans several lines) |
+| `ai-title` | the main agent's name (and the team's) |
+| `system`, `summary`, `queue-operation`, `attachment`, `last-prompt`, `atis-latch`, `file-history-snapshot` | nothing |
+| anything else | `Unrecognized` (raw, capped) |
+
+- **Linking subagents:** a subagent file links to its parent's `Agent`/`Task` call by the `.meta.json` `toolUseId`. Without that, it links by its first prompt, else by the next unmatched call. Older sessions keep subagent lines inline (`isSidechain`); a new sidechain thread starts at each sidechain prompt with no parent.
+- **Missing subagents:** a call whose subagent file wasn't uploaded still becomes an agent with no steps, and is listed under `missing`.
+
+**Codex lines:**
+
+| Line | Becomes |
+|---|---|
+| `session_meta` | the thread id, folder, and (when `source` is an object) its `parent_thread_id` |
+| `turn_context` | the model |
+| `response_item` `message`, role `user`, not starting with `<` or `# AGENTS.md` | ends the open turn; a prompt |
+| `response_item` `message`, role `assistant` | `AgentText` |
+| `response_item` `reasoning` | `ThinkingRecorded` (summary, or hidden), agent-reported |
+| `function_call` / `custom_tool_call` and their `*_output` | `ToolCalled` / `ToolResulted` |
+| `event_msg` `task_started` / `task_complete` / `turn_aborted` | `TurnStarted` / `TurnEnded` (completed / interrupted) |
+| `event_msg` `token_count` | `UsageReported` with the **difference** from the previous cumulative total; input excludes cached input, as live Codex runs do |
+| `compacted` | "[context compacted]" text |
+| other `event_msg`, `world_state`, `token_usage_record` | nothing |
+| anything else | `Unrecognized` |
+
+**The rebuilt team** (`team.rs`) uses only facts from the session:
+
+- **Agents and roles:** one agent per role. A named subagent type (Explore, Plan, a custom agent) under one parent is one role. A general-purpose or untyped subagent is its own role per distinct description.
+- **Kind and model:** the kind comes from the tool, and the model is the one the role's threads used most.
+- **Jobs:**
+  - The main agent's job is its first prompt, and a subagent's job is its parent's task.
+  - When a role was started several times, its job says so.
+  - A parent's job names its teammates and tells it to hand them work with `send_agent_message`.
+- **Arrows:** `hands-work-to`, from each parent to its child.
+- **Folder:** the session's `cwd`. An import shows the usual warning when that folder isn't allowed.
+
+**Improve with AI:** `POST /api/teams/{id}/improve-from-run` takes `{options, start_seq}`, and only for an imported run (negative `start_seq`).
+
+- **What it sends:** a per-agent summary (name, who started it, its task, tool counts, last words), never tool inputs or output, plus the rebuilt team. It goes through the generator's `call()`.
+- **What it returns:** one team. Each agent keeps the model of its namesake, else of the first agent of its kind.
+- **Applying it:** the Design board's Advanced section shows the result as a diff labelled AI-reconstructed, and applies it through the team's normal edit and save.
+
 ## 6. `origin` and `provenance`
 
 Every event line carries two labels that answer different questions:
 
 | Label | Answers | Values | Set by |
 |---|---|---|---|
-| `origin` (on the line) | How did this line come to be? | `observed`: Sculptured recorded it while the run happened. `converted`: translated from another tool's session file. `ai-reconstructed`: inferred by AI where the file is silent (team structure, roles, handoffs). | The exporter (always `observed` for Sculptured runs) or the outside-session importer (later plan) |
+| `origin` (on the line) | How did this line come to be? | `observed`: Sculptured recorded it while the run happened. `converted`: translated from another tool's session file. `ai-reconstructed`: inferred by AI where the file is silent (team structure, roles, handoffs). | The exporter (always `observed` for Sculptured runs) or the session converter (`converted`, §5a) |
 | `provenance` (on the event) | What kind of evidence is it? | `protocol-observed`, `agent-reported`, `filesystem-observed`, `captured-tool`, `verified`, `heuristic`, `operator` | Whatever recorded the event, as everywhere else in Sculptured |
 
 The header's `source` says where the run happened (`sculptured`, `imported:claude-code`, `imported:codex`). History labels imported runs "Imported · <source>", so an imported run is never mistaken for one that ran here.
@@ -167,3 +243,8 @@ The header's `source` says where the run happened (`sculptured`, `imported:claud
 | A broken run file says which line; another version is refused; nothing is created | `portable_session.rs` `a_broken_session_file_says_which_line` |
 | Export team file (folders optional); JSON import lists every issue | `web/src/structure/TeamAdvanced.test.tsx`, `TeamFlow.test.tsx` |
 | Download run link, Imported label, Import a past run opens History | `web/src/collaboration/DeploymentHistoryView.test.tsx`, `TeamFlow.test.tsx` |
+| A Claude Code session (with subagent files, inline sidechains or missing subagents) and Codex rollouts convert to a run; usage counts once per message; Codex usage is the difference; bad or mixed files are refused | `session_convert.rs` |
+| The rebuilt team: one agent per role, arrows from parents, jobs from tasks, a team that validates | `session_convert.rs` `the_team_*`, `the_rebuilt_team_holds_together` |
+| Convert, import, History tree, download gives the same lines; a disallowed folder is a warning; 50 000 lines convert in under 5 s | `portable_session.rs` |
+| Improve with AI: the summary leaves out tool output; only imported runs | `generate.rs` `a_team_rebuilt_from_a_session_is_improved_*`, `only_an_imported_run_can_improve_a_team` |
+| Preview before import, Cancel, line-numbered errors; the AI diff, Apply and Discard | `web/src/structure/ImportSession.test.tsx`, `ImproveFromRun.test.tsx` |

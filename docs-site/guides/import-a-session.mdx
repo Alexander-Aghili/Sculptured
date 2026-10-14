@@ -1,0 +1,119 @@
+---
+title: Import a Claude Code or Codex session
+description: Turn a session you ran outside Sculptured into a run you can replay in History and a team you can run again, subagents included.
+---
+
+You may have run Claude Code or Codex on its own, outside Sculptured. You can still bring that session in. Sculptured reads the session file (plus its subagents) and gives you two things:
+
+- **A past run in History:** the main agent and each subagent as a tree, with their messages, tool calls, tokens and timing. It's read-only.
+- **A team you can run:** one agent per agent in the session, with the same kinds and models. Arrows go from each agent to the subagents it started. Each agent's job is what it was asked to do. Press **Start** to run it again.
+
+<Note>
+This is an **Advanced** feature: it's under *Start from… → Advanced*, not on the main path.
+</Note>
+
+## Find the session file
+
+Each session is one `.jsonl` file. The newest file in a folder is your most recent session.
+
+<Tabs>
+<Tab title="Claude Code">
+
+| System | Where |
+|---|---|
+| macOS and Linux | `~/.claude/projects/<project>/<session>.jsonl` |
+| Windows | `%USERPROFILE%\.claude\projects\<project>\<session>.jsonl` |
+
+`<project>` is the folder you ran Claude Code in, with every `/` (or `\`) replaced by `-`. For example, `/home/ana/app` becomes `-home-ana-app`.
+
+**Subagents.** If the session started subagents, there's also a folder named after the session (`<session>/subagents/`). It holds one `agent-<id>.jsonl` and one `agent-<id>.meta.json` per subagent. Include that folder too, or the subagents show as agents with no transcript.
+
+</Tab>
+<Tab title="Codex">
+
+| System | Where |
+|---|---|
+| macOS and Linux | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` |
+| Windows | `%USERPROFILE%\.codex\sessions\YYYY\MM\DD\rollout-*.jsonl` |
+
+If you set `CODEX_HOME`, look there instead of `~/.codex`.
+
+**Sub-agents.** A Codex sub-agent's thread is its own `rollout-*.jsonl` from the same day. Choose those files together with the main one.
+
+</Tab>
+</Tabs>
+
+<Tip>
+These folders start with a dot, so file pickers hide them. To show hidden files: on macOS press <kbd>⌘</kbd> <kbd>Shift</kbd> <kbd>.</kbd>, and on Linux press <kbd>Ctrl</kbd> <kbd>H</kbd>. On Windows, type the path into the picker's address bar.
+</Tip>
+
+## Import it
+
+<Steps>
+<Step title="Open Import a past run">
+On the home page, choose **Start from…**, open **Advanced**, and find **Import a past run**.
+</Step>
+<Step title="Choose the files">
+In **Session or run files**, choose the session's `.jsonl` file. You can choose several files at once, for example a Codex session's rollouts. For a Claude Code session with subagents, use **Add a subagents folder** and pick its `subagents` folder.
+</Step>
+<Step title="Check what was found">
+Before anything is created, Sculptured shows a summary, for example *Claude Code session · 1 main agent, 3 subagents · 2 h 14 min · 1.2M tokens*. It also lists:
+
+- **Not included:** subagents the session mentions whose files you didn't choose.
+- **Lines Sculptured did not recognise:** these are kept as raw evidence, never dropped.
+</Step>
+<Step title="Import">
+Press **Import**, or **Import anyway** if something is missing. The run opens in **History**. The new team is in your projects, ready for the Design board.
+</Step>
+</Steps>
+
+## What you get
+
+**In History**, the run looks like any other:
+
+- the agent tree;
+- each agent's messages, tool calls and results;
+- tokens per agent and in total.
+
+Every line is marked as *converted* from the session file. Sculptured didn't observe it live. Thinking isn't shown, the same as in live runs.
+
+**The team** is built only from facts in the session:
+
+| On the Design board | Comes from |
+|---|---|
+| Agent kind | Claude Code or Codex, whichever ran the session |
+| Model | The model that agent used most |
+| Main agent's job | Your first prompt in the session |
+| A subagent's job | The task its parent gave it |
+| Arrows | From each agent to the subagents it started |
+| Folder | The folder the session ran in; the Design board warns you if it isn't allowed on this computer |
+
+**Repeated subagents:** if one kind of subagent was started several times (for example three *Explore* subagents), the team has one agent for it, and its job notes how many times it was started. The run in History still shows every one.
+
+**When you run it,** the main agent is told who its teammates are and to hand them work, rather than start new copies.
+
+## Improve the team with AI
+
+A team built straight from a session reads like that session: its jobs are one-off prompts. To turn it into a team you'd reuse:
+
+1. Open the team on the Design board.
+2. Open **Advanced** and choose **Improve this team with AI**.
+3. Pick Claude Code or Codex, then press **Ask**. It uses your own CLI and plan.
+
+**What it reads:** a summary of the session, which includes each agent, what it was asked, which tools it used and how often, and the last thing it said. It never sees file contents, tool inputs or tool output.
+
+**What comes back:** a list of proposed changes, such as agents added, changed or removed, and arrows added or removed. Every change is labelled **AI-reconstructed**. Nothing changes until you press **Apply**, and **Discard** leaves the team as it was.
+
+## Privacy
+
+- **Where the session goes:** your prompts and code stay in your own Sculptured, local or hosted, and are stored like any run.
+- **Analytics:** it records only that an import happened, which tool it came from, and how many agents it had. It never records content.
+
+## If it doesn't work
+
+| Message | What to do |
+|---|---|
+| This isn't a Claude Code or Codex session file | Choose the `.jsonl` from the folders above, not a `.json` export or a copy of the chat. |
+| These files are from 2 different sessions | Import one session at a time. |
+| These files are from different tools | Don't mix Claude Code and Codex files in one import. |
+| Choose the session's own .jsonl file too | You chose only subagent files. Add the main session file. |
