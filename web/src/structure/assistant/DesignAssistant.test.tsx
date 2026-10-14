@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, type DesignProposal } from '../../api';
+import { api, ApiError, type DesignProposal } from '../../api';
 import type { TeamDraft } from '../../generated/TeamDraft';
 import { forgetViewports } from '../../shell/viewport';
 import { draftAgent, teamDraft, teamRecord } from '../../test-fixtures';
@@ -80,6 +80,33 @@ describe('Design assistant', () => {
     expect(screen.queryByRole('region', { name: 'Proposal shown on the board' })).not.toBeInTheDocument();
     expect(within(panel).getByRole('status')).toHaveTextContent('Approved: the proposal is now the design.');
     expect(screen.getAllByRole('button', { name: /^Add a .* agent$/ })[0]).toBeEnabled();
+  });
+
+  it('says plainly that the CLI is designing, for as long as it takes', async () => {
+    let answer: (p: DesignProposal) => void = () => {};
+    vi.mocked(api.designAssistant).mockReturnValue(new Promise((r) => { answer = r; }));
+    await openAssistant();
+    const panel = await askFor('Connect every component like electrical and mechanical systems');
+    const working = await screen.findByRole('status', { name: 'Design assistant is working' });
+    expect(working).toHaveTextContent('Claude Code is designing your change');
+    expect(working).toHaveTextContent(/0:0\d/);
+    expect(within(panel).getByText('Connect every component like electrical and mechanical systems')).toBeInTheDocument();
+    expect(within(panel).getByText(/can take several minutes/)).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Ask' })).toBeDisabled();
+    answer(proposal());
+    expect(await screen.findByRole('region', { name: 'Proposal shown on the board' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Design assistant is working' })).not.toBeInTheDocument();
+  });
+
+  it('sends on Enter, and gives the message back when the request fails', async () => {
+    vi.mocked(api.designAssistant).mockRejectedValueOnce(new ApiError(504, 'workspace_timeout', 'Your workspace took too long to answer. Try again.'));
+    await openAssistant();
+    const panel = screen.getByRole('region', { name: 'Design assistant' });
+    const box = within(panel).getByRole('textbox');
+    await userEvent.type(box, 'Add a tester{Enter}');
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('Claude Code took longer than Sculptured waits');
+    expect(box).toHaveValue('Add a tester');
+    expect(within(panel).queryByRole('list', { name: 'Conversation' })).not.toBeInTheDocument();
   });
 
   it('rejecting leaves the design as it was', async () => {

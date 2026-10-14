@@ -1,13 +1,16 @@
 import { useId, useState } from 'react';
 import { Badge, Btn } from '../../shell/ui';
+import { Icon } from '../../shell/icons';
 import { TextArea } from '../../shell/TextArea';
-import { plural } from '../../format';
-import type { Comparison, ChangeRow } from './compare';
-import { CHANGE_WORD } from './ChangeBadge';
+import type { Comparison } from './compare';
+import { Review, type Target } from './Review';
+import { WorkingCard } from './Working';
 import { CLI_NAME, type Cli, type DesignAssistantState } from './useDesignAssistant';
 import './assistant.css';
 
-export type Target = NonNullable<ChangeRow['target']>;
+export { ProposalBar } from './Review';
+export { WorkingBar } from './Working';
+export type { Target } from './Review';
 
 type Props = {
   a: DesignAssistantState;
@@ -19,34 +22,51 @@ type Props = {
   onInspect: (t: Target) => void;
 };
 
+const SUGGESTIONS = [
+  'Add a reviewer after each builder',
+  'Split the agent with the biggest job into two',
+  'Add an agent that assembles everyone’s output at the end',
+];
+
 /** The design assistant: ask for a change, inspect the proposal on the board, then approve, reject or keep going. */
 export function DesignAssistant({ a, revision, lockedReason, comparison, onApprove, onInspect }: Props) {
+  const [draft, setDraft] = useState('');
   return (
     <section className="panel design-assistant" aria-label="Design assistant">
-      <div className="panel-bar">
-        <span className="panel-title">Design assistant</span>
-        <span className="panel-rule" aria-hidden="true" />
+      <header className="da-head">
+        <span className="da-avatar" aria-hidden="true"><Icon name="bot" size={16} /></span>
+        <span className="da-title">
+          <strong>Design assistant</strong>
+          <span className="muted">Changes are proposals until you approve them</span>
+        </span>
         <Btn variant="ghost" size="sm" iconOnly icon="x" aria-label="Close the design assistant" disabled={!!a.proposal || a.busy} onClick={() => a.setOpen(false)} />
-      </div>
+      </header>
       <div className="da-body">
-        {a.turns.length === 0 && <Intro a={a} />}
+        <Outcome a={a} />
+        {a.turns.length === 0 && !a.busy && <Intro a={a} onPick={setDraft} />}
         <Talk a={a} />
-        {a.proposal && comparison && <Review a={a} comparison={comparison} revisionChanged={a.baseRevision !== null && a.baseRevision !== revision} onApprove={onApprove} onInspect={onInspect} />}
-        <AskForm a={a} revision={revision} lockedReason={lockedReason} />
+        {a.busy && <WorkingCard a={a} />}
+        {a.proposal && comparison && !a.busy && <Review a={a} comparison={comparison} revisionChanged={a.baseRevision !== null && a.baseRevision !== revision} onApprove={onApprove} onInspect={onInspect} />}
       </div>
+      <Composer a={a} revision={revision} lockedReason={lockedReason} text={draft} setText={setDraft} />
     </section>
   );
 }
 
-function Intro({ a }: { a: DesignAssistantState }) {
+function Outcome({ a }: { a: DesignAssistantState }) {
+  if (a.outcome === 'approved') return <p className="da-outcome tone-green" role="status"><Icon name="check" size={14} /> Approved: the proposal is now the design.</p>;
+  if (a.outcome === 'rejected') return <p className="da-outcome muted" role="status"><Icon name="undo" size={14} /> Rejected: the design is as it was.</p>;
+  return null;
+}
+
+function Intro({ a, onPick }: { a: DesignAssistantState; onPick: (s: string) => void }) {
   return (
-    <>
-      {a.outcome === 'approved' && <p className="tone-green" role="status">Approved: the proposal is now the design.</p>}
-      {a.outcome === 'rejected' && <p className="muted" role="status">Rejected: the design is as it was.</p>}
-      <p className="muted">
-        Describe a change to this design. Your own {CLI_NAME[a.cli]} proposes it, and you see the proposal on the board before anything is saved. Approve it, reject it, or keep refining it.
-      </p>
-    </>
+    <div className="da-intro">
+      <p>Describe a change to this design. Your own {CLI_NAME[a.cli]} proposes it, and you see the proposal on the board before anything is saved.</p>
+      <div className="da-suggest" role="group" aria-label="Suggestions">
+        {SUGGESTIONS.map((s) => <button key={s} type="button" className="da-chip" onClick={() => onPick(s)}>{s}</button>)}
+      </div>
+    </div>
   );
 }
 
@@ -56,8 +76,7 @@ function Talk({ a }: { a: DesignAssistantState }) {
     <ol className="da-talk" aria-label="Conversation">
       {a.turns.map((t, i) => (
         <li key={i} className={`da-turn da-${t.role}`}>
-          <span className="da-who">{t.role === 'person' ? 'You' : CLI_NAME[a.cli]}</span>
-          {t.role === 'assistant' && <Badge tone="neutral">AI proposal</Badge>}
+          {t.role === 'assistant' && <span className="da-who">{CLI_NAME[a.cli]} <Badge tone="neutral">AI proposal</Badge></span>}
           <p>{t.text}</p>
         </li>
       ))}
@@ -65,98 +84,45 @@ function Talk({ a }: { a: DesignAssistantState }) {
   );
 }
 
-function Review({ a, comparison, revisionChanged, onApprove, onInspect }: { a: DesignAssistantState; comparison: Comparison; revisionChanged: boolean; onApprove: () => void; onInspect: (t: Target) => void }) {
-  const rows = comparison.rows;
-  const p = a.proposal!;
-  return (
-    <div className="da-review" role="group" aria-label="Proposal">
-      <p className="da-review-head">
-        <strong>Proposal</strong> · {rows.length === 0 ? 'no changes' : plural(rows.length, 'change')} · shown on the board. Nothing is saved until you approve.
-      </p>
-      <ChangeList rows={rows} onInspect={onInspect} />
-      {p.dropped.length > 0 && (
-        <details className="da-dropped">
-          <summary>{plural(p.dropped.length, 'part')} Sculptured can't keep</summary>
-          <ul aria-label="Not kept">{p.dropped.map((d, i) => <li key={i}><code>{d.path}</code> {d.message}</li>)}</ul>
-        </details>
-      )}
-      {p.issues.length > 0 && <p className="tone-amber">The proposal has {plural(p.issues.length, 'thing')} to fix after approving.</p>}
-      {revisionChanged && <p className="tone-amber" role="note">The design changed since you asked. Approving replaces those changes with the proposal.</p>}
-      <div className="import-actions">
-        <Btn variant="primary" disabled={a.busy} onClick={onApprove}>Approve</Btn>
-        <Btn disabled={a.busy} onClick={() => a.end('rejected')}>Reject</Btn>
-      </div>
-    </div>
-  );
-}
-
-function ChangeList({ rows, onInspect }: { rows: ChangeRow[]; onInspect: (t: Target) => void }) {
-  if (rows.length === 0) return <p className="muted">The assistant proposed no changes.</p>;
-  return (
-    <ul className="da-changes" aria-label="Proposed changes">
-      {rows.map((r, i) => (
-        <li key={i}>
-          <span className={`change-badge change-${r.change}`}>{CHANGE_WORD[r.change]}</span>{' '}
-          {r.target ? <button type="button" className="link-btn" onClick={() => onInspect(r.target!)}>{r.what}</button> : r.what}
-          {r.details.length > 0 && <span className="muted"> — {r.details.join(', ')}</span>}
-          {r.before && r.details.includes('job') && <JobCompare before={r.before.job} after={r.after?.job ?? ''} />}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function JobCompare({ before, after }: { before: string; after: string }) {
-  return (
-    <details className="da-job">
-      <summary>Compare the job</summary>
-      <div className="da-job-grid">
-        <div><span className="muted">Saved</span><pre>{before || '(empty)'}</pre></div>
-        <div><span className="muted">Proposed</span><pre>{after || '(empty)'}</pre></div>
-      </div>
-    </details>
-  );
-}
-
-function AskForm({ a, revision, lockedReason }: { a: DesignAssistantState; revision: number; lockedReason: string | null }) {
-  const ids = useId();
-  const [text, setText] = useState('');
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text.trim() || a.busy || lockedReason) return;
-    if (await a.ask(text.trim(), revision)) setText('');
+/** Enter sends; Shift+Enter, or Enter while an input method is composing, does not. */
+function enterSends(send: () => void) {
+  return (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      send();
+    }
   };
+}
+
+type ComposerProps = { a: DesignAssistantState; revision: number; lockedReason: string | null; text: string; setText: (s: string) => void };
+
+/** The message box, pinned to the bottom: Enter sends, Shift+Enter adds a line. */
+function Composer({ a, revision, lockedReason, text, setText }: ComposerProps) {
+  const ids = useId();
+  const blocked = a.busy || !!lockedReason;
+  // The box clears as the message goes, and gets it back if the request fails.
+  const send = async () => {
+    const t = text.trim();
+    if (!t || blocked) return;
+    setText('');
+    if (!(await a.ask(t, revision))) setText(t);
+  };
+  const onKey = enterSends(() => void send());
   return (
-    <form className="da-ask" onSubmit={(e) => void send(e)}>
-      <label htmlFor={`${ids}-text`}>{a.proposal ? 'Refine the proposal' : 'What should change?'}</label>
-      <TextArea id={`${ids}-text`} rows={3} value={text} disabled={a.busy || !!lockedReason} placeholder="e.g. Add a tester after the builder, and make the planner's job more specific" onChange={(e) => setText(e.target.value)} />
-      <div className="da-ask-row">
-        <label>
-          Ask{' '}
-          <select value={a.cli} disabled={a.busy || a.turns.length > 0} onChange={(e) => a.setCli(e.target.value as Cli)}>
-            <option value="claude">Claude Code</option>
-            <option value="codex">Codex</option>
-          </select>
-        </label>
-        <Btn type="submit" variant={a.proposal ? undefined : 'primary'} icon="send" disabled={a.busy || !text.trim() || !!lockedReason}>{a.proposal ? 'Send' : 'Ask'}</Btn>
+    <form className="da-composer" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+      <label htmlFor={`${ids}-text`} className="sr-only">{a.proposal ? 'Refine the proposal' : 'What should change?'}</label>
+      <TextArea id={`${ids}-text`} rows={3} value={text} disabled={blocked} onKeyDown={onKey}
+        placeholder={a.proposal ? 'Refine the proposal, e.g. “call the tester QA”. Enter sends; Shift+Enter adds a line.' : 'What should change? e.g. “add a tester after the builder”. Enter sends; Shift+Enter adds a line.'} onChange={(e) => setText(e.target.value)} />
+      <div className="da-composer-row">
+        <select aria-label="Who answers" className="da-cli" value={a.cli} disabled={a.busy || a.turns.length > 0} onChange={(e) => a.setCli(e.target.value as Cli)}>
+          <option value="claude">Claude Code</option>
+          <option value="codex">Codex</option>
+        </select>
+        <span className="da-spacer" />
+        <Btn type="submit" variant="primary" icon="send" disabled={blocked || !text.trim()}>{a.proposal ? 'Send' : 'Ask'}</Btn>
       </div>
       {lockedReason && <p className="muted">{lockedReason}</p>}
-      {a.busy && <p role="status">Asking {CLI_NAME[a.cli]}… this usually takes under a minute.</p>}
       {a.error && <p className="tone-red" role="alert">{a.error}</p>}
     </form>
-  );
-}
-
-/** Above the board while a proposal is shown: what you are looking at, and the two ways out. */
-export function ProposalBar({ a, comparison, onApprove }: { a: DesignAssistantState; comparison: Comparison; onApprove: () => void }) {
-  const n = comparison.rows.length;
-  return (
-    <div className="proposal-bar" role="region" aria-label="Proposal shown on the board">
-      <p>
-        <strong>Showing the design assistant's proposal</strong> · {n === 0 ? 'no changes' : plural(n, 'change')}. The saved design is unchanged until you approve.
-      </p>
-      <Btn size="sm" variant="primary" disabled={a.busy} onClick={onApprove}>Approve</Btn>
-      <Btn size="sm" disabled={a.busy} onClick={() => a.end('rejected')}>Reject</Btn>
-    </div>
   );
 }

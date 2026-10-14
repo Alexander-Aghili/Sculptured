@@ -25,7 +25,7 @@ import { WorkflowInspector } from '../workflow/WorkflowInspector';
 import type { WorkflowTarget } from '../workflow/WorkflowGraph';
 import { startConfirmation, useStartConfirm } from './StartConfirm';
 import { useDesignAssistant } from './assistant/useDesignAssistant';
-import { DesignAssistant, ProposalBar } from './assistant/DesignAssistant';
+import { DesignAssistant, ProposalBar, WorkingBar } from './assistant/DesignAssistant';
 import { compareDesigns } from './assistant/compare';
 
 export type BoardHandle = { fit: () => void; zoomBy: (f: number) => void; addKey: () => void };
@@ -492,7 +492,7 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
       ) : (
         <div className={`sb-body${detailsShown ? '' : ' inspector-hidden'}`}>
           <div className="sb-stage">
-            {comparison && <ProposalBar a={a} comparison={comparison} onApprove={approve} />}
+            {a.busy ? <WorkingBar a={a} /> : comparison && <ProposalBar a={a} comparison={comparison} onApprove={approve} />}
             <StructureCanvas
               ref={canvas}
               teamId={teamId}

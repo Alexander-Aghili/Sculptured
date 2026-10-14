@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, type AssistantTurn, type DesignProposal } from '../../api';
+import { api, ApiError, type AssistantTurn, type DesignProposal } from '../../api';
 import { errorText } from '../../errors';
 
 export type Cli = 'claude' | 'codex';
@@ -14,23 +14,33 @@ type Talk = {
   /** The saved design's revision when the conversation started. */
   baseRevision: number | null;
   busy: boolean;
+  /** When the current request started (ms since the epoch), while busy. */
+  since: number | null;
   error: string;
   outcome: Outcome;
 };
 
-const QUIET: Talk = { turns: [], proposal: null, baseRevision: null, busy: false, error: '', outcome: null };
+const QUIET: Talk = { turns: [], proposal: null, baseRevision: null, busy: false, since: null, error: '', outcome: null };
+
+/** Why a request failed, in words that say what to do next (never "reload": the conversation would go). */
+function failure(e: unknown, cli: Cli): string {
+  if (e instanceof ApiError && e.status === 504) {
+    return `${CLI_NAME[cli]} took longer than Sculptured waits (about 10 minutes). Try a smaller change, or ask for it in steps; your message is back in the box.`;
+  }
+  return errorText(e);
+}
 
 /** One request: the person's turn, then the proposal (or the error, and the turn taken back). */
 async function askOnce(teamId: string, cli: Cli, talk: Talk, text: string, revision: number, set: (f: (t: Talk) => Talk) => void): Promise<boolean> {
   const turns: AssistantTurn[] = [...talk.turns, { role: 'person', text }];
-  set((t) => ({ ...t, turns, busy: true, error: '', outcome: null }));
+  set((t) => ({ ...t, turns, busy: true, since: Date.now(), error: '', outcome: null }));
   try {
     const p = await api.designAssistant(teamId, { options: { cli, model: null }, messages: turns, proposal: talk.proposal?.madl ?? null });
     const said: AssistantTurn = { role: 'assistant', text: p.summary || 'Here is the proposal.' };
-    set((t) => ({ ...t, turns: [...turns, said], proposal: p, baseRevision: t.baseRevision ?? revision, busy: false }));
+    set((t) => ({ ...t, turns: [...turns, said], proposal: p, baseRevision: t.baseRevision ?? revision, busy: false, since: null }));
     return true;
   } catch (e) {
-    set((t) => ({ ...t, turns: talk.turns, busy: false, error: errorText(e) }));
+    set((t) => ({ ...t, turns: talk.turns, busy: false, since: null, error: failure(e, cli) }));
     return false;
   }
 }
