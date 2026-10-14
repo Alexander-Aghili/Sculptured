@@ -14,6 +14,7 @@
     "postinstall": "npm --prefix lint ci --no-audit --no-fund"
   },
   "dependencies": {
+    "@fontsource/roboto": "^5.1.0",
     "marked": "^18.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
