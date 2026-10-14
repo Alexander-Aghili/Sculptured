@@ -33,7 +33,7 @@ If none applies, keep one agent and write a better Job.
 | Independent reviewers (slide 13) | Draft → Reviewer A + B → Editor | Quality over cost | Reviewers must not see each other's verdicts |
 | Dynamic dispatch (slide 16) | Coordinator → spawned specialists → Assembly | The number of pieces is known only at run time | Set spawn, depth and token limits first |
 
-The built-in templates cover several of these: **Builder → Reviewer**, **Planner → 2 Builders**, **Independent reviewers**, **Design and revise** and **Adaptive support team**. The [CS2680 pattern catalog](/guides/pattern-catalog) has a ready-made block for each slide. Try any of them with Practice agents first; Practice agents make no model calls.
+The built-in templates cover several of these: **Builder → Reviewer**, **Planner → 2 Builders**, **Independent reviewers**, **Design and revise** and **Adaptive support team**. The [CS2680 pattern catalog](/guides/pattern-catalog) has a ready-made block for each slide.
 
 ```mermaid
 flowchart LR
@@ -48,13 +48,12 @@ Plain arrows only go forward: the board refuses a loop of "hands work to" arrows
 
 Select an agent on the [board](/guides/board) to open its details. These settings decide what it costs and what it can touch.
 
-### Runs on: Claude, Codex or Practice
+### Runs on: Claude or Codex
 
 | Choice | What runs | Model menu | Good for |
 | --- | --- | --- | --- |
 | **Claude** | Claude Code, with your own Claude login | Opus, Sonnet, Haiku, or Claude's default | Planning, writing, long multi-file changes |
 | **Codex** | Codex, with your own Codex login | Codex's default, a listed model, or a model id you type | A second opinion; a reviewer from a different vendor than the builder |
-| **Practice** | A scripted stand-in with no model calls | none (free) | Learning the board and testing a design's flow |
 
 You can also set models for the whole team (**Team models**) or for a group (**Group models**). An agent's own choice wins, then its group's, then the team's. **All agents run on** switches every agent at once, and Ctrl+Z undoes it.
 

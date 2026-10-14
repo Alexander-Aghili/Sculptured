@@ -3,7 +3,7 @@ title: Quickstart
 description: Sign in, connect your computer and run a first team of agents, in about ten minutes.
 ---
 
-This guide takes you from nothing to a running team. You'll start with **Practice agents**, which behave like agents but never call a model, so the first run costs nothing. Then you'll switch the same team to Claude Code or Codex.
+This guide takes you from nothing to a running team of Claude Code or Codex agents.
 
 <Tabs>
   <Tab title="Hosted beta">
@@ -12,7 +12,7 @@ This guide takes you from nothing to a running team. You'll start with **Practic
 
 - An invite link to the Sculptured beta (the beta is invite-only).
 - A computer running **Windows** (64-bit Intel or AMD), **macOS** 11 or later, or **Linux**. The [Computers page](/connect-a-computer) shows which systems have a build.
-- For real agents: [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) installed on that computer. You can also sign them in later from Sculptured.
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) installed on that computer. You can also sign them in later from Sculptured.
 
 <Steps>
   <Step title="Create your account">
@@ -26,12 +26,12 @@ This guide takes you from nothing to a running team. You'll start with **Practic
     Back on the Computers page, your computer shows **Connected** within a few seconds.
   </Step>
   <Step title="Create a project">
-    Choose **New project** in the sidebar. In **New project · Start from…**, set **agents run on** to **Practice agent**, then pick a template, for example **Builder → Reviewer**: one agent builds, then hands the work to a second that reviews it.
+    Choose **New project** in the sidebar. In **New project · Start from…**, set **agents run on** to **Claude** or **Codex**, then pick a template, for example **Builder → Reviewer**: one agent builds, then hands the work to a second that reviews it.
 
     Other templates include **Solo agent**, **Planner → 2 Builders**, **Independent reviewers** and **Blank canvas**. Larger examples, such as the **gstack-style product team** and the **Coding hospital**, are in [Community](/guides/community).
 
     <Frame caption="What to look for: **agents run on** at the top, then the template cards.">
-      ![The New project page: a choice of Claude, Codex or Practice agent, then template cards such as Solo agent, Builder → Reviewer and Planner → 2 Builders](/images/quickstart/start-from.png)
+      ![The New project page: a choice of Claude or Codex, then template cards such as Solo agent, Builder → Reviewer and Planner → 2 Builders](/images/quickstart/start-from.png)
     </Frame>
   </Step>
   <Step title="Choose the folder">
@@ -43,11 +43,13 @@ This guide takes you from nothing to a running team. You'll start with **Practic
     The status in the board's toolbar says **Needs setup** while something is missing and **Ready** when the team can start. Open it to see what to fix. Click an agent to read or edit its **Job**, the first message it gets.
 
     <Frame caption="What to look for: **Ready** and **Start team** at the top right, and each agent's **Job** on its card.">
-      ![The Design board of a Practice team: a Planner card with its job, connected by arrows to Builder 1 and Builder 2; the toolbar shows Ready and Start team](/images/quickstart/design-board.png)
+      ![The Design board of a team: a Planner card with its job, connected by arrows to Builder 1 and Builder 2; the toolbar shows Ready and Start team](/images/quickstart/design-board.png)
     </Frame>
   </Step>
   <Step title="Start the team">
-    Choose **Start team**. Sculptured starts each agent on your computer, in order, and opens the **Run** view. Each agent appears with what it is doing now.
+    Choose **Start team** and confirm. Claude Code and Codex agents use your own sign-in and may cost money once started; each agent's token use is shown live under **Token use**, and you can set a token limit per agent (see [Limits and usage](/reference/limits)).
+
+    Sculptured starts each agent on your computer, in order, and opens the **Run** view. Each agent appears with what it is doing now.
 
     <Frame caption="What to look for: a card marked **needs you** has an **Answer** button. Status is written on every card as well as shown in colour.">
       ![The Run board in Graph view: the Planner card is red with needs you and an Answer button; Builder 1 and Builder 2 show done](/images/quickstart/run-board.png)
@@ -79,7 +81,7 @@ This guide takes you from nothing to a running team. You'll start with **Practic
 
 - Linux or an Apple silicon Mac.
 - [Rust](https://rustup.rs/) 1.95 or newer, [Node.js](https://nodejs.org/) 24 and Git.
-- For real agents: Claude Code or Codex installed and signed in as your own user. Practice agents need neither.
+- Claude Code or Codex installed and signed in as your own user.
 
 <Steps>
   <Step title="Build and start Sculptured">
@@ -93,7 +95,7 @@ This guide takes you from nothing to a running team. You'll start with **Practic
     Open `http://127.0.0.1:4410`. The local runner starts with the server, so there is nothing to connect.
   </Step>
   <Step title="Create a project">
-    Choose **New project**, set **agents run on** to **Practice agent** and pick **Builder → Reviewer**.
+    Choose **New project**, set **agents run on** to **Claude** or **Codex** and pick **Builder → Reviewer**.
   </Step>
   <Step title="Choose the project folder">
     On the **Design** board, choose the **Project folder**. Every agent uses it unless you give one its own folder.
@@ -108,21 +110,11 @@ This guide takes you from nothing to a running team. You'll start with **Practic
   </Tab>
 </Tabs>
 
-## Switch to real agents
+## Mix Claude and Codex
 
-When the practice run looks right, use Claude Code or Codex instead:
-
-1. Stop the team.
-2. Click an agent and change what it runs on to **Claude** or **Codex**. Each agent can use a different one; the **Builder → Reviewer** template, for example, has Claude build and Codex review.
-3. Start the team again.
-
-<Warning>Claude Code and Codex agents use your own sign-in and may cost money once started. Each agent's token use is shown live under **Token use**. You can set a token limit per agent: see [Limits and usage](/reference/limits).</Warning>
+Each agent can run on a different one. Click an agent and change what it runs on to **Claude** or **Codex**; the **Builder → Reviewer** template, for example, has Claude build and Codex review. Stop the team first if it is running.
 
 If an agent stops at once with a message that Claude Code or Codex **isn't signed in on the computer**, choose **Sign in to Claude Code** (or Codex) on that agent, finish signing in, then choose **Hand over again**. [Troubleshooting](/troubleshooting) covers this and other first-run problems.
-
-## Practice agents
-
-Practice agents follow a script. They take their jobs, hand work along the arrows, ask questions and report results, so you can learn the controls and test a design safely. Their replies show how the team moves, not real reasoning, and they never call a model.
 
 ## Next steps
 

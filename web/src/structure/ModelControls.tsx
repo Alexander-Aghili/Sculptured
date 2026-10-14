@@ -25,7 +25,13 @@ export const modelLabel = (k: ModelKind, id: string | null) =>
 type KindSwitchProps = { value: AgentKind | null; onChange: (k: AgentKind) => void; disabled?: boolean; kinds?: AgentKind[]; label: string };
 
 /** Claude / Codex / Practice as one row of buttons; `value` null = mixed. */
-export function KindSwitch({ value, onChange, disabled, kinds = ['claude', 'codex', 'practice'], label }: KindSwitchProps) {
+/**
+ * The kinds offered when adding or switching agents. Practice agents (free, scripted, no model)
+ * are no longer offered; a team that already has them keeps them and can switch them.
+ */
+export const OFFERED_KINDS: AgentKind[] = ['claude', 'codex'];
+
+export function KindSwitch({ value, onChange, disabled, kinds = value === 'practice' ? [...OFFERED_KINDS, 'practice'] : OFFERED_KINDS, label }: KindSwitchProps) {
   return (
     <div className="kind-switch" role="radiogroup" aria-label={label}>
       {kinds.map((k) => (

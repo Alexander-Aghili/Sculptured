@@ -20,8 +20,15 @@ import {
   setFolder,
   setJob,
 } from './edits';
-import { agentBox, canvasSize, COL, connectionPath, draftLayout, drawnGroups, GRID, nextFreeSlot, overlaps } from './geometry';
+import { agentBox, canvasSize, COL, connectionPath, draftLayout, drawnGroups, GRID, looseAllowed, nextFreeSlot, overlaps } from './geometry';
 import { DEFAULT_GROUP_ID, seatIdFor } from './ids';
+
+/**
+ * A team saved before agents could be outside every group: its first group made the main group
+ * explicit, so every agent belongs to a group. Those teams keep the old rules.
+ */
+const withMain = (d: TeamDraft): TeamDraft =>
+  fitGroups({ ...d, groups: [{ id: DEFAULT_GROUP_ID, label: 'Main group', x: 16, y: 0, w: 248, h: 276 }], agents: d.agents.map((a) => ({ ...a, group_id: DEFAULT_GROUP_ID })) });
 
 const grp = (id: string, x: number, y: number, w = 248, h = 276): DraftGroup => ({ id, label: id, x, y, w, h });
 
@@ -39,6 +46,10 @@ function violations(d: TeamDraft): string[] {
   for (const a of d.agents) {
     if (a.x < 0 || a.y < 0) out.push(`${a.id} is off the canvas`);
     if (d.groups.length === 0) continue;
+    if (a.group_id === null && looseAllowed(d)) {
+      for (const g of gs) if (overlaps(agentBox(a), g)) out.push(`${a.id}, in no group, sits under group ${g.id}`);
+      continue;
+    }
     const g = d.groups.find((x) => x.id === (a.group_id ?? DEFAULT_GROUP_ID));
     if (!g) out.push(`${a.id} belongs to a missing group ${a.group_id}`);
     else if (!inside(a, g)) out.push(`${a.id} sits outside its group ${g.id}`);
@@ -85,14 +96,14 @@ describe('group boxes never overlap', () => {
   });
 
   it('adding an agent outside every group puts it in the nearest group, inside its box', () => {
-    const { draft: grouped, id: gid } = addGroup(teamDraft());
+    const { draft: grouped, id: gid } = addGroup(withMain(teamDraft()));
     const g = grouped.groups.find((x) => x.id === gid)!;
     const { draft, id } = addAgent(grouped, 'claude', { x: 1600, y: 1200 });
     const a = draft.agents.find((x) => x.id === id)!;
     expect(a.group_id).toBe(gid);
     // The first free slot of the empty group, not the drop point: the box grows at most by the
     // grid rounding of that slot, never out to where the pointer was released.
-    expect([a.x, a.y]).toEqual([g.x + 24, 96]);
+    expect([a.x, a.y]).toEqual([g.x + 24, g.y + 28 + 24]);
     const after = draft.groups.find((x) => x.id === gid)!;
     expect([after.x, after.y, after.w]).toEqual([g.x, g.y, g.w]);
     expect(after.h).toBeLessThanOrEqual(g.h + GRID);
@@ -101,7 +112,7 @@ describe('group boxes never overlap', () => {
   });
 
   it('adding a second agent outside every group takes the next free slot, not the same one', () => {
-    const { draft: grouped, id: gid } = addGroup(teamDraft());
+    const { draft: grouped, id: gid } = addGroup(withMain(teamDraft()));
     const one = addAgent(grouped, 'claude', { x: 1600, y: 1200 });
     const two = addAgent(one.draft, 'claude', { x: 1600, y: 1200 });
     const a = two.draft.agents.find((x) => x.id === one.id)!;
@@ -112,7 +123,7 @@ describe('group boxes never overlap', () => {
   });
 
   it('dropping an existing card on empty space keeps it in its own group (nearest group is only for adding)', () => {
-    const { draft, id } = addGroup(teamDraft());
+    const { draft, id } = addGroup(withMain(teamDraft()));
     const g = draft.groups.find((x) => x.id === id)!;
     // The drop point is far below the new group, nearer to it than to the main group.
     const { draft: moved, reason } = moveAgent(draft, 'reviewer', { x: g.x + 40, y: g.y + g.h + 400 });
@@ -123,7 +134,7 @@ describe('group boxes never overlap', () => {
   });
 
   it('with the team running, a drop on empty space keeps the card in its own group', () => {
-    const { draft, id } = addGroup(teamDraft());
+    const { draft, id } = addGroup(withMain(teamDraft()));
     const g = draft.groups.find((x) => x.id === id)!;
     const { draft: moved, reason } = moveAgent(draft, 'reviewer', { x: g.x + 40, y: g.y + g.h + 400 }, true);
     expect(reason).toBeUndefined();
@@ -133,7 +144,7 @@ describe('group boxes never overlap', () => {
   });
 
   it('moveGroup stops at a neighbour instead of covering it, and keeps cards on the grid', () => {
-    const { draft, id } = addGroup(teamDraft());
+    const { draft, id } = addGroup(withMain(teamDraft()));
     const main = draft.groups[0];
     const moved = moveGroup(draft, DEFAULT_GROUP_ID, 2000, 0);
     const m = moved.groups[0];
@@ -171,19 +182,23 @@ describe('group boxes never overlap', () => {
   });
 
   it('a randomized sequence of edits keeps every invariant', () => {
-    for (let seed = 1; seed <= 120; seed++) {
+    for (let run = 0; run < 240; run++) {
+      // Even runs start with agents outside every group; odd runs as a team with the main group drawn.
+      const seed = Math.floor(run / 2) + 1;
+      const legacy = run % 2 === 1;
       const rnd = mulberry32(seed);
       const pick = <T,>(xs: T[]): T => xs[Math.floor(rnd() * xs.length)];
       const pt = () => ({ x: Math.floor(rnd() * 1800) - 100, y: Math.floor(rnd() * 1400) - 100 });
       // The fixture's Reviewer sits at x 300, off the 8 px grid; edits only ever produce grid positions.
-      let d = teamDraft({ agents: [draftAgent('builder', { x: 40, y: 40 }), draftAgent('reviewer', { x: 304, y: 40 })] });
+      const start = teamDraft({ agents: [draftAgent('builder', { x: 40, y: 40 }), draftAgent('reviewer', { x: 304, y: 40 })] });
+      let d = legacy ? addGroup(withMain(start)).draft : start;
       expect([violations(d), offGrid(d)]).toEqual([[], []]);
       for (let step = 0; step < 30; step++) {
         const r = rnd();
         let op: string;
         if (r < 0.2) {
           op = 'addAgent';
-          d = addAgent(d, pick(['claude', 'codex', 'practice'] as const), pt()).draft;
+          d = addAgent(d, pick(['claude', 'codex'] as const), pt()).draft;
         } else if (r < 0.45 && d.agents.length > 0) {
           op = 'moveAgent';
           d = moveAgent(d, pick(d.agents).id, pt(), rnd() < 0.3).draft;
@@ -202,7 +217,7 @@ describe('group boxes never overlap', () => {
         } else {
           op = 'none';
         }
-        expect([violations(d), offGrid(d)], `seed ${seed}, step ${step}, after ${op}`).toEqual([[], []]);
+        expect([violations(d), offGrid(d)], `seed ${seed}${legacy ? ' (main group)' : ''}, step ${step}, after ${op}`).toEqual([[], []]);
       }
     }
   });
@@ -273,7 +288,7 @@ describe('deleting', () => {
   });
 
   it('deleting an empty group removes it and leaves the others alone', () => {
-    const one = addGroup(teamDraft());
+    const one = addGroup(withMain(teamDraft()));
     const two = addGroup(one.draft);
     const { draft, reason } = removeElement(two.draft, { kind: 'group', id: two.id });
     expect(reason).toBeUndefined();
@@ -292,7 +307,7 @@ describe('deleting', () => {
   });
 
   it('a single remaining group that is not the main group stays drawn', () => {
-    const { draft: grouped, id } = addGroup(teamDraft());
+    const { draft: grouped, id } = addGroup(withMain(teamDraft()));
     const moved = moveToGroup(moveToGroup(grouped, 'builder', id), 'reviewer', id);
     const { draft } = removeElement(moved, { kind: 'group', id: DEFAULT_GROUP_ID });
     expect(draft.groups.map((g) => g.id)).toEqual([id]);
@@ -372,7 +387,7 @@ describe('a group an agent leaves', () => {
 
 describe('folding the main group', () => {
   it('a lone main group with a label you changed stays drawn, with its label', () => {
-    const { draft: grouped, id } = addGroup(teamDraft());
+    const { draft: grouped, id } = addGroup(withMain(teamDraft()));
     const renamed = renameGroup(grouped, DEFAULT_GROUP_ID, 'Core');
     const { draft } = removeElement(renamed, { kind: 'group', id });
     expect(draft.groups).toHaveLength(1);
@@ -383,7 +398,7 @@ describe('folding the main group', () => {
   });
 
   it('a lone main group with its default label folds away', () => {
-    const { draft: grouped, id } = addGroup(teamDraft());
+    const { draft: grouped, id } = addGroup(withMain(teamDraft()));
     const { draft } = removeElement(grouped, { kind: 'group', id });
     expect(draft.groups).toEqual([]);
     expect(drawnGroups(draft)).toEqual([]);
@@ -412,7 +427,7 @@ describe('connections', () => {
 describe('edits never mutate their input', () => {
   it('every edit leaves a deep-frozen draft untouched', () => {
     const plain = deepFreeze(teamDraft());
-    const grouped = deepFreeze(addGroup(teamDraft()).draft);
+    const grouped = deepFreeze(addGroup(withMain(teamDraft())).draft);
     const gid = grouped.groups[1].id;
     const edits: (() => unknown)[] = [
       () => addAgent(plain, 'claude', { x: 600, y: 300 }),
@@ -443,7 +458,7 @@ describe('edits never mutate their input', () => {
 
 describe('small edits and geometry', () => {
   it('renameGroup changes only that group’s label', () => {
-    const { draft, id } = addGroup(teamDraft());
+    const { draft, id } = addGroup(withMain(teamDraft()));
     const renamed = renameGroup(draft, id, 'Reviewers');
     expect(renamed.groups.find((g) => g.id === id)!.label).toBe('Reviewers');
     expect(renamed.groups[0]).toBe(draft.groups[0]);

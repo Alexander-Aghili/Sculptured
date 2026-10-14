@@ -49,10 +49,10 @@ flowchart LR
 | --- | --- |
 | **Project** | One team's design and its history. The sidebar lists your projects. |
 | **Team** | The agents of a project and the connections between them, started and stopped together. |
-| **Agent** | One worker with a name, a **Job** and a **Folder**. It runs on **Claude** (Claude Code), **Codex**, or as a **Practice agent**. |
+| **Agent** | One worker with a name, a **Job** and a **Folder**. It runs on **Claude** (Claude Code) or **Codex**. |
 | **Job** | What the agent should do. It is the agent's first message when the team starts. Write it like a task spec: see [Designing teams](/guides/agent-design). |
 | **Folder** | Where the agent works. Agents use the project folder unless you give one its own. On a connected computer it must be inside a folder that computer allows. |
-| **Practice agent** | A scripted stand-in that calls no model and costs nothing. Use it to learn the controls and test a design. |
+| **Practice agent** | A scripted stand-in that calls no model. New agents can't be Practice agents any more; a team that already has them keeps them. |
 | **Group** | A box of agents inside a team, with its own color. Save a group to your **Library** to reuse it in other projects: see [Reusable groups](/guides/groups). |
 | **Input** | A block for links, notes, ideas and constraints. A workflow's dispatcher reads it when the team starts. |
 

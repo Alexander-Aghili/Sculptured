@@ -81,7 +81,7 @@ erDiagram
 | --- | --- | --- | --- | --- |
 | `id` | string | yes | | The agent's id, unique in the team. It never changes. |
 | `name` | string | yes | | The name on its card. |
-| `kind` | `claude`, `codex` or `practice` | yes | | Which CLI runs it. `practice` runs a scripted stand-in: no model calls, no cost. |
+| `kind` | `claude`, `codex` or `practice` | yes | | Which CLI runs it. `practice` runs a scripted stand-in with no model calls; the app no longer offers it for new agents, but files that use it still load. |
 | `x`, `y` | integer | yes | | Its position on the board. |
 | `job` | string | no | `""` | Plain-language instructions, sent as the agent's first message when the team starts. |
 | `group_id` | string or null | no | | The group it belongs to. Null means none. |

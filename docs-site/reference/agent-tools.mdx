@@ -26,7 +26,7 @@ sequenceDiagram
   T->>A: {text, question_id, timed_out}
 ```
 
-In Claude Code the tools appear as `mcp__rig__request_input` and so on; in Codex as `rig` tools. Practice agents get the same tools, so you can try a team without model calls.
+In Claude Code the tools appear as `mcp__rig__request_input` and so on; in Codex as `rig` tools.
 
 If the computer's connection drops while a call is waiting, the runner keeps the call and sends it again when the computer reconnects. Sculptured answers each call once, so a resent question is not asked twice. See [When a computer goes offline](/guides/offline).
 

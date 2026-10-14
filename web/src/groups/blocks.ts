@@ -31,16 +31,17 @@ export function blockCompatibility(d:TeamDraft,b:GroupBlock):string|null {
   return null;
 }
 /** Each insertion gets fresh IDs, preserving internal arrows/loops without linking copies. */
-export function insertBlock(d:TeamDraft,b:GroupBlock,at?:Point):{draft:TeamDraft;id?:string;reason?:string} {
+/** `keepFolders`: a copy pasted on a board keeps its agents' folders (a Library block has none). */
+export function insertBlock(d:TeamDraft,b:GroupBlock,at?:Point,keepFolders=false):{draft:TeamDraft;id?:string;reason?:string} {
   const reason=blockCompatibility(d,b); if(reason)return {draft:d,reason};
-  const uniqueName=(base:string,used:Set<string>)=>{let name=base,n=2;while(used.has(name.trim().toLowerCase()))name=`${base} ${n++}`;used.add(name.trim().toLowerCase());return name;};
+  const uniqueName=(base:string,used:Set<string>)=>{const m=/^(.*?)(?:\s+(\d+))?$/.exec(base.trim())!;let name=base,n=Number(m[2]??1)+1;while(used.has(name.trim().toLowerCase()))name=`${m[1]} ${n++}`;used.add(name.trim().toLowerCase());return name;};
   const agentNames=new Set(d.agents.map(a=>a.name.trim().toLowerCase())),groupNames=new Set(d.groups.map(g=>g.label.trim().toLowerCase())),stageNames=new Set(d.workflow?.stages.map(s=>s.name.trim().toLowerCase())??[]);
   const source=b.draft,g=source.groups[0]; if(!g)return {draft:d,reason:'This saved group has no group block.'};
   const used=new Set([...d.groups.map(g=>g.id),...d.agents.map(a=>a.id),...d.connections.map(c=>c.id),...(d.workflow?.stages.map(s=>s.id)??[])]);
   const fresh=(base:string)=>{const id=newId(slug(base,'item'),used);used.add(id);return id;};
   const groupId=fresh(b.name), agents=new Map(source.agents.map(a=>[a.id,fresh(a.id)])), stages=new Map((source.workflow?.stages??[]).map(s=>[s.id,fresh(s.id)]));
   const x=snap(at?.x ?? Math.max(0,...d.agents.map(a=>a.x+200),...d.groups.map(g=>g.x+g.w))+80),y=snap(at?.y ?? 40);
-  return {id:groupId,draft:{...d,groups:[...d.groups,{...g,id:groupId,label:uniqueName(b.name,groupNames),x,y}],agents:[...d.agents,...source.agents.map(a=>({...a,id:agents.get(a.id)!,name:uniqueName(a.name,agentNames),group_id:groupId,folder:null,x:x+a.x-g.x,y:y+a.y-g.y,advanced:{...a.advanced}}))],
+  return {id:groupId,draft:{...d,groups:[...d.groups,{...g,id:groupId,label:uniqueName(b.name,groupNames),x,y}],agents:[...d.agents,...source.agents.map(a=>({...a,id:agents.get(a.id)!,name:uniqueName(a.name,agentNames),group_id:groupId,folder:keepFolders?a.folder:null,x:x+a.x-g.x,y:y+a.y-g.y,advanced:{...a.advanced}}))],
     connections:[...d.connections,...source.connections.map(c=>({...c,id:fresh(c.id),from:agents.get(c.from)!,to:agents.get(c.to)!}))],
     ...(source.workflow ? {workflow:{...(d.workflow??{...source.workflow,input:'',input_position:undefined,dispatcher:agents.get(source.workflow.dispatcher)??'',collector:agents.get(source.workflow.collector)??'',entry:stages.get(source.workflow.entry)??''}),stages:[...(d.workflow?.stages??[]),...source.workflow.stages.map(s=>({...s,id:stages.get(s.id)!,name:uniqueName(s.name,stageNames),agent:agents.get(s.agent)!,workers:s.workers?.map(a=>agents.get(a)!),routes:Object.fromEntries(Object.entries(s.routes).map(([outcome,to])=>[outcome,to===null?null:stages.get(to)!]))}))]}} : {})}};
 }

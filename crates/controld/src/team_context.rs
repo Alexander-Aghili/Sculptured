@@ -1,6 +1,6 @@
 //! Operator-authored architecture, delivered with work to every team member.
 use crate::state::AppState;
-use model::{ConnectionKind, TeamDraft};
+use model::{ConnectionKind, DraftAgent, TeamDraft};
 
 pub(crate) fn with_context(st: &AppState, seat: &str, text: String) -> String {
     let Some(id) = crate::seat_ids::rig_of(seat) else { return text };
@@ -45,22 +45,60 @@ pub(crate) fn briefing(d: &TeamDraft, seat: &str) -> Option<String> {
     let me = d.agent_for_seat(seat)?;
     // Practice messages are executable fixture commands, not model prompts.
     if me.kind == model::AgentKind::Practice { return None; }
-    let mut lines = vec![format!("Team architecture (operator configuration): {}\nYour role: {} [{}]", d.name, me.name, me.id)];
+    let mut lines = vec![format!("Team architecture (operator configuration): {}\nYour role: {} [{}]{}", d.name, me.name, me.id, in_group(d, me))];
+    lines.extend(group_notes(d, me));
     if let Some(w) = &d.workflow {
         lines.push(format!("This project uses a dynamic workflow, not ordinary turn-end handoffs. Only agent {} calls dispatch_work(batch_id, summary, tasks:[{{id,title,context,mode,depends_on}}]) once per project start. It chooses N within 1–{}. Each task runs stage {} first; stages branch by complete_work outcomes and can loop for at most {} steps. Assembly agent {} waits for every task to complete. Workers receive assignment IDs and must call complete_work(assignment,outcome,result); plain completion replies do not advance the workflow. workflow_status reads the batch. Reserved outcome blocked stops an item. Each topic chooses mode independent with empty depends_on for unrelated work, or dependent with prerequisite topic IDs. Independent topics can run simultaneously on available configured workers; dependent topics wait for accepted results from all prerequisites. Topic dependencies must be acyclic. Reading-order prerequisites alone do not require build dependencies. Use separate module paths; coordinate shared file changes. Use spawn_agent for tracked, bounded helpers when useful. Configured stages: {}", w.dispatcher, w.max_tasks, w.entry, w.max_steps, w.collector, serde_json::to_string(&w.stages).unwrap()));
     }
     lines.push("Work only on your assigned job. A leader plans and coordinates the configured team; it does not replace the other agents or implement their jobs unless explicitly assigned. Sculptured automatically delivers completed replies along 'hands work to' connections. Use spawn_agent to create helpers; all child agents must be managed through this tool so their lifecycle and communication appear on the board. Do not create untracked agents through native CLI delegation, shell processes or external tools. Do not replace configured teammates. Use team_status and send_agent_message to ask teammates for help, request features, report results and coordinate shared interfaces. Include exact artifact revisions and task context. 'Reports to' and 'watches' are descriptive only, not automatic routing. Report missing instructions or blocked dependencies rather than guessing. A reported result is not independently verified.".into());
     lines.push("Use downstream jobs to decide your handoff: when another agent owns implementation, provide its plan and inputs instead of doing that agent's work. Respect project-wide constraints stated in the jobs (such as output folders or no publishing) throughout the team. Ask the operator about conflicting instructions.".into());
     for a in &d.agents {
-        let group = d.groups.iter().find(|g| Some(&g.id) == a.group_id.as_ref()).map(|g| g.label.as_str()).unwrap_or("Team");
-        lines.push(format!("Agent: {} [{}] · Group: {group} · Folder: {}\nAssigned job: {}", a.name, a.id, d.effective_folder(a).unwrap_or("not configured"), a.job.trim()));
+        let group = group_label(d, a).map(|l| format!(" · Group: {l}")).unwrap_or_default();
+        lines.push(format!("Agent: {} [{}]{group} · Folder: {}\nAssigned job: {}", a.name, a.id, d.effective_folder(a).unwrap_or("not configured"), a.job.trim()));
     }
     for c in &d.connections {
         let (Some(from), Some(to)) = (d.agent(&c.from), d.agent(&c.to)) else { continue };
         let kind = match c.kind { ConnectionKind::HandsWorkTo => "hands work to", ConnectionKind::ReportsTo => "reports to (descriptive)", ConnectionKind::Watches => "watches (descriptive)" };
-        lines.push(format!("{} [{}] {kind} {} [{}]", from.name, from.id, to.name, to.id));
+        lines.push(format!("{} [{}]{} {kind} {} [{}]{}", from.name, from.id, in_group(d, from), to.name, to.id, in_group(d, to)));
     }
     Some(lines.join("\n\n"))
+}
+
+/// The name of the group an agent is in, if it is in a named group.
+fn group_label<'a>(d: &'a TeamDraft, a: &DraftAgent) -> Option<&'a str> {
+    let id = a.group_id.as_deref()?;
+    d.groups.iter().find(|g| g.id == id).map(|g| g.label.trim()).filter(|l| !l.is_empty())
+}
+
+fn in_group(d: &TeamDraft, a: &DraftAgent) -> String {
+    group_label(d, a).map(|l| format!(" (group {l})")).unwrap_or_default()
+}
+
+fn members(d: &TeamDraft, group: &str, except: &str) -> String {
+    let names: Vec<&str> = d.agents.iter().filter(|a| a.group_id.as_deref() == Some(group) && a.id != except).map(|a| a.name.as_str()).collect();
+    if names.is_empty() { "no other agents".into() } else { names.join(", ") }
+}
+
+/// What the group names mean for this agent: the group it is in, and each other group it has an
+/// arrow to or from. The name is the shared purpose of that part of the team.
+fn group_notes(d: &TeamDraft, me: &DraftAgent) -> Vec<String> {
+    let mut out = Vec::new();
+    if let (Some(label), Some(id)) = (group_label(d, me), me.group_id.as_deref()) {
+        out.push(format!("Your group: {label}. Its name is the purpose you share with its other members ({}); do your job as part of it.", members(d, id, &me.id)));
+    }
+    let mut linked: Vec<&str> = Vec::new();
+    for c in d.connections.iter().filter(|c| c.from == me.id || c.to == me.id) {
+        let other = if c.from == me.id { &c.to } else { &c.from };
+        let Some(g) = d.agent(other).and_then(|a| a.group_id.as_deref()) else { continue };
+        if Some(g) != me.group_id.as_deref() && !linked.contains(&g) {
+            linked.push(g);
+        }
+    }
+    for g in linked {
+        let Some(label) = d.groups.iter().find(|x| x.id == g).map(|x| x.label.trim()).filter(|l| !l.is_empty()) else { continue };
+        out.push(format!("You are connected to the {label} group ({}). Its name says what that part of the team is for.", members(d, g, &me.id)));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -79,6 +117,26 @@ mod tests {
             assert!(text.contains(&a.job));
         }
         assert!(briefing(&d, "missing").is_none());
+        assert!(!briefing(&d, &d.seat_id(&d.agents[0].id).unwrap()).unwrap().contains("Your group"));
+    }
+
+    #[test]
+    fn the_group_name_reaches_its_members_and_the_agents_connected_to_it() {
+        let mut d = rigspec::templates::template("builder-reviewer", "project", "My project", false).unwrap();
+        d.groups.push(model::DraftGroup { id: "checks".into(), label: "Quality checks".into(), x: 0, y: 0, w: 300, h: 300, models: Default::default() });
+        let (builder, reviewer) = (d.agents[0].id.clone(), d.agents[1].id.clone());
+        d.agents[1].group_id = Some("checks".into());
+        let to_reviewer = briefing(&d, &d.seat_id(&reviewer).unwrap()).unwrap();
+        assert!(to_reviewer.contains("Your group: Quality checks. Its name is the purpose you share"), "{to_reviewer}");
+        let to_builder = briefing(&d, &d.seat_id(&builder).unwrap()).unwrap();
+        assert!(to_builder.contains("You are connected to the Quality checks group (Reviewer)"), "{to_builder}");
+        assert!(to_builder.contains("Reviewer [reviewer] (group Quality checks)"), "{to_builder}");
+        assert!(!to_builder.contains("Your group:"));
+    }
+
+    #[test]
+    fn practice_agents_get_no_briefing() {
+        let mut d = rigspec::templates::template("builder-reviewer", "project", "My project", false).unwrap();
         d.agents[0].kind = model::AgentKind::Practice;
         assert!(briefing(&d, &d.seat_id(&d.agents[0].id).unwrap()).is_none());
     }

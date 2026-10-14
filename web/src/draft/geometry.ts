@@ -3,7 +3,8 @@ import type { TeamDraft } from '../generated/TeamDraft';
 import { CARD_H, CARD_W, type Layout } from '../layout';
 import { DEFAULT_GROUP_ID, groupOf, seatIdFor } from './ids';
 
-export const GRID = 8;
+/** Positions are whole board units: cards and groups go where they are dropped. */
+export const GRID = 1;
 export const STEP = 16;
 export const BIG_STEP = 64;
 /** Keyboard placement column; a multiple of GRID so placed cards stay on the grid. */
@@ -58,15 +59,85 @@ export function nearestGroup(d: TeamDraft, p: Point): string | null {
   return best?.id ?? null;
 }
 
-/** First grid slot (left to right, top to bottom) where a new card overlaps no agent. */
+/**
+ * An agent can be outside every group, unless the main group (`team`) is drawn: an agent without
+ * a group belongs to that one.
+ */
+export const looseAllowed = (d: TeamDraft) => !drawnGroups(d).some((g) => g.id === DEFAULT_GROUP_ID);
+
+/** First slot (left to right, top to bottom) where a new card overlaps no agent and no group box. */
 export function nextFreeSlot(d: TeamDraft): Point {
+  const gs = looseAllowed(d) ? drawnGroups(d) : [];
   for (let row = 0; row < 50; row++) {
     for (let col = 0; col < 6; col++) {
       const p = { x: MARGIN + col * COL, y: MARGIN + row * ROW };
-      if (!d.agents.some((a) => overlaps(agentBox(a), agentBox(p)))) return p;
+      if (!d.agents.some((a) => overlaps(agentBox(a), agentBox(p))) && !gs.some((g) => overlaps(g, agentBox(p)))) return p;
     }
   }
   return { x: MARGIN, y: MARGIN };
+}
+
+/** How close (board units) a dragged card's edge must come to a neighbour's line to line up with it. */
+export const ALIGN = 12;
+
+/**
+ * Where a card dragged to `p` lands: exactly where it was dropped, except that an edge within
+ * ALIGN of a nearby card's line snaps to it: the same column or row, or the usual spacing
+ * beside, above or below that card.
+ */
+export function alignCard(d: TeamDraft, id: string, p: Point): Point {
+  const near = d.agents.filter((a) => a.id !== id && Math.abs(a.x - p.x) <= COL * 2 && Math.abs(a.y - p.y) <= ROW * 2);
+  const pick = (v: number, lines: number[]) => {
+    let best = v;
+    let dist = ALIGN + 1;
+    for (const l of lines) if (Math.abs(l - v) < dist) [best, dist] = [l, Math.abs(l - v)];
+    return best;
+  };
+  const x = pick(Math.round(p.x), near.flatMap((a) => [a.x, a.x + COL, a.x - COL]));
+  const y = pick(Math.round(p.y), near.flatMap((a) => [a.y, a.y + ROW, a.y - ROW]));
+  return { x: Math.max(0, x), y: Math.max(0, y) };
+}
+
+/** The four places beside box `g` a card at `p` could move to, staying on the canvas. */
+function waysOut(p: Point, g: Box): Point[] {
+  return [
+    { x: g.x + g.w + GROUP_GAP, y: p.y },
+    { x: p.x, y: g.y + g.h + GROUP_GAP },
+    { x: g.x - CARD_W - GROUP_GAP, y: p.y },
+    { x: p.x, y: g.y - CARD_H - GROUP_GAP },
+  ].filter((w) => w.x >= 0 && w.y >= 0);
+}
+
+/**
+ * The nearest place for a card at `p` that no group box covers and that lands on no card in
+ * `cards` (below everything always qualifies).
+ */
+export function clearOf(p: Point, gs: Box[], cards: Box[] = []): Point {
+  if (!gs.some((g) => overlaps(agentBox(p), g))) return p;
+  const all = [...gs, ...cards];
+  const clear = (q: Point) => !all.some((g) => overlaps(agentBox(q), g));
+  const below = { x: p.x, y: Math.max(...all.map((g) => g.y + g.h)) + GROUP_GAP };
+  const dist = (w: Point) => Math.abs(w.x - p.x) + Math.abs(w.y - p.y);
+  return [...all.flatMap((g) => waysOut(p, g)).filter(clear), below].reduce((best, w) => (dist(w) < dist(best) ? w : best));
+}
+
+/**
+ * An agent outside every group never sits under a group's box (it would look like a member):
+ * one that a box covers moves to the nearest place no box covers, off the other cards.
+ */
+export function clearLoose(d: TeamDraft): TeamDraft {
+  const gs = drawnGroups(d);
+  if (gs.length === 0 || !looseAllowed(d)) return d;
+  let changed = false;
+  const agents = [...d.agents];
+  agents.forEach((a, i) => {
+    if (a.group_id !== null) return;
+    const p = clearOf(a, gs, agents.filter((o) => o.id !== a.id).map(agentBox));
+    if (p.x === a.x && p.y === a.y) return;
+    changed = true;
+    agents[i] = { ...a, x: p.x, y: p.y };
+  });
+  return changed ? { ...d, agents } : d;
 }
 
 /** Rounds up / down to the grid. */

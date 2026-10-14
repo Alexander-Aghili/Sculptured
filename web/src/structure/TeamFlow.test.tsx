@@ -64,19 +64,19 @@ afterEach(() => {
 });
 
 describe('New team: Start from…', () => {
-  it('an empty home shows the gallery; with Practice chosen a template creates the team and opens its board', async () => {
+  it('an empty home shows the gallery; a template creates the team and opens its board (Practice is not offered)', async () => {
     fakeTeam(teamRecord({ draft: teamDraft({ id: 'builder-and-reviewer', name: 'Builder and Reviewer' }) }));
     vi.mocked(api.listTeams).mockResolvedValue([]);
     vi.mocked(api.createTeam).mockImplementation(async () => teamRecord({ draft: teamDraft({ id: 'builder-and-reviewer', name: 'Builder and Reviewer' }) }));
     renderAt('/');
     const gallery = await screen.findByRole('region', { name: 'New project · Start from…' });
     expect(within(gallery).getByRole('radio', { name: /Claude/ })).toBeChecked();
-    await userEvent.setup().click(within(gallery).getByRole('radio', { name: /Practice/ }));
+    expect(within(gallery).queryByRole('radio', { name: /Practice/ })).toBeNull();
     const tpl = await within(gallery).findByRole('button', { name: 'Builder → Reviewer' });
-    expect(tpl).toHaveAccessibleDescription(/Claude builds, then hands the work to Codex to review\. 2 Practice agents/);
+    expect(tpl).toHaveAccessibleDescription(/Claude builds, then hands the work to Codex to review\. 2 agents · Claude/);
     expect(openRigWords(document.querySelector<HTMLElement>('.app')!)).toEqual([]);
     await userEvent.setup().click(tpl);
-    expect(api.createTeam).toHaveBeenCalledWith('builder-reviewer', true, null, expect.any(String));
+    expect(api.createTeam).toHaveBeenCalledWith('builder-reviewer', false, null, expect.any(String));
     await waitFor(() => expect(where()).toBe('/team/builder-and-reviewer/structure'));
     expect(await screen.findByRole('button', { name: /^Builder — / })).toBeInTheDocument();
   });
@@ -497,8 +497,9 @@ describe('Narrow screens', () => {
     expect(screen.queryByTestId('structure-viewport')).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Agents' })).toBeNull();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Practice agent' }));
-    expect(await screen.findByText('Practice 1', { selector: '.fe-name' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add a Practice agent' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Add a Claude agent' }));
+    expect(await screen.findByText('Claude 1', { selector: '.fe-name' })).toBeInTheDocument();
     expect(screen.getAllByRole('textbox', { name: 'Job' }).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole('button', { name: 'Start team' })).toBeEnabled();
     expect(openRigWords(document.querySelector<HTMLElement>('.app')!)).toEqual([]);

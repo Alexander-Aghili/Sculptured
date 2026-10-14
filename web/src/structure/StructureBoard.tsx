@@ -15,7 +15,8 @@ import { Badge, Btn, Icon, VendorMark } from '../shell/ui';
 import { useTeamDraft, type SaveState } from '../useTeamDraft';
 import { useRequestOnce } from '../useRequestOnce';
 import { isTextField } from '../dom';
-import { AgentMenu, AgentSheet } from './AgentSheet';
+import { AgentSheet } from './AgentSheet';
+import { OFFERED_KINDS } from './ModelControls';
 import { AgentPanel, ConnectionPanel, GroupPanel, kindVendor, LOCK_REASON, TeamPanel } from './Panels';
 import { StructureCanvas, type CanvasHandle } from './StructureCanvas';
 import { TeamAdvanced } from './TeamAdvanced';
@@ -145,7 +146,7 @@ function FormEditor({
         {advanced}
       </TeamPanel>
       <div className="fe-add" role="toolbar" aria-label="Add to the team">
-        {(['claude', 'codex', 'practice'] as AgentKind[]).map((k) => (
+        {OFFERED_KINDS.map((k) => (
           <Btn key={k} className={kindVendor(k).cls} disabled={locked} aria-describedby={locked ? `${ids}-lock` : undefined} aria-label={`Add a ${kindVendor(k).name} agent`} onClick={() => onAdd(k)}>
             <VendorMark v={kindVendor(k)} size="xs" /> {kindVendor(k).name}
             <Icon name="plus" size={13} className="muted" />
@@ -188,7 +189,6 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
   const [sel, setSel] = useState<Selection | null>(null);
   const [sheet, setSheet] = useState<string | null>(null);
   const [workflowTarget, setWorkflowTarget] = useState<WorkflowTarget | 'list' | null>(null);
-  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [starting, setStarting] = useState(false);
   const [statusOpen,setStatusOpen]=useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -256,7 +256,7 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
       fit: () => canvas.current?.fit(),
       zoomBy: (f: number) => canvas.current?.zoomBy(f),
       addKey: () => {
-        if (narrow) addKind('practice');
+        if (narrow) addKind('claude');
         else canvas.current?.focusPalette();
       },
     }),
@@ -481,7 +481,6 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
               locked={locked}
               onOpen={setSheet}
               onWorkflow={setWorkflowTarget}
-              onMenu={(id, x, y) => setMenu({ id, x, y })}
               onOpenAgent={(id) => {
                 onShowDetails?.();
                 focusName.current = true;
@@ -499,7 +498,6 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
       )}
       {draft.workflow && workflowTarget && <WorkflowInspector draft={draft} target={workflowTarget} locked={locked} edit={fn => t.edit(fn)} onOpen={setSheet} onClose={() => setWorkflowTarget(null)} />}
       {sheet && draft && <AgentSheet draft={draft} agentId={sheet} issues={issues} edit={t.edit} locked={locked} onSelect={inspectSelection} onClose={() => setSheet(null)} />}
-      {menu && draft && <AgentMenu draft={draft} agentId={menu.id} x={menu.x} y={menu.y} edit={t.edit} locked={locked} onOpen={() => setSheet(menu.id)} onClose={() => setMenu(null)} />}
       {confirmStart.dialog}
     </section>
   );

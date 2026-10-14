@@ -16,7 +16,9 @@ import {
   GROUP_GAP,
   GROUP_HEAD,
   GROUP_PAD,
+  clearLoose,
   groupAt,
+  looseAllowed,
   MAIN_GROUP_LABEL,
   MARGIN,
   nearestGroup,
@@ -132,12 +134,13 @@ export function fitGroups(d: TeamDraft, anchor?: string): TeamDraft {
     }
     return x === g.x && y === g.y && w === g.w && h === g.h ? g : { ...g, x, y, w, h };
   });
-  return separate(groups.every((g, i) => g === d.groups[i]) ? d : { ...d, groups }, anchor);
+  return clearLoose(separate(groups.every((g, i) => g === d.groups[i]) ? d : { ...d, groups }, anchor));
 }
 
+
 /**
- * Adds an agent at `at`. Once groups are drawn every agent belongs to one: a drop inside a group
- * joins it there, and a drop outside every group takes the nearest group's first free slot.
+ * Adds an agent at `at`. A drop inside a group joins it there; a drop outside every group stays
+ * outside them (unless the main group is drawn: then it takes the nearest group's first free slot).
  */
 export function addAgent(d: TeamDraft, kind: AgentKind, at: Point): { draft: TeamDraft; id: string } {
   const name = nextAgentName(d, kind);
@@ -147,7 +150,7 @@ export function addAgent(d: TeamDraft, kind: AgentKind, at: Point): { draft: Tea
   if (drawnGroups(d).length > 0) {
     const center = { x: pos.x + CARD_W / 2, y: pos.y + CARD_H / 2 };
     group_id = groupAt(d, center);
-    if (group_id === null) {
+    if (group_id === null && !looseAllowed(d)) {
       group_id = nearestGroup(d, center)!;
       pos = firstFreeSlot(d, group_id)!;
     }
@@ -158,30 +161,31 @@ export function addAgent(d: TeamDraft, kind: AgentKind, at: Point): { draft: Tea
 
 /**
  * Moves an agent. Dropping its centre on a drawn group moves it into that group; a drop outside
- * every group keeps its own group and takes that group's first free slot (the nearest-group rule
- * is only for adding an agent).
+ * every group takes it out of its group, to where it was dropped. (While the main group is drawn,
+ * an agent cannot be outside every group: it takes its own group's first free slot instead.)
  * `keepGroup` (the team is running) never changes the group, because that is structural: a drop
- * on another group is refused with a reason and the card stays where it was.
+ * on another group is refused with a reason, and a drop outside keeps the card in its group.
  */
 export function moveAgent(d: TeamDraft, id: string, to: Point, keepGroup = false): { draft: TeamDraft; reason?: string } {
   const a = d.agents.find((x) => x.id === id);
   if (!a) return { draft: d };
-  const place = (p: Point, group: string | null) => {
-    // Membership that does not change keeps its spelling (an agent without a group stays so).
-    const group_id = group === null || group === groupOf(a) ? a.group_id : group;
-    const agents = d.agents.map((x) => (x.id === id ? { ...x, x: p.x, y: p.y, group_id } : x));
-    const moved = { ...d, agents };
-    const left = group !== null && group !== groupOf(a) ? shrinkLeft(moved, groupOf(a)) : moved;
-    return { draft: fitGroups(left, group ?? undefined) };
+  const home = groupOf(a);
+  const put = (p: Point, group_id: string | null) => {
+    const moved = { ...d, agents: d.agents.map((x) => (x.id === id ? { ...x, x: p.x, y: p.y, group_id } : x)) };
+    const left = groupOf({ group_id }) !== home ? shrinkLeft(moved, home) : moved;
+    return { draft: fitGroups(left, group_id ?? undefined) };
   };
   const pos = { x: snap(to.x), y: snap(to.y) };
-  if (drawnGroups(d).length === 0) return place(pos, null);
+  if (drawnGroups(d).length === 0) return put(pos, a.group_id);
   const target = groupAt(d, { x: pos.x + CARD_W / 2, y: pos.y + CARD_H / 2 });
-  if (keepGroup && target !== null && target !== groupOf(a)) return { draft: d, reason: RUNNING_GROUP_REASON };
-  if (target !== null) return place(pos, target);
-  const home = groupOf(a);
+  if (target !== null) {
+    if (keepGroup && target !== home) return { draft: d, reason: RUNNING_GROUP_REASON };
+    // Membership that does not change keeps its spelling (an agent without a group stays so).
+    return put(pos, target === home ? a.group_id : target);
+  }
+  if (looseAllowed(d) && (a.group_id === null || !keepGroup)) return put(pos, null);
   const slot = firstFreeSlot(d, home, id);
-  return slot ? place(slot, home) : place(pos, null);
+  return put(slot ?? pos, a.group_id);
 }
 
 /**
@@ -211,14 +215,32 @@ export function moveGroup(d: TeamDraft, id: string, dx: number, dy: number): Tea
     if (my < 0 && o.y + o.h <= g.y) my = Math.max(my, -Math.max(0, floorGrid(g.y - (o.y + o.h) - GROUP_GAP)));
   }
   if (mx === 0 && my === 0) return d;
-  return separate(
+  return clearLoose(separate(
     {
       ...d,
       groups: d.groups.map((x) => (x.id === id ? { ...x, x: x.x + mx, y: x.y + my } : x)),
       agents: d.agents.map((a) => (groupOf(a) === id ? { ...a, x: a.x + mx, y: a.y + my } : a)),
     },
     id,
-  );
+  ));
+}
+
+/** Takes one agent out of its group: its group shrinks and the card moves out from under the box. */
+export function takeOut(d: TeamDraft, id: string): TeamDraft {
+  const a = d.agents.find((x) => x.id === id);
+  if (!a || a.group_id === null || !looseAllowed(d)) return d;
+  const moved = { ...d, agents: d.agents.map((x) => (x.id === id ? { ...x, group_id: null } : x)) };
+  return fitGroups(shrinkLeft(moved, a.group_id));
+}
+
+/**
+ * Removes a group's box and keeps its agents, now outside every group (moved out from under any
+ * other group's box). Their seat ids change, so the team must not be running.
+ */
+export function ungroup(d: TeamDraft, id: string): TeamDraft {
+  if (!d.groups.some((g) => g.id === id)) return d;
+  const agents = d.agents.map((a) => (groupOf(a) === id ? { ...a, group_id: null } : a));
+  return fitGroups({ ...d, groups: d.groups.filter((g) => g.id !== id), agents });
 }
 
 /**
@@ -289,31 +311,24 @@ function around(agents: DraftAgent[]): Omit<DraftGroup, 'id' | 'label'> {
 }
 
 /**
- * Adds a group to the right of everything. The first group also turns the implicit
- * group into an explicit "Main group" with the same id, so no seat id changes.
+ * Adds an empty group at `at`, or to the right of everything. Agents outside every group stay
+ * outside: a group holds only the agents you put in it.
  */
-export function addGroup(d: TeamDraft): { draft: TeamDraft; id: string } {
-  let groups = d.groups;
-  let agents = d.agents;
-  if (groups.length === 0) {
-    groups = [{ id: DEFAULT_GROUP_ID, label: MAIN_GROUP_LABEL, ...around(agents) }];
-    agents = agents.map((a) => ({ ...a, group_id: DEFAULT_GROUP_ID }));
-  }
-  const right = Math.max(0, ...groups.map((g) => g.x + g.w), ...agents.map((a) => a.x + CARD_W));
-  const id = newId('group', new Set(groups.map((g) => g.id)));
-  const labels = new Set(groups.map((g) => g.label.trim().toLowerCase()));
-  let n = groups.length + 1;
+export function addGroup(d: TeamDraft, at?: Point): { draft: TeamDraft; id: string } {
+  const right = Math.max(0, ...d.groups.map((g) => g.x + g.w), ...d.agents.map((a) => a.x + CARD_W));
+  const id = newId('group', new Set(d.groups.map((g) => g.id)));
+  const labels = new Set(d.groups.map((g) => g.label.trim().toLowerCase()));
+  let n = drawnGroups(d).length + 1;
   while (labels.has(`group ${n}`)) n++;
   const group: DraftGroup = {
     id,
     label: `Group ${n}`,
-    x: snap(right + 60),
-    y: MARGIN,
+    x: snap(at?.x ?? right + 60),
+    y: snap(at?.y ?? MARGIN),
     w: GROUP_PAD * 2 + CARD_W,
     h: GROUP_HEAD + GROUP_PAD * 2 + CARD_H,
   };
-  // A lone main group that was not drawn may not fit its agents yet; it is drawn from now on.
-  return { draft: fitGroups({ ...d, groups: [...groups, group], agents }), id };
+  return { draft: fitGroups({ ...d, groups: [...d.groups, group] }, id), id };
 }
 
 /**

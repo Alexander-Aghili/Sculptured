@@ -128,13 +128,13 @@ describe('Structure board: adding agents', () => {
   it('drags an agent in from the palette and drops it where the pointer is', async () => {
     await board();
     sizeViewport();
-    const practice = screen.getByRole('button', { name: 'Add a Practice agent' });
-    fireEvent.pointerDown(practice, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    const claude = screen.getByRole('button', { name: 'Add a Claude agent' });
+    fireEvent.pointerDown(claude, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
     fireEvent.pointerMove(window, { clientX: 400, clientY: 420, pointerId: 1 });
     expect(document.querySelector('.sb-ghost')).not.toBeNull();
     fireEvent.pointerUp(window, { clientX: 500, clientY: 400, pointerId: 1 });
-    // Centred under the pointer (card 200 wide, grabbed 24 below its top), on the 8 px grid.
-    expect(pos('Practice 1')).toEqual([500 - OFFSET - 100, 400 - OFFSET - 24]);
+    // Centred under the pointer (card 200 wide, grabbed 24 below its top).
+    expect(pos('Claude 1')).toEqual([500 - OFFSET - 100, 400 - OFFSET - 24]);
     expect(document.querySelector('.sb-ghost')).toBeNull();
   });
 });
@@ -234,10 +234,11 @@ describe('Structure board: groups', () => {
     await board();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Add a group' }));
-    const head = screen.getByRole('button', { name: /^Group: Group 2/ });
+    const head = screen.getByRole('button', { name: /^Group: Group 1/ });
     expect(head).toHaveFocus();
-    expect(screen.getByRole('button', { name: /^Group: Main group/ })).toBeInTheDocument();
-    const gpanel = screen.getByRole('region', { name: 'Group Group 2' });
+    // The other agents stay outside the new group: no main group is drawn around them.
+    expect(screen.queryByRole('button', { name: /^Group: Main group/ })).toBeNull();
+    const gpanel = screen.getByRole('region', { name: 'Group Group 1' });
     await user.clear(within(gpanel).getByRole('textbox', { name: 'Name' }));
     await user.type(within(gpanel).getByRole('textbox', { name: 'Name' }), 'Review');
     expect(screen.getByRole('button', { name: /^Group: Review/ })).toBeInTheDocument();
@@ -256,7 +257,7 @@ describe('Structure board: groups', () => {
   it('dropping a card on a group by pointer moves it into that group', async () => {
     await board();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Add a group' }));
-    const box = screen.getByRole('button', { name: /^Group: Group 2/ }).closest('.sb-group') as HTMLElement;
+    const box = screen.getByRole('button', { name: /^Group: Group 1/ }).closest('.sb-group') as HTMLElement;
     const g = { x: parseFloat(box.style.left), y: parseFloat(box.style.top), w: parseFloat(box.style.width), h: parseFloat(box.style.height) };
     const [rx, ry] = pos('Reviewer');
     const dx = g.x + g.w / 2 - 100 - rx;
@@ -268,7 +269,8 @@ describe('Structure board: groups', () => {
     fireEvent.pointerUp(window, { clientX: 400 + dx, clientY: 200 + dy, pointerId: 1 });
     await waitFor(() => {
       const d = lastSaved();
-      expect(d.agents.find((a) => a.id === 'reviewer')!.group_id).toBe(d.groups.find((x) => x.label === 'Group 2')!.id);
+      expect(d.agents.find((a) => a.id === 'reviewer')!.group_id).toBe(d.groups.find((x) => x.label === 'Group 1')!.id);
+      expect(d.agents.find((a) => a.id === 'builder')!.group_id).toBeNull();
     });
   });
 
@@ -276,7 +278,7 @@ describe('Structure board: groups', () => {
     await board();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Add a group' }));
-    const head = screen.getByRole('button', { name: /^Group: Group 2/ });
+    const head = screen.getByRole('button', { name: /^Group: Group 1/ });
     const box = head.closest('.sb-group') as HTMLElement;
     const x0 = parseFloat(box.style.left);
     await user.keyboard('{ArrowRight}');
@@ -566,4 +568,75 @@ it('keeps setup errors dismissible without re-opening on a draft update',async()
  await userEvent.click(within(disclosure as HTMLElement).getByText('Needs setup'));
  expect(disclosure).toHaveAttribute('open');await userEvent.click(screen.getByRole('button',{name:'Dismiss setup notice'}));expect(disclosure).not.toHaveAttribute('open');
  expect(screen.getByRole('button',{name:'Start team'})).toBeDisabled();
+});
+
+describe('Structure board: copy, paste and right-click', () => {
+  it('Ctrl+C then Ctrl+V pastes a copy of the selected agent, selected and saved; Ctrl+D duplicates', async () => {
+    await board();
+    const user = userEvent.setup();
+    act(() => card('Builder').focus());
+    await user.keyboard('{Control>}c{/Control}');
+    await user.keyboard('{Control>}v{/Control}');
+    expect(card('Builder 2')).toHaveFocus();
+    await user.keyboard('{Control>}d{/Control}');
+    expect(card('Builder 3')).toHaveFocus();
+    await waitFor(() => expect(lastSaved().agents.map((a) => a.name)).toEqual(['Builder', 'Reviewer', 'Builder 2', 'Builder 3']));
+    // A copied agent has no arrows of its own.
+    expect(lastSaved().connections).toHaveLength(1);
+  });
+
+  it('copies a whole group with its agents and arrow, and pastes it as a new group', async () => {
+    const d = teamDraft({
+      groups: [{ id: 'pair', label: 'Pair', x: 16, y: 0, w: 560, h: 280 }],
+      agents: [draftAgent('builder', { x: 40, y: 52, group_id: 'pair' }), draftAgent('reviewer', { x: 300, y: 52, group_id: 'pair' })],
+    });
+    await board(teamRecord({ draft: d }));
+    const user = userEvent.setup();
+    act(() => screen.getByRole('button', { name: /^Group: Pair/ }).focus());
+    await user.keyboard('{Control>}c{/Control}{Control>}v{/Control}');
+    expect(screen.getByRole('button', { name: /^Group: Pair 2/ })).toHaveFocus();
+    await waitFor(() => {
+      const s = lastSaved();
+      const copy = s.groups.find((g) => g.label === 'Pair 2')!;
+      const members = s.agents.filter((a) => a.group_id === copy.id);
+      expect(members).toHaveLength(2);
+      expect(s.connections.some((c) => c.from === members[0].id && c.to === members[1].id)).toBe(true);
+    });
+  });
+
+  it('right-click on empty board adds an agent there or a group; on a group, Ungroup keeps its agents', async () => {
+    await board();
+    sizeViewport();
+    const user = userEvent.setup();
+    const viewport = screen.getByTestId('structure-viewport');
+    fireEvent.contextMenu(viewport, { clientX: 500, clientY: 600 });
+    await user.click(within(screen.getByRole('menu', { name: 'Board actions' })).getByRole('menuitem', { name: /Add a Claude agent here/ }));
+    expect(pos('Claude 1')).toEqual([500 - OFFSET - 100, 600 - OFFSET - 24]);
+    fireEvent.contextMenu(viewport, { clientX: 900, clientY: 100 });
+    await user.click(screen.getByRole('menuitem', { name: 'New group here' }));
+    const head = screen.getByRole('button', { name: /^Group: Group 1/ });
+    fireEvent.contextMenu(head, { clientX: 905, clientY: 105 });
+    const menu = screen.getByRole('menu', { name: 'Group 1 actions' });
+    await user.click(within(menu).getByRole('menuitem', { name: /Add a Codex agent here/ }));
+    await waitFor(() => expect(lastSaved().agents.find((a) => a.name === 'Codex 1')?.group_id).toBe(lastSaved().groups[0]?.id));
+    fireEvent.contextMenu(screen.getByRole('button', { name: /^Group: Group 1/ }), { clientX: 905, clientY: 105 });
+    await user.click(screen.getByRole('menuitem', { name: /Ungroup/ }));
+    expect(screen.queryByRole('button', { name: /^Group: Group 1/ })).toBeNull();
+    await waitFor(() => expect(lastSaved()).toMatchObject({ groups: [] }));
+    expect(lastSaved().agents.find((a) => a.name === 'Codex 1')!.group_id).toBeNull();
+  });
+
+  it('right-click on an agent offers Copy, Duplicate and Claude or Codex (Practice only for an agent that already is one)', async () => {
+    await board();
+    const user = userEvent.setup();
+    fireEvent.contextMenu(card('Reviewer'), { clientX: 200, clientY: 200 });
+    const menu = screen.getByRole('menu', { name: 'Reviewer actions' });
+    expect(within(menu).getByRole('menuitemradio', { name: /Runs on Practice/ })).toBeChecked();
+    expect(within(menu).getByRole('menuitem', { name: /^Copy/ })).toBeInTheDocument();
+    await user.click(within(menu).getByRole('menuitemradio', { name: /Runs on Claude/ }));
+    fireEvent.contextMenu(card('Reviewer'), { clientX: 200, clientY: 200 });
+    expect(screen.queryByRole('menuitemradio', { name: /Runs on Practice/ })).toBeNull();
+    await user.click(screen.getByRole('menuitem', { name: /Duplicate/ }));
+    expect(card('Reviewer 2')).toBeInTheDocument();
+  });
 });

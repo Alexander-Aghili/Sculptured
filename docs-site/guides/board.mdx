@@ -6,7 +6,7 @@ description: Build a team on the Design board — add agents, connect who hands 
 Every project has two views, chosen with the tabs at the top left: **Design** is the board where you build the team, and **Run** shows it working. Run opens once the team has started. This page covers Design.
 
 <CardGroup cols={3}>
-  <Card title="Add agents" icon="plus" href="#add-agents">Drag or click Claude, Codex or Practice.</Card>
+  <Card title="Add agents" icon="plus" href="#add-agents">Drag, click or right-click to add Claude or Codex.</Card>
   <Card title="Connect work" icon="arrow-right" href="#connect-work">Arrows decide who starts after whom.</Card>
   <Card title="Get to Ready" icon="check" href="#needs-setup-and-things-to-fix">What Needs setup means and how to clear it.</Card>
 </CardGroup>
@@ -15,13 +15,13 @@ Every project has two views, chosen with the tabs at the top left: **Design** is
 
 Press **New project** in the Projects sidebar, or press <kbd>n</kbd> anywhere except the Design board (there, <kbd>n</kbd> adds an agent). The **New project · Start from…** panel offers:
 
-- **Agents run on:** Claude, Codex or Practice, for every agent in the template.
+- **Agents run on:** Claude or Codex, for every agent in the template.
 - **name:** the project's name. Leave it empty to use the template's.
 - **Describe it:** your own Claude Code or Codex drafts a team from a description. See [designing teams](/guides/agent-design#let-an-agent-draft-the-team).
 - **Templates:** Solo agent, Builder → Reviewer, Planner → 2 Builders, Blank canvas, Textbook creator, Adaptive support team, Independent reviewers, and Design and revise. See [examples](/guides/examples).
 - **Advanced:** import a team file (`.sculptured-team.json`, or an OpenRig YAML file), or import a past run (`.sculptured-session.jsonl`), which opens read-only in History. See [team files](/guides/team-files).
 
-<Warning>Claude and Codex agents use your own CLI logins and may cost money once started. Practice agents are free and make no model calls.</Warning>
+<Warning>Claude and Codex agents use your own CLI logins and may cost money once started.</Warning>
 
 ## Rename the project
 
@@ -29,7 +29,9 @@ Double-click the project name next to the **Design** and **Run** tabs, or focus 
 
 ## Add agents
 
-The **Edit tools** bar above the board has **Add** buttons for **Claude**, **Codex** and **Practice**. Drag one onto the board, or click it to add the agent in the next free spot. A new agent opens its details so you can name it and write its Job.
+The **Edit tools** bar above the board has **Add** buttons for **Claude** and **Codex**. Drag one onto the board, or click it to add the agent in the next free spot. You can also right-click the board and choose **Add a Claude agent here**. A new agent opens its details so you can name it and write its Job.
+
+Cards go exactly where you drop them. A card dragged close to another lines up with it: the same row or column, or the usual spacing beside it.
 
 Each card shows the agent's name, what it runs on, its model, and its Job. A card with no Job says "No job yet. Select the agent to write one."
 
@@ -38,7 +40,7 @@ Each card shows the agent's name, what it runs on, its model, and its Job. A car
 | **Name** | What the team and you call it. Two agents can't share a name. |
 | **Job** | Its first message when the team starts. See [writing a Job](/guides/agent-design#write-each-job-like-a-task-spec). |
 | **Folder** | Its own folder, or **Use project folder**. |
-| **Runs on** and model | Claude, Codex or Practice, and which model. |
+| **Runs on** and model | Claude or Codex, and which model. |
 | **Hands work to** | Who receives its finished work (**Connect to…**). |
 | **Group** | Which group it sits in. |
 | **Token limit**, **Check** | A token cap and an after-turn command. |
@@ -50,6 +52,32 @@ The other buttons on the bar:
 - The folder button sets the folder for every agent.
 - **Full text** shows every card's full Job instead of a preview.
 - **Undo** (<kbd>Ctrl+Z</kbd>) and **Redo** (<kbd>Ctrl+Shift+Z</kbd>).
+
+## Groups
+
+A group is a box around agents that share a purpose. **Group** on the bar (or **New group here** in the board's right-click menu) adds an empty group. The other agents stay where they are, outside it: a group holds only the agents you put in it.
+
+- **Put an agent in:** drag its card into the box, or choose its group under **Group** in its details.
+- **Take it out:** drag the card onto empty board, or right-click it and choose **Take out of its group**.
+- **Remove the box but keep the agents:** right-click the group and choose **Ungroup**. **Delete group and its agents** removes both.
+
+The group's name means something to the agents. Every agent in the group is told the group's name and its other members, and an agent with an arrow to or from the group is told it is connected to that group. Name a group for what its agents do together, such as *Quality checks*.
+
+While the team runs, agents can't change group.
+
+## Copy, paste and right-click
+
+Select an agent or a group, then:
+
+| Do | Keyboard (Command on a Mac) | Menu |
+| --- | --- | --- |
+| Copy | <kbd>Ctrl+C</kbd> | Right-click → **Copy** |
+| Paste | <kbd>Ctrl+V</kbd> | Right-click the board → **Paste here** |
+| Duplicate | <kbd>Ctrl+D</kbd> | Right-click → **Duplicate** |
+
+A pasted agent keeps its Job, what it runs on, its folder and its settings, gets the next free name (*Builder 2*) and has no arrows. A pasted group brings its agents and the arrows between them. With a group selected, <kbd>Ctrl+V</kbd> pastes a copied agent into it. You can paste into another project open in the same browser.
+
+Right-click also works on the board (add an agent or group there, paste, fit), on a group (rename, copy, add an agent, ungroup) and on an agent (open, copy, duplicate, what it runs on, delete).
 
 ## Connect work
 
@@ -96,7 +124,8 @@ Every agent needs a folder to work in. Set one folder for the whole project and 
 | Move a card or group | Drag it | Select it, then the arrow keys (<kbd>Shift</kbd> for bigger steps) |
 | Select an agent, group or arrow | Click it | <kbd>Tab</kbd> |
 | Open an agent's details | Click it | <kbd>Enter</kbd> on it |
-| Delete the selection | — | <kbd>Delete</kbd> or <kbd>Backspace</kbd> |
+| Delete the selection | Right-click → **Delete** | <kbd>Delete</kbd> or <kbd>Backspace</kbd> |
+| Copy, paste, duplicate | Right-click | <kbd>Ctrl+C</kbd>, <kbd>Ctrl+V</kbd>, <kbd>Ctrl+D</kbd> |
 | Leave the selection | Click empty board | <kbd>Esc</kbd> |
 | Zoom | The **−** **+** buttons | <kbd>-</kbd> and <kbd>+</kbd> |
 | Fit everything | **Fit** | <kbd>f</kbd> |

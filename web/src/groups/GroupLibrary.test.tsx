@@ -15,8 +15,8 @@ it('creates and edits a group on its own board and saves to Library without crea
  const user=userEvent.setup();render(<MemoryRouter><GroupLibrary/></MemoryRouter>);
  await user.click(await screen.findByRole('button',{name:'Create group block'}));
  await user.clear(screen.getByLabelText('Group name'));await user.type(screen.getByLabelText('Group name'),'Review pair');
- await user.click(screen.getByRole('button',{name:'Add a Practice agent'}));await user.click(screen.getByRole('button',{name:'Add a Practice agent'}));
- const cards=screen.getAllByRole('button',{name:/Practice \d —/});
+ await user.click(screen.getByRole('button',{name:'Add a Claude agent'}));await user.click(screen.getByRole('button',{name:'Add a Claude agent'}));
+ const cards=screen.getAllByRole('button',{name:/Claude \d —/});
  fireEvent.focus(cards[0]);fireEvent.keyDown(cards[0],{key:'ArrowRight'});
  await user.click(screen.getByRole('button',{name:'Save group'}));
  await screen.findByText('Saved in Library');

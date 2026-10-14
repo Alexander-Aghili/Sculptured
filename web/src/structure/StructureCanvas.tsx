@@ -18,7 +18,9 @@ import type { DraftIssue } from '../generated/DraftIssue';
 import type { EdgeKind } from '../generated/EdgeKind';
 import type { TeamDraft } from '../generated/TeamDraft';
 import { addAgent, addGroup, connect, reconnect, moveAgent, moveGroup, removeElement, type Selection } from '../draft/edits';
-import { agentAt, agentBox, BIG_STEP, drawnGroups, groupAt, nextFreeSlot, STEP, type Point } from '../draft/geometry';
+import { agentAt, agentBox, alignCard, BIG_STEP, drawnGroups, groupAt, nextFreeSlot, STEP, type Point } from '../draft/geometry';
+import { BoardMenu, useBoardClipboard, type MenuOpen } from './BoardMenu';
+import { OFFERED_KINDS } from './ModelControls';
 import { groupOf } from '../draft/ids';
 import { errorsOf, FOLDER_ISSUE_WORDS, issuesFor, MARK } from '../draft/issues';
 import { CARD_H, CARD_W, type Box } from '../layout';
@@ -41,7 +43,7 @@ export type CanvasHandle = {
 };
 
 const EDGE_KIND: Record<ConnectionKind, EdgeKind> = { 'hands-work-to': 'delegates_to', 'reports-to': 'escalates_to', watches: 'can_observe' };
-const PALETTE: AgentKind[] = ['claude', 'codex', 'practice'];
+const PALETTE: AgentKind[] = OFFERED_KINDS;
 const PALETTE_WORD: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', practice: 'Practice' };
 
 /** The model shown on a card: the one it will run with, or the CLI's default. */
@@ -63,8 +65,6 @@ type Props = {
   /** Opens an agent's details page (a click on its card). */
   onOpen?: (id: string) => void;
   onWorkflow?: (target: WorkflowTarget) => void;
-  /** Opens the right-click menu for an agent at a screen point. */
-  onMenu?: (id: string, x: number, y: number) => void;
   edit: Edit;
   /** The team is running: structure is read-only, positions, names and jobs are not. */
   locked: boolean;
@@ -83,7 +83,8 @@ function withDrag(d: TeamDraft, drag: Drag | null, k: number): TeamDraft {
   const dy = drag.dy / k;
   if (drag.kind === 'input' && d.workflow) { const b=inputBox(d); return {...d,workflow:{...d.workflow,input_position:{x:b.x+dx,y:b.y+dy}}}; }
   if (drag.kind === 'stage' && d.workflow) { const b=stageBoxes(d)[`$stage:${drag.id}`]; return b ? {...d,workflow:{...d.workflow,stages:d.workflow.stages.map(s=>s.id===drag.id?{...s,position:{x:b.x+dx,y:b.y+dy}}:s)}} : d; }
-  if (drag.kind === 'agent') return { ...d, agents: d.agents.map((a) => (a.id === drag.id ? { ...a, x: a.x + dx, y: a.y + dy } : a)) };
+  // A dragged card shows where it will land: where it is, or lined up with a nearby card.
+  if (drag.kind === 'agent') return { ...d, agents: d.agents.map((a) => (a.id === drag.id ? { ...a, ...alignCard(d, a.id, { x: a.x + dx, y: a.y + dy }) } : a)) };
   return {
     ...d,
     groups: d.groups.map((g) => (g.id === drag.id ? { ...g, x: g.x + dx, y: g.y + dy } : g)),
@@ -256,6 +257,27 @@ export function StructureCanvas(p: Props) {
     }
   };
 
+  const [menu, setMenu] = useState<MenuOpen | null>(null);
+  const selectNew = (s: Selection) => { onSelect(s); setFocusNext(s); };
+  const clip = useBoardClipboard({ draft, selection, edit, locked, groupOnly: p.groupOnly, onPasted: selectNew });
+  const menuAt = (e: React.MouseEvent, target: { kind: 'agent'; id: string } | { kind: 'group'; id: string } | { kind: 'board' }) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const at = toWorld(e.clientX, e.clientY);
+    if (target.kind !== 'board') onSelect(target);
+    setMenu(target.kind === 'agent' ? { ...target, x: e.clientX, y: e.clientY } : { ...target, at, x: e.clientX, y: e.clientY });
+  };
+  const boardActions = {
+    add: (k: AgentKind, at: Point) => add(k, { x: at.x - CARD_W / 2, y: at.y - 24 }),
+    addGroup: (at: Point) => newGroup(at),
+    copy: (s: Selection) => void clip.copy(s),
+    paste: clip.paste,
+    duplicate: clip.duplicate,
+    inspect: (s: Selection) => { onSelect(s); p.onInspect?.(s); },
+    openAgent: (id: string) => (p.onOpen ? p.onOpen(id) : p.onOpenAgent(id)),
+    fit,
+  };
+
   const addBlock = (block:GroupBlock,at?:Point) => {
     if (locked) return;
     if (!at && groupDragged.current) {groupDragged.current=false;return;}
@@ -273,10 +295,10 @@ export function StructureCanvas(p: Props) {
     });
   };
 
-  const newGroup = () => {
+  const newGroup = (at?: Point) => {
     let id = '';
     edit((d) => {
-      const r = addGroup(d);
+      const r = addGroup(d, at);
       id = r.id;
       return r.draft;
     });
@@ -336,7 +358,7 @@ export function StructureCanvas(p: Props) {
         const dx = ev.clientX - e.clientX;
         const dy = ev.clientY - e.clientY;
         // One edit on release, never one per pointer move.
-        edit((d) => moveAgent(d, id, { x: a.x + dx / k, y: a.y + dy / k }, locked));
+        edit((d) => moveAgent(d, id, alignCard(d, id, { x: a.x + dx / k, y: a.y + dy / k }), locked));
       },
     );
   };
@@ -533,7 +555,7 @@ export function StructureCanvas(p: Props) {
             </Btn>
           );
         })}
-        {!p.groupOnly && <Btn onClick={newGroup} icon="group" disabled={locked} aria-describedby={locked ? `${ids}-lock` : undefined} aria-label="Add a group" tip="Add a group">
+        {!p.groupOnly && <Btn onClick={() => newGroup()} icon="group" disabled={locked} aria-describedby={locked ? `${ids}-lock` : undefined} aria-label="Add a group" tip="Add a group">
           Group
           <Icon name="plus" size={13} className="muted" />
         </Btn>}
@@ -564,6 +586,7 @@ export function StructureCanvas(p: Props) {
         tabIndex={-1}
         onPointerDown={onViewportDown}
         onKeyDown={onKeyDown}
+        onContextMenu={(e) => { if (!(e.target as HTMLElement).closest('button, a, input, textarea')) menuAt(e, { kind: 'board' }); }}
         onScroll={draft.workflow ? e => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; } : undefined}
         data-testid="structure-viewport"
         aria-label="Design board"
@@ -573,7 +596,7 @@ export function StructureCanvas(p: Props) {
           <div className="sb-empty" aria-live="polite">
             <p className="sb-empty-title">This {p.groupOnly ? 'group' : 'team'} has no agents yet.</p>
             <p className="muted">
-              Drag <span className="kbdish">+ Claude</span>, <span className="kbdish">+ Codex</span> or <span className="kbdish">+ Practice</span> onto the board, or
+              Drag <span className="kbdish">+ Claude</span> or <span className="kbdish">+ Codex</span> onto the board, right-click it, or
               {p.groupOnly ? <>use <kbd>Tab</kbd> to reach Add, then <kbd>⏎</kbd>.</> : <>press <kbd>n</kbd> then <kbd>⏎</kbd>.</>}
             </p>
           </div>
@@ -594,6 +617,7 @@ export function StructureCanvas(p: Props) {
                 className={`group-box sb-group${hidden ? ' group-collapsed' : ''}${sel ? ' selected' : ''}${dropGroup === g.id ? ' drop-target' : ''}${drag?.kind === 'group' && drag.id === g.id ? ' dragging' : ''}`}
                 style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
                 onPointerDown={hidden ? groupDown(g.id) : undefined}
+                onContextMenu={(e) => menuAt(e, { kind: 'group', id: g.id })}
               >
                 <button
                   type="button"
@@ -717,11 +741,7 @@ export function StructureCanvas(p: Props) {
                       if (!pointerFocus.current) reveal(agentBox(a));
                     }}
                     onClick={() => openCard(a.id)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      onSelect({ kind: 'agent', id: a.id });
-                      p.onMenu?.(a.id, e.clientX, e.clientY);
-                    }}
+                    onContextMenu={(e) => menuAt(e, { kind: 'agent', id: a.id })}
                   >
                     <span className="box-head">
                       <VendorMark v={v} size="md" />
@@ -776,6 +796,7 @@ export function StructureCanvas(p: Props) {
         </div>
       </div>
       </div>
+      {menu && <BoardMenu open={menu} draft={draft} locked={locked} groupOnly={p.groupOnly} edit={edit} act={boardActions} onClose={() => setMenu(null)} />}
     </div>
   );
 }
