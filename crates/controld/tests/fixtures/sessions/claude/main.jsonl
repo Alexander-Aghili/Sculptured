@@ -1,0 +1,9 @@
+{"type":"queue-operation","operation":"enqueue","sessionId":"s1","timestamp":"2026-10-01T10:00:00.000Z","content":"x"}
+{"type":"user","uuid":"u1","parentUuid":null,"sessionId":"s1","cwd":"/work/app","timestamp":"2026-10-01T10:00:00.000Z","message":{"role":"user","content":"Add a login page"}}
+{"type":"user","uuid":"u0","parentUuid":"u1","sessionId":"s1","isMeta":true,"timestamp":"2026-10-01T10:00:00.500Z","message":{"role":"user","content":"<command-name>/clear</command-name>"}}
+{"type":"assistant","uuid":"a1","parentUuid":"u1","sessionId":"s1","timestamp":"2026-10-01T10:00:05.000Z","message":{"id":"m1","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"I'll look first."}],"usage":{"input_tokens":100,"output_tokens":20,"cache_read_input_tokens":5,"cache_creation_input_tokens":0}}}
+{"type":"assistant","uuid":"a2","parentUuid":"a1","sessionId":"s1","timestamp":"2026-10-01T10:00:06.000Z","message":{"id":"m1","role":"assistant","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"toolu_R","name":"Read","input":{"file_path":"src/app.ts"}}],"usage":{"input_tokens":100,"output_tokens":20,"cache_read_input_tokens":5,"cache_creation_input_tokens":0}}}
+{"type":"user","uuid":"u2","parentUuid":"a2","sessionId":"s1","timestamp":"2026-10-01T10:00:07.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_R","content":"export const app = 1"}]}}
+{"type":"assistant","uuid":"a3","parentUuid":"u2","sessionId":"s1","message":{"id":"m2","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"Done."}],"usage":{"input_tokens":10,"output_tokens":3,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+{"type":"ai-title","sessionId":"s1","aiTitle":"Login page"}
+{"type":"some-future-line","sessionId":"s1"}

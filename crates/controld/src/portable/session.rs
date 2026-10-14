@@ -139,7 +139,7 @@ fn session_invalid(diagnostics: Vec<rigspec::Diagnostic>) -> ApiError {
     ApiError::unprocessable("session_file_invalid", format!("This run file can't be read ({n} {})", if n == 1 { "problem" } else { "problems" }), diagnostics)
 }
 
-fn at_line(n: usize, message: impl Into<String>) -> rigspec::Diagnostic {
+pub(crate) fn at_line(n: usize, message: impl Into<String>) -> rigspec::Diagnostic {
     rigspec::Diagnostic { path: format!("line {n}"), severity: rigspec::Severity::Error, message: message.into() }
 }
 

@@ -1,5 +1,6 @@
 //! Portable formats: a team's structure (`sculptured.team/v1`) and a run (`sculptured.session/v1`),
 //! with JSON Schemas generated from these same types and published under `web/public/schema/`.
+pub mod convert;
 pub mod session;
 pub mod team;
 
