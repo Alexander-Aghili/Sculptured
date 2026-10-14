@@ -74,7 +74,7 @@ sequenceDiagram
   <Tab title="macOS">
     Apple silicon and Intel Macs, with macOS 11 or later. There are two ways to connect a Mac:
 
-    - **The app:** on the Computers page, choose **Download Sculptured for Mac**. Open the download and drag Sculptured to Applications. The first time, macOS says it can't check the app, because it isn't signed with an Apple Developer ID yet: open *System Settings → Privacy & Security*, scroll down and choose **Open Anyway**. In the app, under **Sculptured account**, choose **Sign in to my account** and approve the computer. Agents run while the app is open.
+    - **The app:** download it and sign in there. Agents run while the app is open. See [Install the Mac app](#install-the-mac-app) below.
     - **Terminal:** copy the connect command, as on Linux, and paste it into Terminal. The runner keeps itself running in the background with a LaunchAgent, `~/Library/LaunchAgents/dev.sculptured.runner.plist`, even when no window is open.
 
     macOS keeps Desktop, Documents and Downloads from background programs until you allow them. If a project is in one of those, allow Sculptured in *System Settings → Privacy & Security*, under **Files and Folders** or **Full Disk Access**. Folders elsewhere in your home folder need nothing.
@@ -82,6 +82,28 @@ sequenceDiagram
     Self-hosted Sculptured already runs on Apple silicon Macs: see [Run it yourself](/operations).
   </Tab>
 </Tabs>
+
+## Install the Mac app
+
+On a Mac, the sign-in page and the Computers page both offer **Download Sculptured for Mac**. One download works on Apple silicon and Intel Macs.
+
+<Steps>
+  <Step title="Move it to Applications">
+    Open the download (`Sculptured-mac.dmg`) and drag **Sculptured** onto **Applications**. Then open it from your Applications folder, not from the download window.
+  </Step>
+  <Step title="Allow it once">
+    The first time, macOS says **“Sculptured” Not Opened**: *Apple could not verify “Sculptured” is free of malware…*. This is because the app isn't signed with an Apple Developer ID yet. Click **Done**, not Move to Trash.
+
+    Open *System Settings → Privacy & Security* and scroll down to **Security**. Next to *“Sculptured” was blocked to protect your Mac*, click **Open Anyway**, enter your Mac password, then click **Open**. You only do this once; after that it opens normally.
+  </Step>
+  <Step title="Sign in and approve">
+    In the app, under **Sculptured account**, the address is already filled in. Choose **Sign in to my account**, sign in, and approve this computer. It appears on the Computers page, and agents run on it while the app is open.
+  </Step>
+</Steps>
+
+<Note>
+If Google sign-in is refused inside the app, sign in with GitHub or with your email and password instead.
+</Note>
 
 ## What the command does
 

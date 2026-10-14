@@ -17,6 +17,12 @@ Find the message or symptom you see, then open it. Each fix says what causes it 
   <Accordion title="“There's no Sculptured build for … yet”">
     The Computers page offers only the systems the server has a build for, and the installer stops before installing anything if there is none. Today the builds are Linux, Windows and macOS (Apple silicon and Intel). A Mac build appears a few minutes after each update, once GitHub has built it; until then the macOS tab may say there's none. Connect a computer with another system for now.
   </Accordion>
+  <Accordion title="“Sculptured” Not Opened: Apple could not verify it is free of malware">
+    The Mac app isn't signed with an Apple Developer ID yet, so macOS asks once. Click **Done** (not Move to Trash). Open *System Settings → Privacy & Security*, scroll to **Security**, click **Open Anyway** next to *“Sculptured” was blocked*, enter your password and click **Open**. See [Install the Mac app](/connect-a-computer#install-the-mac-app).
+  </Accordion>
+  <Accordion title="The Mac app's icon is crossed out">
+    That download doesn't run on this Mac's processor. Download the app again from the Computers page: the current `Sculptured-mac.dmg` runs on both Apple silicon and Intel Macs.
+  </Accordion>
   <Accordion title="“checksum mismatch” or “could not download”">
     The download was cut off or changed on the way. Nothing was installed. Copy a new connect command from the Computers page and run it again.
   </Accordion>
