@@ -58,6 +58,9 @@ Find the message or symptom you see, then open it. Each fix says what causes it 
   <Accordion title="“…'s folder must be a full path”">
     A folder must start from the top of the disk: `/home/you/project` on Linux, `/Users/you/project` on macOS, or `C:\Users\you\project` on Windows. A path such as `project` or `~/project` is not full.
   </Accordion>
+  <Accordion title="“Sculptured can't read that folder”">
+    The connected computer can't open the folder. On a Mac, Desktop, Documents and Downloads need your permission: in *System Settings → Privacy & Security*, allow Sculptured under **Files and Folders** or **Full Disk Access**, then choose the folder again. Elsewhere, check that the folder belongs to the user the runner runs as.
+  </Accordion>
   <Accordion title="“… is not in a folder this computer allows”">
     The computer only lets agents start inside the folders its owner allowed. The installer allows your home folder. On that computer, run:
 

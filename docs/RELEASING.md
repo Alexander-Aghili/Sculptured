@@ -30,6 +30,18 @@ sh deploy/release/package.sh x86_64-unknown-linux-gnu target/release/sculptured 
 
 Upload `dist/*` to a release, or point `GATEWAY_RELEASES_URL` at any folder serving them.
 
+### The hosted gateway's macOS build
+
+The gateway image builds Linux and Windows itself, but macOS needs a Mac. On an Apple silicon Mac, build the commit the server runs, then upload it from the computer that deploys:
+
+```sh
+git fetch && git checkout origin/main
+deploy/release/build-mac.sh dist                                   # on the Mac
+deploy/aws/deploy.sh --upload-release <folder with dist/*>         # in sculptured-cloud
+```
+
+The gateway serves uploaded builds from `/data/releases`, beside its own; the image's build wins for the same system. Each deploy (and `deploy.sh --release-status`) warns when an uploaded build is from another commit.
+
 **The desktop app's installers** are built on each OS with `cd desktop && npm ci && npx electron-builder` (see `desktop/README.md`).
 
 ## Later

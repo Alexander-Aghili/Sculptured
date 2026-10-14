@@ -20,7 +20,8 @@ export const FOLDER_WORDS: Record<string, string> = {
   outside_home: 'Only folders inside your home folder can be chosen.',
   folder_missing: 'That folder does not exist any more.',
   not_a_folder: 'That is a file, not a folder.',
-  folder_unreadable: "Sculptured can't read that folder.",
+  folder_unreadable:
+    "Sculptured can't read that folder. On a Mac, Desktop, Documents and Downloads need your permission: in System Settings → Privacy & Security, allow Sculptured under Files and Folders or Full Disk Access.",
   bad_path: "That folder path can't be used.",
   path_not_absolute: "That folder path can't be used.",
   bad_folder_name: "Folder names can't be empty, start with a dot, or contain '/' or invisible formatting characters.",

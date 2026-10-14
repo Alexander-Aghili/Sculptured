@@ -54,6 +54,11 @@ fn agent_issue(a: &DraftAgent, code: &str, message: String, detail: Option<Strin
     }
 }
 
+/// macOS keeps Desktop, Documents and Downloads from background programs until they're allowed.
+fn macos_hint() -> Option<String> {
+    cfg!(target_os = "macos").then(|| "In System Settings → Privacy & Security, allow Sculptured under Files and Folders or Full Disk Access.".into())
+}
+
 /// A blank or relative folder is `rigspec`'s issue (folder-missing, folder-not-absolute).
 fn folder_issue(home: Option<&Home>, a: &DraftAgent, folder: Option<&str>) -> Option<DraftIssue> {
     let who = rigspec::draft::display_name(a);
@@ -65,7 +70,7 @@ fn folder_issue(home: Option<&Home>, a: &DraftAgent, folder: Option<&str>) -> Op
                 "outside_home" => agent_issue(a, "folder-outside-home", format!("{who}'s folder is outside your home folder"), None),
                 "folder_missing" => agent_issue(a, "folder-not-found", format!("{who}'s folder no longer exists: {f}"), None),
                 "not_a_folder" => agent_issue(a, "folder-not-a-folder", format!("{who}'s folder is a file, not a folder: {f}"), None),
-                "folder_unreadable" => agent_issue(a, "folder-unreadable", format!("Sculptured can't read {who}'s folder: {f}"), None),
+                "folder_unreadable" => agent_issue(a, "folder-unreadable", format!("Sculptured can't read {who}'s folder: {f}"), macos_hint()),
                 // `.`/`..` components, NUL bytes, link loops, names that are too long.
                 _ => agent_issue(a, "folder-bad-path", format!("{who}'s folder path can't be used: {f}"), Some(e.message)),
             })

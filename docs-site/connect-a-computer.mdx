@@ -76,6 +76,8 @@ sequenceDiagram
 
     When a build is published, the command is the same as on Linux and runs in Terminal. Only Apple silicon Macs will be supported; the installer refuses Intel Macs. The runner keeps itself running with a LaunchAgent, `~/Library/LaunchAgents/dev.sculptured.runner.plist`.
 
+    macOS keeps Desktop, Documents and Downloads from background programs until you allow them. If a project is in one of those, allow Sculptured in *System Settings → Privacy & Security*, under **Files and Folders** or **Full Disk Access**. Folders elsewhere in your home folder need nothing.
+
     Self-hosted Sculptured already runs on Apple silicon Macs: see [Run it yourself](/operations).
   </Tab>
 </Tabs>

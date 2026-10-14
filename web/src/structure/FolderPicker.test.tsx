@@ -90,6 +90,11 @@ describe('FolderPicker', () => {
     expect(folderError(new ApiError(400, 'something_new', 'Server says so'))).toBe('Sculptured could not do that (error 400). Reload the page and try again.');
   });
 
+  it('says how to allow a folder macOS keeps from Sculptured', async () => {
+    const { folderError } = await import('./FolderPicker');
+    expect(folderError(new ApiError(403, 'folder_unreadable', 'server text'))).toMatch(/Mac.*System Settings → Privacy & Security/);
+  });
+
   it('Esc closes and returns focus to where it came from', async () => {
     screen.queryByRole('dialog');
     const { onClose } = picker();
