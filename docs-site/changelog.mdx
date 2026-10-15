@@ -5,6 +5,18 @@ description: What changed in Sculptured, newest first.
 
 Changes you can see or use, by date. The open-source core's full history is on [GitHub](https://github.com/Alexander-Aghili/sculptured/commits/main).
 
+## 15 October 2026
+
+### Budgets
+
+- **Run budgets.** Team **Advanced** → **Run budget** keeps one run within a share of your Claude or Codex plan window (5-hour or weekly), a token count or a time. Each has a **soft** value, where no new work starts and agents wrap up with a summary, and a **hard** value, where every agent is stopped at once. See [Budgets and limits](/guides/budgets).
+- **Most agents working at once.** The rest wait for a free slot.
+- **Agent limits have soft and hard values**, and gain **turns** and **minutes working** beside tokens. A token limit that is reached now stops the agent at once; the soft value (85% of it unless you set one) asks it to wrap up first.
+- **Usage is counted on every model call**, so a long reply with many tool calls is counted while it runs, not only when it ends.
+- **A hard stop acts like Ctrl+C**: the agent and the commands it is running are interrupted at once, and anything still running two seconds later is ended. **Stop everything now** does this for the whole team.
+- **The Run board shows each budget** as the run goes, with whether the number includes an estimate, and who is waiting for a slot.
+- **MADL** files carry budgets: `system.budget` for the run, and soft and hard values for every limit.
+
 ## 14 October 2026
 
 ### Efficiency
