@@ -41,6 +41,9 @@ pub(crate) fn decision_log_note(store: &crate::store::Store, team: &str, on: boo
     Some(format!("The team keeps a decision log ({n} {}); read it with read_decisions before deciding something it may cover.", if n == 1 { "entry" } else { "entries" }))
 }
 
+/// Every agent's usage counts against the person's own plan; tell agents what is expensive.
+const EFFICIENCY: &str = "Work efficiently: everything you read stays in your context and is re-read at every later step, and every agent you spawn is a full agent with usage of its own. Read a PDF with read_pdf first: it gives each page's text and names pages with no text, so you look at a page as an image only when it has no text and you need what is on it. Read only the parts of large files you need. Spawn a helper only for large, independent work; never spawn helpers to split up reading.";
+
 pub(crate) fn briefing(d: &TeamDraft, seat: &str) -> Option<String> {
     let me = d.agent_for_seat(seat)?;
     // Practice messages are executable fixture commands, not model prompts.
@@ -51,6 +54,7 @@ pub(crate) fn briefing(d: &TeamDraft, seat: &str) -> Option<String> {
         lines.push(format!("This project uses a dynamic workflow, not ordinary turn-end handoffs. Only agent {} calls dispatch_work(batch_id, summary, tasks:[{{id,title,context,mode,depends_on}}]) once per project start. It chooses N within 1–{}. Each task runs stage {} first; stages branch by complete_work outcomes and can loop for at most {} steps. Assembly agent {} waits for every task to complete. Workers receive assignment IDs and must call complete_work(assignment,outcome,result); plain completion replies do not advance the workflow. workflow_status reads the batch. Reserved outcome blocked stops an item. Each topic chooses mode independent with empty depends_on for unrelated work, or dependent with prerequisite topic IDs. Independent topics can run simultaneously on available configured workers; dependent topics wait for accepted results from all prerequisites. Topic dependencies must be acyclic. Reading-order prerequisites alone do not require build dependencies. Use separate module paths; coordinate shared file changes. Use spawn_agent for tracked, bounded helpers when useful. Configured stages: {}", w.dispatcher, w.max_tasks, w.entry, w.max_steps, w.collector, serde_json::to_string(&w.stages).unwrap()));
     }
     lines.push("Work only on your assigned job. A leader plans and coordinates the configured team; it does not replace the other agents or implement their jobs unless explicitly assigned. Sculptured automatically delivers completed replies along 'hands work to' connections. Use spawn_agent to create helpers; all child agents must be managed through this tool so their lifecycle and communication appear on the board. Do not create untracked agents through native CLI delegation, shell processes or external tools. Do not replace configured teammates. Use team_status and send_agent_message to ask teammates for help, request features, report results and coordinate shared interfaces. Include exact artifact revisions and task context. 'Reports to' and 'watches' are descriptive only, not automatic routing. Report missing instructions or blocked dependencies rather than guessing. A reported result is not independently verified.".into());
+    lines.push(EFFICIENCY.into());
     lines.push("Use downstream jobs to decide your handoff: when another agent owns implementation, provide its plan and inputs instead of doing that agent's work. Respect project-wide constraints stated in the jobs (such as output folders or no publishing) throughout the team. Ask the operator about conflicting instructions.".into());
     for a in &d.agents {
         let group = group_label(d, a).map(|l| format!(" · Group: {l}")).unwrap_or_default();
@@ -114,6 +118,7 @@ mod tests {
             assert!(text.contains("Builder [builder] hands work to Reviewer [reviewer]"));
             assert!(text.contains("Folder: /home/me/project"));
             assert!(text.contains("Use spawn_agent to create helpers"));
+            assert!(text.contains("read_pdf"), "every agent is told to read PDFs as text first");
             assert!(text.contains(&a.job));
         }
         assert!(briefing(&d, "missing").is_none());

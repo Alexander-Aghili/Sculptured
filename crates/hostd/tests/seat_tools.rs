@@ -30,8 +30,8 @@ fn the_shim_initializes_and_lists_its_tools() {
     let names = |approve| -> Vec<String> {
         tool_list(approve).as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect()
     };
-    assert_eq!(names(false), ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "spawn_agent", "send_agent_message", "team_status"]);
-    assert_eq!(names(true), ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "spawn_agent", "send_agent_message", "team_status", "approve"]);
+    assert_eq!(names(false), ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "spawn_agent", "send_agent_message", "team_status", "read_pdf"]);
+    assert_eq!(names(true), ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "spawn_agent", "send_agent_message", "team_status", "read_pdf", "approve"]);
     let listed = rpc(json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/list" }), true, &no_call);
     assert_eq!(listed["result"]["tools"][0]["inputSchema"]["required"], json!(["question"]));
 }

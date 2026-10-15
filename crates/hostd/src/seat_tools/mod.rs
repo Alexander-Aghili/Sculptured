@@ -5,6 +5,7 @@ mod request;
 mod socket;
 mod workflow;
 mod collaboration;
+mod pdf;
 
 pub use socket::{
     serve_socket, serve_socket_with, SocketLimits, NOT_TEXT, NO_APPROVE, TOO_LARGE, TOO_MANY, TOO_MANY_FOR_AGENT, TOO_SLOW,
@@ -26,6 +27,7 @@ pub fn tool_list(approve: bool) -> Value {
     let mut tools = vec![request_input_tool(), record_decision_tool(), report_tool()];
     tools.extend(workflow::tools());
     tools.extend(collaboration::tools());
+    tools.push(pdf::tool());
     if approve {
         tools.push(approve_tool());
     }
@@ -85,7 +87,7 @@ fn approve_tool() -> Value {
 }
 
 fn known(tool: &str, approve: bool) -> bool {
-    matches!(tool, "request_input" | "record_decision" | "report" | "dispatch_work" | "complete_work" | "workflow_status" | "spawn_agent" | "send_agent_message" | "team_status" | "read_decisions") || (approve && tool == "approve")
+    matches!(tool, "request_input" | "record_decision" | "report" | "dispatch_work" | "complete_work" | "workflow_status" | "spawn_agent" | "send_agent_message" | "team_status" | "read_decisions" | "read_pdf") || (approve && tool == "approve")
 }
 
 fn reply(id: Value, result: Value) -> String {
@@ -125,7 +127,10 @@ fn tool_call(params: &Value, approve: bool, call: &dyn Fn(&str, Value) -> Result
     if !known(name, approve) {
         return tool_result(format!("the tool {name:?} is not available to this agent"), true);
     }
-    match call(name, params.get("arguments").cloned().unwrap_or_else(|| json!({}))) {
+    let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+    // Read on the agent's own computer: the PDF never leaves it.
+    let result = if name == "read_pdf" { pdf::read(&args) } else { call(name, args) };
+    match result {
         Ok(v) => tool_result(v["text"].as_str().map(str::to_string).unwrap_or_else(|| v.to_string()), false),
         Err(e) => tool_result(e, true),
     }
