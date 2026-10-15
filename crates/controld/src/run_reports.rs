@@ -135,7 +135,7 @@ fn older_runner(e: ApiError) -> ApiError {
     if e.code != "unknown_op" {
         return e;
     }
-    ApiError::conflict("older_runner", "This computer's Sculptured runner is older than reports of where tokens went. Reinstall it from Computers.")
+    ApiError::conflict("runner_without_reports", "This computer's Sculptured runner is older than reports of where tokens went. Reinstall it from Computers.")
 }
 
 /// Teams with an agent running or starting.
@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn a_runner_that_does_not_know_the_request_is_told_to_update() {
         let e: ApiError = localops::LocalError::bad("unknown_op", "unknown variant").into();
-        assert_eq!(older_runner(e).code, "older_runner");
+        assert_eq!(older_runner(e).code, "runner_without_reports");
         assert_eq!(older_runner(ApiError::not_found("x")).code, "not_found");
     }
 }

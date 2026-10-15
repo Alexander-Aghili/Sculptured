@@ -33,6 +33,7 @@ import { WorkflowInspector } from '../workflow/WorkflowInspector';
 import type { WorkflowTarget } from '../workflow/WorkflowGraph';
 import { CommunicationDashboard } from '../collaboration/CommunicationDashboard';
 import { UsageDashboard } from '../collaboration/UsageDashboard';
+import { WhereTokensWent } from '../collaboration/WhereTokensWent';
 import { DeploymentHistoryView } from '../collaboration/DeploymentHistoryView';
 import { SubtreeControls } from '../collaboration/SubtreeControls';
 import { BudgetStatus } from '../collaboration/BudgetStatus';
@@ -83,6 +84,8 @@ export function TeamLive(p: Props) {
   const [analytics,setAnalytics]=useState(false);
   const [usageOpen,setUsageOpen]=useState(false);
   const usageButton=useRef<HTMLButtonElement>(null);
+  const [tokensOpen,setTokensOpen]=useState(false);
+  const tokensButton=useRef<HTMLButtonElement>(null);
   const analyticsButton=useRef<HTMLButtonElement>(null);
   const [confirmStop, setConfirmStop] = useState(false);
   const [{ open: conversationOpen }, changeConversation] = useConversationView(rig);
@@ -228,8 +231,9 @@ export function TeamLive(p: Props) {
             {/* Picking an item closes the menu. */}
             <div className="more-items" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) e.currentTarget.closest('details')?.removeAttribute('open'); }}>
               <Btn ref={conversationButton} aria-expanded={conversationOpen} onClick={() => changeConversation({ open: !conversationOpen })} icon="message" tip="Follow agent updates, handoffs and questions">Conversation</Btn>
-              <Btn ref={usageButton} aria-expanded={usageOpen} onClick={()=>{if(!usageOpen)track('open-token-use');setUsageOpen(!usageOpen);setAnalytics(false)}} tip="Tokens each agent has used over time">Token use</Btn>
-              <Btn ref={analyticsButton} aria-expanded={analytics} onClick={()=>{setAnalytics(!analytics);setUsageOpen(false)}}>Communications</Btn>
+              <Btn ref={usageButton} aria-expanded={usageOpen} onClick={()=>{if(!usageOpen)track('open-token-use');setUsageOpen(!usageOpen);setAnalytics(false);setTokensOpen(false)}} tip="Tokens each agent has used over time">Token use</Btn>
+              <Btn ref={tokensButton} aria-expanded={tokensOpen} onClick={()=>{setTokensOpen(!tokensOpen);setUsageOpen(false);setAnalytics(false)}} tip="What this run's tokens were spent on: setup, files, handoffs, the plan window">Where tokens went</Btn>
+              <Btn ref={analyticsButton} aria-expanded={analytics} onClick={()=>{setAnalytics(!analytics);setUsageOpen(false);setTokensOpen(false)}}>Communications</Btn>
               <Btn onClick={() => setHistorical(true)}>History</Btn>
               {p.draft?.workflow && <Btn onClick={() => setWorkflowTarget('run')}>Work evidence</Btn>}
               {mode === 'graph' && <Btn icon="fit" onClick={() => graph.current?.fit()} kbd="f">Fit graph</Btn>}
@@ -417,7 +421,8 @@ export function TeamLive(p: Props) {
         )}
         {analytics && <CommunicationDashboard rig={rig} state={state} connected={connected} names={names} onClose={()=>{setAnalytics(false);analyticsButton.current?.focus()}}/>}
         {usageOpen && !analytics && <UsageDashboard rig={rig} names={names} onClose={()=>{setUsageOpen(false);usageButton.current?.focus()}}/>}
-        {conversationOpen && !analytics && !usageOpen && <TeamConversation key={rig} rig={rig} state={state} connected={connected} names={names} agents={agents} onOpen={p.onOpen} onAnswer={p.onAnswer} onClose={closeConversation} />}
+        {tokensOpen && !analytics && !usageOpen && <WhereTokensWent rig={rig} seats={Object.keys(agents)} onClose={()=>{setTokensOpen(false);tokensButton.current?.focus()}}/>}
+        {conversationOpen && !analytics && !usageOpen && !tokensOpen && <TeamConversation key={rig} rig={rig} state={state} connected={connected} names={names} agents={agents} onOpen={p.onOpen} onAnswer={p.onAnswer} onClose={closeConversation} />}
       </div>
       {p.draft?.workflow && workflowTarget && <WorkflowInspector draft={p.draft} target={workflowTarget} locked edit={() => {}} onOpen={id => { const seat = snap.rig.seats.find(s => s.member === id); if (seat) p.onOpen(seat.id); }} onClose={() => setWorkflowTarget(null)} />}
       {confirmStart.dialog}

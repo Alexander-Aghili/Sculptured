@@ -103,8 +103,9 @@ Path fields are resolved by the runner, as described in [Connected computers §4
 | `cli-login` | `name` | `POST /api/clis/{name}/login[?host=]` | `cli_sign_in` | – | 20 s |
 | `plan-usage` | – | `GET /api/plan-usage` | `plan_usage` | – | 15 s |
 | `generate` | `cli, model?, prompt, schema` | `POST /api/generate/{questions,teams}` ([AI team generator](ai-team-generator.md)) | `generate` | – (runs in an empty temporary folder) | 300 s |
+| `analyze-run` | `sessions` (runtime, CLI session id), `export` (the run's `sculptured.session/v1` with only `tenure-started`, `handed-over`, `plan-usage-reported` and `budget-state-changed`) | `GET /api/teams/{id}/report` and the minute refresh (`run_reports.rs`) | `usage_reports` | – (session files are found by id under `~/.claude/projects` or `$CLAUDE_CONFIG_DIR/projects`, and `$CODEX_HOME/sessions` around the run's day; ids are plain names, never paths) | 60 s |
 
-Timeouts are set in `ops::timeout_for`. Copies get 120 s because creating or merging a worktree in a large repository can take that long.
+Timeouts are set in `ops::timeout_for`. A runner from before `analyze-run` answers `unknown_op`; controld turns that into `runner_without_reports` (reinstall the runner). Copies get 120 s because creating or merging a worktree in a large repository can take that long.
 
 **Browsing a connected computer** (`Supervisor::run_op`):
 - `list-folder` with no path answers with the allowed folders as entries and `path: ""`. The folder picker shows this level as "Folders this computer allows" and disables *Choose* and *New folder* there.
@@ -120,6 +121,7 @@ Timeouts are set in `ops::timeout_for`. Copies get 120 s because creating or mer
 | `cli_sign_in` | on | on |
 | `plan_usage` | on | on |
 | `generate` | on | on (no tools run) |
+| `usage_reports` | on | on (reads the CLIs' own session files; answers sizes, causes, commands and file names, never contents) |
 
 The runner reports its folders, access, capabilities and platform in `Hello.policy` (`HostPolicyInfo`). `GET /api/hosts` returns it, and the Computers page shows it for each connected computer. This report is for display only; the runner enforces its own copy of the rules on every op.
 

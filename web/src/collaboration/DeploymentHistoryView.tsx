@@ -11,6 +11,7 @@ import {CARD_H,CARD_W,COL_GAP,POD_PAD,type Layout} from '../layout';
 import {routeEdges} from '../shell/edgeGeometry';
 import {usePanZoom} from '../shell/viewport';
 import {DismissibleError} from '../shell/DismissibleError';
+import {WhereTokensWent} from './WhereTokensWent';
 const date=(ms:number|null)=>ms===null?'Unknown':new Date(ms).toLocaleString();
 const SOURCES:Record<string,string>={'sculptured':'Sculptured','imported:claude-code':'Claude Code','imported:codex':'Codex'};
 const sourceName=(s:string)=>SOURCES[s]??s;
@@ -22,7 +23,7 @@ export function DeploymentHistoryView({rig}:{rig:string}) {
   const root=params.get('history_subtree') ?? '';
   const [runs,setRuns]=useState<DeploymentRun[]>([]),[older,setOlder]=useState(false),[loadingRuns,setLoadingRuns]=useState(true);
   const [data,setData]=useState<DeploymentHistory|null>(null),[error,setError]=useState('');
-  const [selected,setSelected]=useState(''),[list,setList]=useState(false);
+  const [selected,setSelected]=useState(''),[list,setList]=useState(false),[tokensView,setTokensView]=useState(false);
   const seq=requested ?? runs[0]?.start_seq;
   const navigate=(key:string,value:string)=>setParams(previous=>{const next=new URLSearchParams(previous);if(value)next.set(key,value);else next.delete(key);if(key==='run')next.delete('history_subtree');return next;});
   useEffect(()=>{let active=true;setLoadingRuns(true);setRuns([]);api.deployments(rig).then(items=>{if(active){setRuns(items);setOlder(items.length===50);setLoadingRuns(false);}},()=>{if(active){setError('Could not load deployment history.');setLoadingRuns(false);}});return()=>{active=false};},[rig]);
@@ -39,6 +40,7 @@ export function DeploymentHistoryView({rig}:{rig:string}) {
       </select></label>}
       {root&&<button className="btn" onClick={()=>navigate('history_subtree','')}>Whole deployment</button>}
       <button className="btn" aria-pressed={list} onClick={()=>setList(!list)}>{list?'Graph':'List'}</button>
+      {seq!==undefined&&!data?.run.source&&<button className="btn" aria-pressed={tokensView} onClick={()=>setTokensView(!tokensView)}>{tokensView?'Agents':'Where tokens went'}</button>}
       {seq!==undefined&&<a className="btn" href={api.runFileUrl(rig,seq)} download onClick={()=>track('download-run')}>Download run</a>}
     </div>
     {data?.run.source&&<p className="live-evidence-note">Imported from a file ({sourceName(data.run.source)}). Shown as recorded in the file; it did not run here.</p>}
@@ -47,7 +49,8 @@ export function DeploymentHistoryView({rig}:{rig:string}) {
     {loadingRuns&&<p role="status">Loading deployments…</p>}
     {!loadingRuns&&!runs.length&&!error&&<p>No recorded deployments yet.</p>}
     {seq&&!data&&!error&&<p role="status">Loading deployment…</p>}
-    {data&&<>
+    {data&&tokensView&&!data.run.source&&<WhereTokensWent rig={rig} start={seq} seats={data.agents.map(a=>a.id)}/>}
+    {data&&!(tokensView&&!data.run.source)&&<>
       <p className="live-evidence-note">{data.agents.length} agents · Started {date(data.run.started_ms)} · Stop requested: {date(data.stopped_ms)}. {data.has_snapshot?'Saved configuration and recorded events.':'Recovered from recorded events; original configuration and some names were not retained.'}{data.summary_truncated?' Summary capped at 50,000 deployment events; raw history remains paginated below.':''}</p>
       <div className="history-body">
         <HistoryTree key={`${rig}:${seq}`} rig={rig} data={data} root={root} list={list} selected={selected} onSelect={setSelected}/>

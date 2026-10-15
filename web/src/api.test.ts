@@ -165,3 +165,11 @@ describe('M2 client', () => {
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ request_id: 'req-rt', decision: 'resume' });
   });
 });
+
+it('asks for a run\'s report of where tokens went, the latest run unless one is named', async () => {
+  const fetch = mockFetch(200, {});
+  await api.teamReport('c172');
+  await api.teamReport('c172', 20);
+  expect(fetch.mock.calls.map((c) => c[0])).toEqual(['/api/teams/c172/report', '/api/teams/c172/report?start=20']);
+});
+

@@ -7,6 +7,12 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 15 October 2026
 
+### Where tokens went
+
+- **A report of what a run's tokens were spent on.** On the Run board, **More** → **Where tokens went**; for an earlier run, **History** → **Where tokens went**. It shows the plan window the run used against its budget, tokens and agents working over time, every token by cause (setup, files printed, tool results, messages, output), each agent's share, the costliest things in context, and what to change. It is refreshed every minute while the run goes. See [Where tokens went](/guides/where-tokens-went).
+- **Made on the computer that ran the team.** The runner reads the Claude Code and Codex session files with MAIS, an open-source reader, and sends only the report. A runner installed before this says so; reinstall it from **Computers**.
+- **Budget wrap-ups and stops are recorded in the run's history**, so a run file and its report show when they happened.
+
 ### Leaner agents, and resuming a team
 
 - **Claude agents no longer load your own Claude Code setup** (your plugins, skills, hooks, settings and MCP servers in `~/.claude`). Every agent re-read it on every model call; in one 26-agent run it was about 40% of each agent's starting context. Team **Advanced** → **Claude Code setup for agents** turns it back on, and turns the project's own `.claude` settings off. Sculptured's agent tools load either way. A runner that has not been reinstalled still loads everything, and the agent says so.

@@ -10,3 +10,33 @@
 .usage-cross{stroke:#ffffff55;stroke-width:1}
 .usage-tip{position:absolute;top:40px;transform:translateX(-50%);pointer-events:none;background:var(--panel,#171d24);border:1px solid var(--line,#ffffff20);border-radius:6px;padding:8px 10px;font-size:12px;display:grid;gap:3px;white-space:nowrap;z-index:3;box-shadow:0 4px 14px #0006}
 .usage-dashboard .traffic-table a{color:inherit}
+.tokens-report h3{font-size:15px;margin:22px 0 8px}
+.tokens-report h4{font-size:13px;margin:12px 0 6px;color:var(--muted,#98a4b5);font-weight:600}
+.tokens-findings{margin:0;padding-left:18px;display:grid;gap:6px;max-width:900px}
+.tokens-plan figure{margin:0 0 12px;max-width:900px}
+.tokens-plan figcaption{font-size:13px;margin-bottom:4px}
+.tokens-plan svg{width:100%;height:auto;display:block}
+.plan-track{fill:#ffffff10}
+.plan-before{fill:#98a4b566}
+.plan-added{fill:#3987e5}
+.plan-mark{stroke:#c98500;stroke-width:2}
+.plan-stop{stroke:#d95926}
+.tokens-events{font-size:12px;margin:4px 0 0;padding-left:18px}
+.tokens-bar{fill:#3987e5}
+.tokens-working{stroke:#199e70}
+.tokens-hit{fill:transparent}
+.tokens-causes ul{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-width:900px}
+.tokens-causes li{display:grid;grid-template-columns:minmax(150px,2fr) 3fr minmax(110px,auto);gap:10px;align-items:center;font-size:13px}
+.tokens-cause-bar{height:10px;background:#ffffff0d;border-radius:4px;overflow:hidden}
+.tokens-cause-bar i{display:block;height:100%;border-radius:0 4px 4px 0}
+.tokens-start{background:#9085e9}
+.tokens-growth{background:#3987e5}
+.tokens-output{background:#199e70}
+.tokens-cause-value{font-variant-numeric:tabular-nums;text-align:right}
+.tokens-cause-value em{color:var(--muted,#98a4b5);font-style:normal}
+.tokens-target{max-width:320px;overflow-wrap:anywhere;font-family:var(--mono,monospace);font-size:12px}
+.tokens-sharing ul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px}
+.tokens-sharing code{overflow-wrap:anywhere}
+.tokens-latency .tokens-wide{grid-column:1/-1}
+.tokens-report caption{text-align:left;font-size:12px;color:var(--muted,#98a4b5);padding:4px 0}
+@media (max-width:640px){.tokens-causes li{grid-template-columns:1fr auto}.tokens-cause-bar{grid-column:1/-1;order:3}}

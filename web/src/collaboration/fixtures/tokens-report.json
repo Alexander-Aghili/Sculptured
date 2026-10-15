@@ -1,0 +1,420 @@
+{
+  "format": "mais.report/v1",
+  "run": {
+    "name": "C172 Model",
+    "started_ms": 1792093830000,
+    "ended_ms": 1792094040000,
+    "agents": 2,
+    "calls": 4,
+    "usage": {
+      "input": 11,
+      "cache_read": 80000,
+      "cache_write": 50800,
+      "output": 65
+    },
+    "tokens": 130876,
+    "most_working": 2,
+    "models": [
+      "claude-haiku-5-5",
+      "claude-opus-5-5"
+    ],
+    "starting_context": {
+      "value": 41002,
+      "provenance": "measured"
+    }
+  },
+  "agents": [
+    {
+      "id": "dev8",
+      "name": "Developer 8",
+      "group": "Fuel Systems",
+      "role": null,
+      "parent": null,
+      "runtime": "claude-code",
+      "model": "claude-opus-5-5",
+      "calls": 3,
+      "usage": {
+        "input": 6,
+        "cache_read": 80000,
+        "cache_write": 42800,
+        "output": 62
+      },
+      "tokens": 122868,
+      "starting_context": 41002,
+      "final_context": 40902,
+      "start_reread": 119138,
+      "growth_reread": 3770,
+      "cli_cost_usd": 1.5,
+      "first_ms": 1792093830000,
+      "last_ms": 1792094040000,
+      "model_ms": {
+        "value": null,
+        "provenance": "unknown"
+      },
+      "tool_ms": {
+        "value": 0,
+        "provenance": "derived"
+      },
+      "waiting_ms": {
+        "value": null,
+        "provenance": "unknown"
+      }
+    },
+    {
+      "id": "dev8/ax1",
+      "name": "List files",
+      "group": null,
+      "role": "general-purpose",
+      "parent": "dev8",
+      "runtime": "claude-code",
+      "model": "claude-haiku-5-5",
+      "calls": 1,
+      "usage": {
+        "input": 5,
+        "cache_read": 0,
+        "cache_write": 8000,
+        "output": 3
+      },
+      "tokens": 8008,
+      "starting_context": 8005,
+      "final_context": 8005,
+      "start_reread": 8005,
+      "growth_reread": 0,
+      "cli_cost_usd": null,
+      "first_ms": 1792093860000,
+      "last_ms": 1792093860000,
+      "model_ms": {
+        "value": null,
+        "provenance": "unknown"
+      },
+      "tool_ms": {
+        "value": 0,
+        "provenance": "derived"
+      },
+      "waiting_ms": {
+        "value": null,
+        "provenance": "unknown"
+      }
+    }
+  ],
+  "where_tokens_went": [
+    {
+      "group": "start",
+      "part": "Your own CLI setup (skills list, plugins, hooks)",
+      "tokens": 43497,
+      "provenance": "estimated"
+    },
+    {
+      "group": "start",
+      "part": "Tool definitions",
+      "tokens": 31926,
+      "provenance": "estimated"
+    },
+    {
+      "group": "start",
+      "part": "The CLI's system prompt and notes",
+      "tokens": 22923,
+      "provenance": "estimated"
+    },
+    {
+      "group": "start",
+      "part": "The agent's job and team description",
+      "tokens": 15747,
+      "provenance": "estimated"
+    },
+    {
+      "group": "start",
+      "part": "Memory files (CLAUDE.md, AGENTS.md)",
+      "tokens": 13050,
+      "provenance": "estimated"
+    },
+    {
+      "group": "growth",
+      "part": "Summaries after compaction",
+      "tokens": 3770,
+      "provenance": "derived"
+    },
+    {
+      "group": "output",
+      "part": "Written by the agents (output and thinking)",
+      "tokens": 65,
+      "provenance": "measured"
+    },
+    {
+      "group": "growth",
+      "part": "Files printed (cat, sed, grep…)",
+      "tokens": 0,
+      "provenance": "derived"
+    },
+    {
+      "group": "growth",
+      "part": "Its own replies",
+      "tokens": 0,
+      "provenance": "derived"
+    }
+  ],
+  "costliest": [
+    {
+      "agent": "dev8",
+      "kind": "setup",
+      "cause": "Your own CLI setup (skills list, plugins, hooks)",
+      "tool": null,
+      "target": null,
+      "tokens": {
+        "value": 14499,
+        "provenance": "estimated"
+      },
+      "reread": {
+        "value": 43497,
+        "provenance": "estimated"
+      }
+    },
+    {
+      "agent": "dev8",
+      "kind": "tool-definitions",
+      "cause": "Tool definitions",
+      "tool": null,
+      "target": null,
+      "tokens": {
+        "value": 10642,
+        "provenance": "estimated"
+      },
+      "reread": {
+        "value": 31926,
+        "provenance": "estimated"
+      }
+    },
+    {
+      "agent": "dev8",
+      "kind": "system-prompt",
+      "cause": "The CLI's system prompt and notes",
+      "tool": null,
+      "target": null,
+      "tokens": {
+        "value": 7641,
+        "provenance": "estimated"
+      },
+      "reread": {
+        "value": 22923,
+        "provenance": "estimated"
+      }
+    },
+    {
+      "agent": "dev8",
+      "kind": "memory",
+      "cause": "Memory files (CLAUDE.md, AGENTS.md)",
+      "tool": null,
+      "target": null,
+      "tokens": {
+        "value": 4350,
+        "provenance": "estimated"
+      },
+      "reread": {
+        "value": 13050,
+        "provenance": "estimated"
+      }
+    },
+    {
+      "agent": "dev8/ax1",
+      "kind": "job",
+      "cause": "The agent's job and team description",
+      "tool": null,
+      "target": null,
+      "tokens": {
+        "value": 8005,
+        "provenance": "estimated"
+      },
+      "reread": {
+        "value": 8005,
+        "provenance": "estimated"
+      }
+    },
+    {
+      "agent": "dev8",
+      "kind": "job",
+      "cause": "The agent's job and team description",
+      "tool": null,
+      "target": null,
+      "tokens": {
+        "value": 3871,
+        "provenance": "estimated"
+      },
+      "reread": {
+        "value": 7742,
+        "provenance": "estimated"
+      }
+    },
+    {
+      "agent": "dev8",
+      "kind": "message",
+      "cause": "Summaries after compaction",
+      "tool": null,
+      "target": null,
+      "tokens": {
+        "value": 3770,
+        "provenance": "derived"
+      },
+      "reread": {
+        "value": 3770,
+        "provenance": "derived"
+      }
+    },
+    {
+      "agent": "dev8",
+      "kind": "tool-result",
+      "cause": "Files printed (cat, sed, grep…)",
+      "tool": "Bash",
+      "target": "cat src/build.py",
+      "tokens": {
+        "value": 0,
+        "provenance": "derived"
+      },
+      "reread": {
+        "value": 0,
+        "provenance": "derived"
+      }
+    }
+  ],
+  "shared_reads": [],
+  "shared_start": {
+    "agents": 0,
+    "parts": [],
+    "identical_per_agent": {
+      "value": 0,
+      "provenance": "estimated"
+    },
+    "first_call_cache_writes": 49000,
+    "writes_avoidable": {
+      "value": 0,
+      "provenance": "estimated"
+    }
+  },
+  "tools": [
+    {
+      "tool": "Bash",
+      "agents_given": 1,
+      "definition_tokens": {
+        "value": 10642,
+        "provenance": "estimated"
+      },
+      "definition_reread": {
+        "value": 31926,
+        "provenance": "estimated"
+      },
+      "calls": 1
+    }
+  ],
+  "timeline": {
+    "interval_ms": 10000,
+    "points": [
+      {
+        "at_ms": 1792093860000,
+        "tokens": 49022,
+        "agents_working": 2
+      },
+      {
+        "at_ms": 1792093920000,
+        "tokens": 40922,
+        "agents_working": 1
+      },
+      {
+        "at_ms": 1792094040000,
+        "tokens": 40932,
+        "agents_working": 1
+      }
+    ],
+    "fanouts": []
+  },
+  "latency": {
+    "model": {
+      "count": 1,
+      "total_ms": 30000,
+      "median_ms": 30000,
+      "p90_ms": 30000
+    },
+    "by_model": {
+      "claude-opus-5-5": {
+        "count": 1,
+        "total_ms": 30000,
+        "median_ms": 30000,
+        "p90_ms": 30000
+      }
+    },
+    "tools": {
+      "Bash": {
+        "count": 1,
+        "total_ms": 0,
+        "median_ms": 0,
+        "p90_ms": 0
+      },
+      "read_pdf": {
+        "count": 1,
+        "total_ms": 0,
+        "median_ms": 0,
+        "p90_ms": 0
+      }
+    },
+    "model_share": {
+      "value": null,
+      "provenance": "unknown"
+    },
+    "tool_share": {
+      "value": null,
+      "provenance": "unknown"
+    },
+    "waiting_share": {
+      "value": null,
+      "provenance": "unknown"
+    }
+  },
+  "plan": [],
+  "cost": {
+    "cli_usd": {
+      "value": 1.5,
+      "provenance": "measured"
+    },
+    "by_kind": [
+      {
+        "kind": "Re-reading the cache",
+        "tokens": 80000,
+        "weight": 0.1,
+        "share": 0.11136477532156579
+      },
+      {
+        "kind": "Writing to the cache",
+        "tokens": 50800,
+        "weight": 1.25,
+        "share": 0.8839579041149285
+      },
+      {
+        "kind": "Output and thinking",
+        "tokens": 65,
+        "weight": 5.0,
+        "share": 0.00452419399743861
+      },
+      {
+        "kind": "Fresh input",
+        "tokens": 11,
+        "weight": 1.0,
+        "share": 0.00015312656606715296
+      }
+    ]
+  },
+  "findings": [
+    {
+      "text": "97% of all tokens were agents re-reading their starting context on every call.",
+      "section": "where_tokens_went"
+    },
+    {
+      "text": "Your own CLI setup (skills list, plugins, hooks) was 34% of the starting context and 33% of all tokens (estimated). Agents rarely need it: leave it out.",
+      "section": "where_tokens_went"
+    },
+    {
+      "text": "The largest cause of growth was summaries after compaction: 3% of all tokens, re-read on every later call.",
+      "section": "where_tokens_went"
+    }
+  ],
+  "skipped": {
+    "s1.jsonl": 2
+  }
+}
