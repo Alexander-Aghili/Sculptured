@@ -12,7 +12,7 @@ Three changes, built in this order, each pushed and deployed when its tests pass
 
 | Question | Decision |
 |---|---|
-| What happens at the budget | At 85% of the budget no new work starts and every agent is asked to wrap up with a summary; at 100% every agent is stopped at once. |
+| What happens at the budget | Every budget and limit has a **soft** value (no new work; agents wrap up with a summary) and a **hard** value (agents are stopped at once, like Ctrl+C in a terminal). Setting only the hard value puts the soft one at 85% of it. |
 | Executable form | One `.madl` file (YAML) whose first line is a shebang, with skills and context embedded. Needs the `sculptured` runner installed. |
 | Where skills live | On each agent. No shared library. |
 | Scope | All three, budgets first. |
@@ -29,13 +29,15 @@ Counting the account-wide change means use outside the run counts against the ru
 
 ### A1. Settings
 
+Every setting below takes a soft and a hard value, e.g. Claude 5-hour soft 25%, hard 30%, or time soft 45 min, hard 60 min. Soft must be at or below hard; with only a hard value, soft is 85% of it.
+
 On the team (team Advanced → **Budget**, and in the Start confirmation):
 
 | Setting | Meaning |
 |---|---|
-| Plan budget, per provider | Percent of a plan window (`five_hour` or `seven_day`) this run may add, e.g. Claude 5-hour 30%. |
+| Plan budget, per provider | Percent of a plan window (`five_hour` or `seven_day`) this run may add, e.g. Claude 5-hour soft 25%, hard 30%. |
 | Token budget | Tokens the whole run may use (all agents, children included), counted as in `TokenCount`. |
-| Time budget | Wall-clock minutes from Start. |
+| Time budget (deadline) | Wall-clock minutes from Start. |
 | Most agents working at once | New. Agents beyond it wait for a free slot; distinct from `max_agents` (total agents). |
 
 On the agent (Advanced → **Limits**; each counts its spawned children too unless turned off, as `TokenLimit` does today):
@@ -65,7 +67,7 @@ One gate, `budget::admit(team, provider, what)`, used everywhere work can start:
 - handoffs;
 - **every message delivered to an agent**, since each one starts a turn.
 
-It refuses when the run is past wrap-up, or when the remaining budget is less than the **reserve**. The reserve is (agents working + 1) × the largest single-call share seen in this run, or a fixed floor of 1% of the window before any is seen. A refusal carries the reason, e.g. "Run budget: 24.1% of 30% of Claude's 5-hour window used; wrapping up", and is recorded on the agent like spawn refusals today.
+It refuses when the run is past its soft value, or when the remaining budget is less than the **reserve**. The reserve is (agents working + 1) × the largest single-call share seen in this run, or a fixed floor of 1% of the window before any is seen. A refusal carries the reason, e.g. "Run budget: 24.1% of 30% of Claude's 5-hour window used; wrapping up", and is recorded on the agent like spawn refusals today.
 
 Concurrency: when "Most agents working at once" is reached, a delivery waits in the agent's queue (state **Waiting for a slot** on its card) and goes out when a slot frees, oldest first.
 
@@ -73,16 +75,28 @@ The run's budget state, checked once a second by `controls::run` and after every
 
 ```mermaid
 stateDiagram-v2
-  Normal --> WrapUp: "any budget at 85%"
-  WrapUp --> Stopped: "any budget at 100% (estimate or reading)"
-  Normal --> Stopped: "any budget at 100%"
+  Normal --> WrapUp: "any budget at its soft value"
+  WrapUp --> Stopped: "any budget at its hard value (estimate or reading)"
+  Normal --> Stopped: "any budget at its hard value"
   WrapUp --> Done: "every agent finished its wrap-up"
   Stopped --> Normal: "person raises the budget and resumes"
 ```
 
 - **WrapUp:** the gate admits nothing new; every running agent gets the existing soft stop (wrap-up instruction, summary). Waiting deliveries are dropped and listed.
-- **Stopped:** every agent and child gets the existing hard stop (turn interrupted, process stopped) immediately.
-- Per-agent limits keep today's behaviour (soft stop of that agent and its children), with turns and minutes added beside tokens.
+- **Stopped:** every agent and child gets a hard stop (A3a), all at once rather than one after another.
+- Per-agent limits work the same way on that agent and its children: soft value → wrap up, hard value → hard stop. Turns and minutes are added beside tokens.
+
+### A3a. Hard stop: like Ctrl+C
+
+Today a hard stop closes the agent's input, waits up to 5 s for the CLI to finish its turn (it may keep calling the model meanwhile), then force-kills. A hard stop becomes immediate:
+
+1. **Interrupt at once.** Each agent's CLI already runs in a process group Sculptured created for that agent alone, with the CLI as its leader. That group holds the CLI and every command it started (builds, scripts, servers), and nothing else: not the runner, not the person's terminal or desktop session. A hard stop sends that group SIGINT, exactly what Ctrl+C in a terminal sends, so the CLI abandons the model call in flight and its commands stop too. On Windows, where agents run in their own process group without a console, it sends CTRL_BREAK_EVENT to that group.
+2. **Force after 2 s.** Whatever is still alive in that group gets SIGKILL. On Windows, `taskkill /T /F` from the CLI's process.
+3. **Report.** The agent is recorded as hard-stopped with the reason (which budget, or the person) and the time. A model call cut off mid-way may still be billed by the provider for what it had produced; the history notes that the stop interrupted a call.
+
+The runner protocol's `Stop` gains `hard: bool` (default false), so older runners keep today's 5-second path until they are updated.
+
+The person can do the same by hand: **Stop now** on any agent (with its children), and **Stop everything now** on the Run board, beside the existing wrap-up stop.
 
 ### A4. Showing it
 
@@ -101,6 +115,8 @@ MADL change: `restrictions.budget` gains `plan: [{provider, window, percent}]` a
 - Concurrency: an agent waits for a slot, then runs.
 - The estimate drives a stop before the next reading arrives.
 - A window reset restarts the count.
+- Soft and hard values: soft wraps up, hard stops; only-hard puts soft at 85%; soft above hard is refused.
+- Hard stop: a fixture CLI that ignores interrupts for 10 s and has started a child `sleep` is gone, with its `sleep`, within 2.5 s; a well-behaved one exits on the interrupt alone. An older runner (no `hard`) still stops via the 5 s path.
 - In-turn usage is deduplicated by message id and reconciled at `result`.
 
 ## B. Agent design
@@ -174,7 +190,9 @@ sculptured run c172.madl            # the same, and the form used on Windows
 | `--open` | also serve the live board on `127.0.0.1` and open it |
 | `--json` | progress as JSON lines instead of text |
 
-The command runs controld and hostd in one process with a data dir under `~/.sculptured/runs/<id>`, imports the file, starts the team and prints one line per meaningful event: agent started, handoff, question, finished, budget meters, wrap-up, stop. Questions are asked in the terminal when it is interactive; otherwise the run stops with code 3. Ctrl-C hard-stops every agent.
+The command runs controld and hostd in one process with a data dir under `~/.sculptured/runs/<id>`, imports the file, starts the team and prints one line per meaningful event: agent started, handoff, question, finished, budget meters, wrap-up, stop. Questions are asked in the terminal when it is interactive; otherwise the run stops with code 3.
+
+Ctrl+C follows the soft and hard pattern: the first Ctrl+C is a soft stop for the whole run ("Wrapping up; press Ctrl+C again to stop now"), and a second Ctrl+C is a hard stop (A3a) of every agent.
 
 Exit codes: 0 every agent finished; 1 an agent failed; 2 stopped by a budget; 3 needs input; 4 the file is invalid (MADL error codes printed).
 
@@ -182,6 +200,7 @@ Exit codes: 0 every agent finished; 1 an agent failed; 2 stopped by a budget; 3 
 
 - `sculptured run` on a fixture team ends with code 0 and prints the event lines.
 - A budget stop exits 2; an invalid file exits 4 with the MADL code.
+- One Ctrl+C (SIGINT to the `sculptured run` process in the test) wraps up; a second stops every fixture agent within 2.5 s.
 - A file starting with the shebang validates in MADL and imports in Sculptured.
 - `--budget` above the file's value is refused.
 
