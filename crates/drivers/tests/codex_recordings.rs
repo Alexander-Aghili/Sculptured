@@ -826,3 +826,14 @@ fn rate_limit_updates_report_plan_usage() {
     let w = &usage.expect("the recording reports its rate limits").windows[0];
     assert_eq!((w.name.as_str(), w.used_percent), ("seven_day", Some(31.0)));
 }
+
+#[test]
+fn codex_usage_arrives_during_the_turn() {
+    // Codex reports `thread/tokenUsage/updated` after each model call, so a long turn is counted as it runs.
+    let (events, _, _) = replay("codex-m2-approval");
+    let k = kinds(&events);
+    let ended = k.iter().position(|&x| x == "turn-ended").unwrap();
+    let during: Vec<_> = k[..ended].iter().enumerate().filter(|&(_, &x)| x == "usage").map(|(i, _)| i).collect();
+    assert!(during.len() >= 2, "{k:?}");
+    assert!(k[during[0]..ended].iter().any(|&x| x != "usage"), "work happens between the reports: {k:?}");
+}
