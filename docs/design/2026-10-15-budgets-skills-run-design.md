@@ -90,8 +90,8 @@ stateDiagram-v2
 
 Today a hard stop closes the agent's input, waits up to 5 s for the CLI to finish its turn (it may keep calling the model meanwhile), then force-kills. A hard stop becomes immediate:
 
-1. **Interrupt at once.** Each agent's CLI already runs in a process group Sculptured created for that agent alone, with the CLI as its leader. That group holds the CLI and every command it started (builds, scripts, servers), and nothing else: not the runner, not the person's terminal or desktop session. A hard stop sends that group SIGINT, exactly what Ctrl+C in a terminal sends, so the CLI abandons the model call in flight and its commands stop too. On Windows, where agents run in their own process group without a console, it sends CTRL_BREAK_EVENT to that group.
-2. **Force after 2 s.** Whatever is still alive in that group gets SIGKILL. On Windows, `taskkill /T /F` from the CLI's process.
+1. **Interrupt at once.** Each agent's CLI already runs in a process group Sculptured created for that agent alone, with the CLI as its leader. That group holds the CLI and every command it started (builds, scripts, servers), and nothing else: not the runner, not the person's terminal or desktop session. A hard stop sends that group SIGINT, exactly what Ctrl+C in a terminal sends, so the CLI abandons the model call in flight and its commands stop too. On Windows, agents run without a console, so no Ctrl+C or Ctrl+Break can reach them; there a hard stop goes straight to step 2.
+2. **Force after 2 s.** Whatever is still alive in that group gets SIGKILL. On Windows, `taskkill /T /F` ends the CLI's process tree at once.
 3. **Report.** The agent is recorded as hard-stopped with the reason (which budget, or the person) and the time. A model call cut off mid-way may still be billed by the provider for what it had produced; the history notes that the stop interrupted a call.
 
 The runner protocol's `Stop` gains `hard: bool` (default false), so older runners keep today's 5-second path until they are updated.
