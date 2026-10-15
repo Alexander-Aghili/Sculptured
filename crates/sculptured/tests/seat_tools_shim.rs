@@ -68,7 +68,7 @@ fn the_shim_speaks_mcp_on_stdio_and_relays_calls_to_the_socket() {
     }
     assert_eq!(replies[&1]["result"]["serverInfo"]["name"], "rig");
     let names: Vec<&str> = replies[&2]["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert_eq!(names, ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "spawn_agent", "send_agent_message", "team_status"], "no approve without SCULPTURED_SEAT_APPROVE");
+    assert_eq!(names, ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "spawn_agent", "send_agent_message", "team_status", "read_pdf"], "no approve without SCULPTURED_SEAT_APPROVE");
     assert_eq!(replies[&3]["result"]["content"][0]["text"], "Recorded your report.");
     assert_eq!(replies[&3]["result"]["isError"], false);
     let sent = requests.recv_timeout(Duration::from_secs(5)).unwrap();
