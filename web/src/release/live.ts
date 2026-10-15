@@ -113,3 +113,20 @@ export function liveProjection(
       .length,
   };
 }
+
+type Projection = ReturnType<typeof liveProjection>;
+
+/** What the graph draws from `compiled`: the agents, groups and arrows (not message counts). */
+const drawnCompiled = (c: Projection['compiled']) =>
+  JSON.stringify([c.seats.map((s) => s.id), c.pods.map((p) => p.id), c.edges.map((e) => [e.from, e.to, e.kind])]);
+
+/**
+ * `next`, reusing `prev`'s compiled team and layout while nothing drawn has changed: live events
+ * arrive many times a second, and new objects would make the graph route every arrow again.
+ */
+export function stableProjection(prev: Projection | null, next: Projection): Projection {
+  if (!prev) return next;
+  const compiled = drawnCompiled(prev.compiled) === drawnCompiled(next.compiled) ? prev.compiled : next.compiled;
+  const layout = JSON.stringify(prev.layout) === JSON.stringify(next.layout) ? prev.layout : next.layout;
+  return compiled === next.compiled && layout === next.layout ? next : { ...next, compiled, layout };
+}

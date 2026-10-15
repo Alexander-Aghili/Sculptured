@@ -3,7 +3,7 @@ import { hasProcess, needsAttention } from '../status';
 import {DismissibleError} from './DismissibleError';
 import { errorText, issuesOf, STARTING_REASON } from '../errors';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useEffect, useRef, useState, type Ref } from 'react';
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { api, type StartResult } from '../api';
 import type { StopFailure } from '../generated/StopFailure';
 import type { StopRigOutcome } from '../generated/StopRigOutcome';
@@ -22,7 +22,10 @@ import type { AgentRow } from './model';
 import { Btn, Icon, Segmented } from './ui';
 import { plural } from '../format';
 import type { TeamDraft } from '../generated/TeamDraft';
-import { liveProjection } from '../release/live';
+import { liveProjection, stableProjection } from '../release/live';
+
+/** Before history arrives: one constant, so memos keyed on it hold. */
+const NO_LINKS: [never[], never[]] = [[], []];
 import { mergeEvents } from '../collaboration/mergeEvents';
 import { usePolled } from '../usePolling';
 import { WorkflowInspector } from '../workflow/WorkflowInspector';
@@ -113,9 +116,14 @@ export function TeamLive(p: Props) {
   });
   const snap = state.snapshot!;
   const links = usePolled(() => Promise.all([api.communications(rig), api.managedChildren(rig)]), 5000, [rig, state.epoch]);
-  const [observed, children] = links.data ?? [[], []];
+  const [observed, children] = links.data ?? NO_LINKS;
   const observedError = links.error && 'Communication history unavailable; showing captured live events.';
-  const projection=liveProjection(snap.rig,state.seats,mergeEvents(observed,state.feed),p.layout,children,subtree);
+  const events = useMemo(() => mergeEvents(observed, state.feed), [observed, state.feed]);
+  const fresh = useMemo(() => liveProjection(snap.rig, state.seats, events, p.layout, children, subtree), [snap.rig, state.seats, events, p.layout, children, subtree]);
+  // Keep the drawn objects while only counts change, so the graph does not route every arrow again.
+  const previous = useRef<ReturnType<typeof liveProjection> | null>(null);
+  const projection = useMemo(() => stableProjection(previous.current, fresh), [fresh]);
+  useEffect(() => { previous.current = projection; }, [projection]);
   const views = snap.rig.seats.map((s) => state.seats[s.id]).filter(Boolean);
   const running = views.filter((s) => s.lifecycle === 'running').length;
   const attention = views.filter((s) => needsAttention(s.lifecycle)).length;

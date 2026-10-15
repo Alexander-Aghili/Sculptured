@@ -1,3 +1,4 @@
+import { batcher, STREAM_BATCH } from './batcher';
 import { errorText } from './errors';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { api } from './api';
@@ -12,9 +13,11 @@ export type Teams = Record<string, TeamStream>;
 export { ALL_TEAMS_STREAM };
 
 type All = { connected: boolean; teams: Teams };
-type Action = { rig: string | null; msg: StreamMsg } | { connected: boolean };
+type Action = { rig: string | null; msg: StreamMsg } | { connected: boolean } | { batch: Action[] };
 
 function teamsReduce(all: All, a: Action): All {
+  // Many events at once: one new state, so one redraw.
+  if ('batch' in a) return a.batch.reduce(teamsReduce, all);
   if ('connected' in a) {
     let changed = all.connected !== a.connected;
     const teams: Teams = {};
@@ -65,15 +68,14 @@ export function useTeams(current: string | undefined, openStream: OpenStream = o
   const { rigs, listError } = useRigList();
   const [all, dispatch] = useReducer(teamsReduce, { connected: false, teams: {} });
 
-  useEffect(
-    () =>
-      subscribeTeams(
-        openStream,
-        (rig, msg) => dispatch({ rig, msg }),
-        (connected) => dispatch({ connected }),
-      ),
-    [openStream],
-  );
+  useEffect(() => {
+    const b = batcher<Action>((batch) => dispatch(batch.length === 1 ? batch[0] : { batch }), STREAM_BATCH.ms);
+    const stop = subscribeTeams(openStream, (rig, msg) => b.push({ rig, msg }), (connected) => b.push({ connected }));
+    return () => {
+      stop();
+      b.cancel();
+    };
+  }, [openStream]);
 
   const alsoKey = also.join('\n');
   const streamKey = Object.keys(all.teams).join('\n');
@@ -146,7 +148,10 @@ export function useActivity(teams: Teams): Record<string, AgentActivity> {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  return useMemo(() => activityBySeat(teams, hist), [teams, hist]);
+  // Per seat, the last inputs and result: a new event recomputes only its own seat.
+  const cache = useRef(new Map<string, Cached>());
+  const last = useRef<Record<string, AgentActivity>>({});
+  return useMemo(() => (last.current = activityBySeat(teams, hist, cache.current, last.current)), [teams, hist]);
 }
 
 /** The seat's last ACTIVITY_TAIL events about itself. History is an addition: a failure is ignored. */
@@ -161,16 +166,33 @@ function loadSeatTail(id: string, onEvents: (events: EventRecord[]) => void) {
     });
 }
 
-/** Each seat's activity from its loaded history plus the newer live feed. */
-function activityBySeat(teams: Teams, hist: Record<string, EventRecord[]>): Record<string, AgentActivity> {
+type Cached = { feed: EventRecord[]; h: EventRecord[]; activity: AgentActivity };
+
+/**
+ * Each seat's activity from its loaded history plus the newer live feed. A seat whose feed and
+ * history are the same arrays as last time keeps its result, and when no seat changed the previous
+ * object is returned, so what is drawn from it is not redrawn.
+ */
+export function activityBySeat(teams: Teams, hist: Record<string, EventRecord[]>, cache = new Map<string, Cached>(), previous: Record<string, AgentActivity> = {}): Record<string, AgentActivity> {
   const out: Record<string, AgentActivity> = {};
+  let changed = false;
   for (const t of Object.values(teams)) {
     for (const s of t.state.snapshot?.rig.seats ?? []) {
-      const feed = t.state.feed[s.id] ?? [];
-      const h = hist[s.id] ?? [];
-      const last = h.length > 0 ? h[h.length - 1].seq : 0;
-      out[s.id] = activityOf(h.length > 0 ? [...h, ...feed.filter((e) => e.seq > last)] : feed);
+      const feed = t.state.feed[s.id] ?? NONE;
+      const h = hist[s.id] ?? NONE;
+      const hit = cache.get(s.id);
+      const activity = hit && hit.feed === feed && hit.h === h ? hit.activity : activityFor(feed, h);
+      if (activity !== hit?.activity) cache.set(s.id, { feed, h, activity });
+      out[s.id] = activity;
+      changed ||= previous[s.id] !== activity;
     }
   }
-  return out;
+  return changed || Object.keys(previous).length !== Object.keys(out).length ? out : previous;
+}
+
+const NONE: EventRecord[] = [];
+
+function activityFor(feed: EventRecord[], h: EventRecord[]): AgentActivity {
+  const last = h.length > 0 ? h[h.length - 1].seq : 0;
+  return activityOf(h.length > 0 ? [...h, ...feed.filter((e) => e.seq > last)] : feed);
 }

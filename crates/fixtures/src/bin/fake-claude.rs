@@ -230,6 +230,20 @@ impl Fake {
                 self.assistant(&m, json!({ "type": "text", "text": value }), None, "fake", MAIN);
                 self.result(false, &value);
             }
+            // Load testing the web app: `busy:<n>` runs n Bash calls about 20 ms apart, like a busy agent.
+            t if t.starts_with("busy:") => {
+                let n: usize = t.trim_start_matches("busy:").trim().parse().unwrap_or(100);
+                for i in 0..n {
+                    let id = format!("toolu_busy_{i}");
+                    let m = self.message_id();
+                    self.assistant(&m, tool_use(&id, "Bash", json!({ "command": format!("step {i}") })), None, "fake", MAIN);
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                    self.bash_result(&id, &format!("step {i} ok"), None);
+                }
+                let m = self.message_id();
+                self.assistant(&m, json!({ "type": "text", "text": "busy done" }), None, "fake", MAIN);
+                self.result(false, "busy done");
+            }
             t if t.starts_with("tool:") => {
                 let cmd = t.trim_start_matches("tool:").trim();
                 let m = self.message_id();

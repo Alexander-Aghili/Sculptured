@@ -122,3 +122,49 @@ describe('useTeams', () => {
     expect(FakeEventSource.instances[0].closed).toBe(true);
   });
 });
+
+describe('useTeams under load', () => {
+  it('draws a burst of events once, not once per event', async () => {
+    const { STREAM_BATCH } = await import('./batcher');
+    const { vi } = await import('vitest');
+    FakeEventSource.reset();
+    STREAM_BATCH.ms = 50;
+    vi.useFakeTimers();
+    try {
+      let renders = 0;
+      const { result } = renderHook(() => { renders++; return useTeams('t1', openFake); });
+      const src = FakeEventSource.instances[0];
+      act(() => { src.emit('snapshot', snapOf('t1')); vi.advanceTimersByTime(60); });
+      const before = renders;
+      act(() => {
+        for (let i = 0; i < 200; i++) {
+          src.emit('event', { rig: 't1', event: { ...ev(100 + i, { type: 'turn-started', turn_id: `t${i}` }), subject: { kind: 'seat', id: 'dev.a@t1' } }, seat: null });
+        }
+      });
+      expect(renders).toBe(before);
+      act(() => { vi.advanceTimersByTime(60); });
+      expect(renders - before).toBe(1);
+      expect(result.current.teams.t1.state.feed['dev.a@t1']).toHaveLength(200);
+    } finally {
+      STREAM_BATCH.ms = 0;
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('activityBySeat', () => {
+  it('recomputes only the seat whose events changed, and keeps the whole result when none did', async () => {
+    const { activityBySeat } = await import('./useTeams');
+    const snapWith = (ids: string[]) => ({ ...snapOf('t1'), rig: { ...snapOf('t1').rig, seats: ids.map((id) => ({ ...snapOf('t1').rig.seats[0], id })) } });
+    const feedA = [{ ...ev(1, { type: 'turn-started', turn_id: 'x' }), subject: { kind: 'seat' as const, id: 'a' } }];
+    const feedB = [{ ...ev(2, { type: 'turn-started', turn_id: 'y' }), subject: { kind: 'seat' as const, id: 'b' } }];
+    const teams = (fa: typeof feedA) => ({ t1: { connected: true, state: { snapshot: snapWith(['a', 'b']), seats: {}, feed: { a: fa, b: feedB }, epoch: 1, gaps: 0 } } });
+    const cache = new Map();
+    const first = activityBySeat(teams(feedA) as never, {}, cache, {});
+    expect(activityBySeat(teams(feedA) as never, {}, cache, first)).toBe(first);
+    const more = [...feedA, { ...ev(3, { type: 'turn-started', turn_id: 'z' }), subject: { kind: 'seat' as const, id: 'a' } }];
+    const next = activityBySeat(teams(more) as never, {}, cache, first);
+    expect(next).not.toBe(first);
+    expect(next.b).toBe(first.b);
+  });
+});

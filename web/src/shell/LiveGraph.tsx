@@ -22,6 +22,7 @@ export { forgetViewports } from './viewport';
 export type GraphHandle = { fit: () => void; zoomBy: (factor: number) => void };
 
 import { routeEdges } from './edgeGeometry';
+import { useSecondClock } from './secondClock';
 import { CheckMark } from './CheckMark';
 export { routeEdges, edgeGeometry } from './edgeGeometry';
 export type { EdgeGeom } from './edgeGeometry';
@@ -95,12 +96,7 @@ export function useHandoffPulses(feed: Record<string, EventRecord[]>, ms = PULSE
 }
 
 function Chip({ chip }: { chip: ToolChip }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (chip.status !== 'running') return;
-    const t = setInterval(() => setNow(Date.now()), 200);
-    return () => clearInterval(t);
-  }, [chip.status]);
+  const now = useSecondClock(chip.status === 'running') || Date.now();
   return <span className={`chip chip-${chip.status}`}>{chipText(chip, now)}</span>;
 }
 

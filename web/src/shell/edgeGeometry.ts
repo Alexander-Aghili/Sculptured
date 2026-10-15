@@ -55,6 +55,32 @@ export function edgeGeometry(a: Box, b: Box, vertical = false): EdgeGeom {
 
 const overlaps = (a0: number, a1: number, b0: number, b1: number) => a0 < b1 && b0 < a1;
 
+/** Points of the arrows already drawn, in 9 px cells, so "near another arrow" only looks next door. */
+class ArrowGrid {
+  private cells = new Map<string, { x: number; y: number; edge: number }[]>();
+  private count = 0;
+
+  add(points: Point[]) {
+    for (const q of points) {
+      const k = `${Math.floor(q.x / 9)},${Math.floor(q.y / 9)}`;
+      let list = this.cells.get(k);
+      if (!list) this.cells.set(k, (list = []));
+      list.push({ ...q, edge: this.count });
+    }
+    this.count++;
+  }
+
+  /** How many drawn arrows pass within 9 px of `p`. */
+  near(p: Point): number {
+    const hits = new Set<number>();
+    const cx = Math.floor(p.x / 9), cy = Math.floor(p.y / 9);
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (const q of this.cells.get(`${cx + dx},${cy + dy}`) ?? []) if (Math.hypot(p.x - q.x, p.y - q.y) < 9) hits.add(q.edge);
+    return hits.size;
+  }
+}
+
 /**
  * Geometry for every connection. A rightward connection that would pass through another box
  * arcs over the top instead, each one a little higher, so no line or label sits on a box.
@@ -66,7 +92,7 @@ export function routeEdges(edges: CompiledEdge[], seats: Record<string, Box>): M
   const ordered=[...edges].sort((a,b)=>`${a.from}:${a.to}:${a.kind}`.localeCompare(`${b.from}:${b.to}:${b.kind}`));
   const curve=(pts:EdgeGeom['pts']):EdgeGeom=>({pts,d:`M${pts[0].x},${pts[0].y} C${pts[1].x},${pts[1].y} ${pts[2].x},${pts[2].y} ${pts[3].x},${pts[3].y}`,mid:mid(...pts),room:Infinity});
   const sample=(g:EdgeGeom)=>Array.from({length:49},(_,i)=>{const t=i/48,u=1-t,[a,b,c,d]=g.pts;return{x:u*u*u*a.x+3*u*u*t*b.x+3*u*t*t*c.x+t*t*t*d.x,y:u*u*u*a.y+3*u*u*t*b.y+3*u*t*t*c.y+t*t*t*d.y}});
-  const drawn:Point[][]=[];
+  const drawn=new ArrowGrid();
   for (const e of ordered) {
     const a = seats[e.from];
     const b = seats[e.to];
@@ -110,13 +136,13 @@ export function routeEdges(edges: CompiledEdge[], seats: Record<string, Box>): M
         const points=sample(candidate);let n=0;
         for(const p of points.slice(1,-1)) {
           for(const [id,c] of boxes){const margin=id===e.from||id===e.to?0:10;if(p.x>c.x-margin&&p.x<c.x+c.w+margin&&p.y>c.y-margin&&p.y<c.y+c.h+margin)n+=10000;}
-          for(const previous of drawn)if(previous.some(q=>Math.hypot(p.x-q.x,p.y-q.y)<9))n+=12;
+          n+=12*drawn.near(p);
         }
         return n;
       };
       let best=Infinity;for(const candidate of candidates){const c=cost(candidate);if(c<best){best=c;g=candidate;}}
     }
-    drawn.push(sample(g));
+    drawn.add(sample(g));
     out.set(e, g);
   }
   return out;
