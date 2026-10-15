@@ -92,6 +92,10 @@ pub enum EventBody {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         cost: Option<crate::Cost>,
+        /// Counted from one model call while the turn ran (no cost); the turn's last report has the rest.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        #[ts(as = "Option<bool>", optional)]
+        in_turn: bool,
     },
     TurnEnded { turn_id: String, status: TurnStatus },
     MessageQueued { message_id: String, intent: MessageIntent, text: String },

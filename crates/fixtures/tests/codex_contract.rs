@@ -74,7 +74,7 @@ async fn a_turn_reads_one_message_and_completes() {
     let DriverEvent::TurnStarted { turn_id } = &got[0] else { panic!("{got:?}") };
     assert_eq!(got[1], DriverEvent::MessageConsumed { message_id: "m1".into(), turn_id: turn_id.clone() });
     assert!(got.contains(&DriverEvent::Text { turn_id: Some(turn_id.clone()), text: "codex received: hello".into() }));
-    assert!(got.contains(&DriverEvent::Usage { turn_id: Some(turn_id.clone()), input_tokens: 60, output_tokens: 10, cache_read_tokens: 40, cache_write_tokens: 0, cost: None }), "fake-model is not priced");
+    assert!(got.contains(&DriverEvent::Usage { turn_id: Some(turn_id.clone()), input_tokens: 60, output_tokens: 10, cache_read_tokens: 40, cache_write_tokens: 0, cost: None, in_turn: false }), "fake-model is not priced");
     assert_eq!(got.last(), Some(&DriverEvent::TurnEnded { turn_id: turn_id.clone(), status: TurnStatus::Completed }));
     let start = &received(dir.path(), "turn/start")[0];
     assert_eq!(start["params"]["threadId"], thread.as_str());

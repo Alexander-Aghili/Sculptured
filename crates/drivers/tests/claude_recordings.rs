@@ -87,18 +87,19 @@ fn consumed(events: &[DriverEvent]) -> Vec<(&str, &str)> {
         .collect()
 }
 
-/// (turn, [input, output, cache read, cache write]) per Usage event.
+/// (turn, [input, output, cache read, cache write]) per turn: the in-turn reports and the turn's last
+/// report summed, which is what the CLI's `modelUsage` says the turn used.
 fn usage(events: &[DriverEvent]) -> Vec<(&str, [u64; 4])> {
-    events
-        .iter()
-        .filter_map(|e| match e {
-            DriverEvent::Usage { turn_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, .. } => Some((
-                turn_id.as_deref().unwrap_or(""),
-                [*input_tokens, *output_tokens, *cache_read_tokens, *cache_write_tokens],
-            )),
-            _ => None,
-        })
-        .collect()
+    let mut out: Vec<(&str, [u64; 4])> = Vec::new();
+    for e in events {
+        let DriverEvent::Usage { turn_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, .. } = e else { continue };
+        let (t, u) = (turn_id.as_deref().unwrap_or(""), [*input_tokens, *output_tokens, *cache_read_tokens, *cache_write_tokens]);
+        match out.last_mut() {
+            Some((last, sum)) if *last == t => (0..4).for_each(|i| sum[i] += u[i]),
+            _ => out.push((t, u)),
+        }
+    }
+    out
 }
 
 fn ends(events: &[DriverEvent]) -> Vec<(&str, TurnStatus)> {

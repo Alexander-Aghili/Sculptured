@@ -82,6 +82,7 @@ impl CodexParser {
                 cache_read_tokens: d.cached,
                 cache_write_tokens: d.cache_write,
                 cost: self.model.as_deref().and_then(|m| model::pricing::openai_cost(m, d.input.saturating_sub(d.cached), d.cached, d.output)),
+                in_turn: false,
             });
         }
     }

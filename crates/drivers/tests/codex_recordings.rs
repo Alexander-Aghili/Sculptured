@@ -140,7 +140,7 @@ fn basic_is_one_turn_with_its_reply_and_usage() {
     assert_eq!(
         events[3],
         // The recorded thread runs gpt-6-astra, so its tokens are priced at OpenAI's list prices.
-        DriverEvent::Usage { turn_id: Some(turn_id.clone()), input_tokens: 19967, output_tokens: 5, cache_read_tokens: 0, cache_write_tokens: 0,
+        DriverEvent::Usage { turn_id: Some(turn_id.clone()), input_tokens: 19967, output_tokens: 5, cache_read_tokens: 0, cache_write_tokens: 0, in_turn: false,
             cost: model::pricing::openai_cost("gpt-6-astra", 19967, 0, 5) }
     );
     assert_eq!(events[4], DriverEvent::TurnEnded { turn_id: turn_id.clone(), status: TurnStatus::Completed });

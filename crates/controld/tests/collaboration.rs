@@ -198,7 +198,7 @@ async fn nested_children_inherit_budget_and_exhaustion_cannot_be_resumed() {
     // Captured usage is cumulative across turns. Only this leaf reaches its budget.
     let used=s.st.store.lock().unwrap().budget_used(&leaf).unwrap().unwrap_or(0);
     s.st.local_event(Actor::System("fixture".into()),model::Subject::Seat(leaf.clone()),model::Provenance::ProtocolObserved,
-      EventBody::UsageReported{turn_id:None,input_tokens:0,output_tokens:5000-used as u64,cache_read_tokens:0,cache_write_tokens:0,cost:None}).unwrap();
+      EventBody::UsageReported{ in_turn: false,turn_id:None,input_tokens:0,output_tokens:5000-used as u64,cache_read_tokens:0,cache_write_tokens:0,cost:None}).unwrap();
     wait_for("leaf budget stop",||lifecycle(&s.st,&leaf)==Some(SeatLifecycle::Stopped)).await;
     assert_eq!(lifecycle(&s.st,&parent),Some(SeatLifecycle::Running));
     assert_eq!(lifecycle(&s.st,&child),Some(SeatLifecycle::Running));
@@ -329,7 +329,7 @@ async fn a_token_limit_including_subagents_soft_stops_the_agent_with_its_childre
     }
     // Only the child's usage crosses the parent's limit (cache reads count with "all").
     s.st.local_event(Actor::System("fixture".into()), model::Subject::Seat(child.clone()), model::Provenance::ProtocolObserved,
-        EventBody::UsageReported { turn_id: None, input_tokens: 0, output_tokens: 0, cache_read_tokens: 1_000_000, cache_write_tokens: 0, cost: None }).unwrap();
+        EventBody::UsageReported { in_turn: false, turn_id: None, input_tokens: 0, output_tokens: 0, cache_read_tokens: 1_000_000, cache_write_tokens: 0, cost: None }).unwrap();
     let budget = get(&s.router, &format!("/api/teams/{id}/budget")).await.1;
     let mine = budget["agents"].as_array().unwrap().iter().find(|a| a["seat"] == parent.as_str()).cloned().unwrap();
     assert!(mine["token_used"].as_u64().unwrap() >= 1_000_000, "{budget}");
@@ -347,9 +347,9 @@ async fn team_usage_reports_running_totals_and_the_latest_context_fill() {
     let id=practice_team(&s,"solo").await;
     let seat=s.st.store.lock().unwrap().rig_snapshot(&id).unwrap().unwrap().seats[0].id.clone();
     let put=|body:EventBody|{s.st.local_event(Actor::System("fixture".into()),model::Subject::Seat(seat.clone()),model::Provenance::ProtocolObserved,body).unwrap();};
-    put(EventBody::UsageReported{turn_id:None,input_tokens:100,output_tokens:10,cache_read_tokens:7,cache_write_tokens:0,cost:None});
+    put(EventBody::UsageReported{ in_turn: false,turn_id:None,input_tokens:100,output_tokens:10,cache_read_tokens:7,cache_write_tokens:0,cost:None});
     put(EventBody::ContextReported{turn_id:None,used_tokens:900,window_tokens:Some(200_000),basis:model::ContextBasis::Reported});
-    put(EventBody::UsageReported{turn_id:None,input_tokens:50,output_tokens:5,cache_read_tokens:0,cache_write_tokens:0,cost:None});
+    put(EventBody::UsageReported{ in_turn: false,turn_id:None,input_tokens:50,output_tokens:5,cache_read_tokens:0,cache_write_tokens:0,cost:None});
     let (status,usage)=get(&s.router,&format!("/api/teams/{id}/usage")).await;
     assert_eq!(status.as_u16(),200,"{usage}");
     let a=usage["agents"].as_array().unwrap().iter().find(|a|a["seat"]==seat.as_str()).expect("agent").clone();
@@ -376,9 +376,9 @@ async fn account_usage_sums_every_teams_tokens_costs_and_activity() {
     let n=|v:&serde_json::Value,p:&str| v.pointer(p).and_then(|x|x.as_u64()).unwrap_or(0);
     let team_tokens=|v:&serde_json::Value,id:&str| v["top_teams"].as_array().unwrap().iter().find(|t|t["team"]==id).map(|t|t["tokens"].as_u64().unwrap()).unwrap_or(0);
     let put=|seat:&str,body:EventBody|{s.st.local_event(Actor::System("fixture".into()),model::Subject::Seat(seat.to_string()),model::Provenance::ProtocolObserved,body).unwrap();};
-    put(&sa,EventBody::UsageReported{turn_id:None,input_tokens:100,output_tokens:10,cache_read_tokens:1000,cache_write_tokens:50,cost:Some(Cost{usd:0.25,source:CostSource::ClaudeCode})});
-    put(&sa,EventBody::UsageReported{turn_id:None,input_tokens:20,output_tokens:5,cache_read_tokens:0,cache_write_tokens:0,cost:None});
-    put(&sb,EventBody::UsageReported{turn_id:None,input_tokens:300,output_tokens:30,cache_read_tokens:0,cache_write_tokens:0,cost:Some(Cost{usd:1.0,source:CostSource::OpenaiListPrices})});
+    put(&sa,EventBody::UsageReported{ in_turn: false,turn_id:None,input_tokens:100,output_tokens:10,cache_read_tokens:1000,cache_write_tokens:50,cost:Some(Cost{usd:0.25,source:CostSource::ClaudeCode})});
+    put(&sa,EventBody::UsageReported{ in_turn: false,turn_id:None,input_tokens:20,output_tokens:5,cache_read_tokens:0,cache_write_tokens:0,cost:None});
+    put(&sb,EventBody::UsageReported{ in_turn: false,turn_id:None,input_tokens:300,output_tokens:30,cache_read_tokens:0,cache_write_tokens:0,cost:Some(Cost{usd:1.0,source:CostSource::OpenaiListPrices})});
     put(&sb,EventBody::TurnEnded{turn_id:"t1".into(),status:model::TurnStatus::Completed});
 
     let (status,u)=get(&s.router,"/api/account/usage").await;

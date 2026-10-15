@@ -34,6 +34,24 @@ impl UsageTotals {
         Some(t)
     }
 
+    /// Usage of one API message, from `message.usage` (no cost).
+    fn from_message_usage(u: &Value) -> Option<Self> {
+        let n = |k: &str| u[k].as_u64().unwrap_or(0);
+        u.is_object().then(|| Self { input: n("input_tokens"), output: n("output_tokens"), cache_read: n("cache_read_input_tokens"), cache_write: n("cache_creation_input_tokens"), cost: None })
+    }
+
+    fn max(self, o: Self) -> Self {
+        Self { input: self.input.max(o.input), output: self.output.max(o.output), cache_read: self.cache_read.max(o.cache_read), cache_write: self.cache_write.max(o.cache_write), cost: None }
+    }
+
+    fn plus(self, o: Self) -> Self {
+        Self { input: self.input + o.input, output: self.output + o.output, cache_read: self.cache_read + o.cache_read, cache_write: self.cache_write + o.cache_write, cost: None }
+    }
+
+    fn is_zero(&self) -> bool {
+        self.input + self.output + self.cache_read + self.cache_write == 0
+    }
+
     fn since(self, base: Self) -> Self {
         Self {
             input: self.input.saturating_sub(base.input),
@@ -63,6 +81,9 @@ pub struct ClaudeParser {
     /// Resumed with a token baseline only: the next turn's cost can't be told apart from earlier ones.
     cost_unknown: bool,
     usage_seen: UsageTotals,
+    /// This turn's usage already reported from its API messages, and each message's largest usage.
+    in_turn: UsageTotals,
+    messages: std::collections::HashMap<String, UsageTotals>,
 }
 
 fn result_text(content: &Value) -> String {
@@ -174,11 +195,12 @@ impl ClaudeParser {
         }
     }
 
-    /// `message.usage` is per API message and repeats on every line of that
-    /// message, so it is never read. Usage comes from `result`.
     fn assistant(&mut self, v: &Value, out: &mut Vec<DriverEvent>) {
         let parent = v["parent_tool_use_id"].as_str().map(str::to_string);
         let turn = self.ensure_turn(out);
+        if parent.is_none() {
+            self.message_usage(&v["message"], &turn, out);
+        }
         for b in v["message"]["content"].as_array().cloned().unwrap_or_default() {
             match b["type"].as_str().unwrap_or("") {
                 "text" => {
@@ -202,6 +224,22 @@ impl ClaudeParser {
         }
     }
 
+    /// `message.usage` is per API message and repeats on every line of that message (output growing),
+    /// so each message's largest values are kept and only their growth is reported, while the turn runs.
+    fn message_usage(&mut self, m: &Value, turn: &str, out: &mut Vec<DriverEvent>) {
+        let (Some(id), Some(now)) = (m["id"].as_str(), UsageTotals::from_message_usage(&m["usage"])) else { return };
+        let was = self.messages.get(id).copied().unwrap_or_default();
+        let top = was.max(now);
+        let d = top.since(was);
+        self.messages.insert(id.to_string(), top);
+        if d.is_zero() {
+            return;
+        }
+        self.in_turn = self.in_turn.plus(d);
+        out.push(DriverEvent::Usage { turn_id: Some(turn.to_string()), input_tokens: d.input, output_tokens: d.output,
+            cache_read_tokens: d.cache_read, cache_write_tokens: d.cache_write, cost: None, in_turn: true });
+    }
+
     fn result(&mut self, v: &Value, out: &mut Vec<DriverEvent>) {
         let turn = self.ensure_turn(out);
         self.usage(v, &turn, out);
@@ -223,10 +261,17 @@ impl ClaudeParser {
     /// and `total_cost_usd` is cumulative, so neither is read. The cost is likewise the delta of the summed
     /// per-model `costUSD`.
     fn usage(&mut self, v: &Value, turn: &str, out: &mut Vec<DriverEvent>) {
+        let counted = std::mem::take(&mut self.in_turn);
+        self.messages.clear();
         let Some(totals) = UsageTotals::from_model_usage(&v["modelUsage"]) else { return };
-        let d = totals.since(self.usage_seen);
+        let turn_total = totals.since(self.usage_seen);
+        // What the in-turn reports have not covered yet (a field they over-counted adds nothing).
+        let d = UsageTotals { cost: turn_total.cost, ..turn_total.since(counted) };
         let known = !std::mem::replace(&mut self.cost_unknown, false);
         self.usage_seen = totals;
+        if d.is_zero() && (d.cost.is_none() || !known) {
+            return; // the in-turn reports already said it all
+        }
         out.push(DriverEvent::Usage {
             turn_id: Some(turn.to_string()),
             input_tokens: d.input,
@@ -234,6 +279,7 @@ impl ClaudeParser {
             cache_read_tokens: d.cache_read,
             cache_write_tokens: d.cache_write,
             cost: d.cost.filter(|_| known).map(|usd| model::Cost { usd, source: model::CostSource::ClaudeCode }),
+            in_turn: false,
         });
     }
 

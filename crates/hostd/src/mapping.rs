@@ -53,8 +53,8 @@ pub fn map_event(ctx: &mut PumpCtx, seat: &str, ev: DriverEvent, stop_requested:
         DriverEvent::ToolResult { turn_id, call_id, output, is_error } => {
             vec![agent(EventBody::ToolResulted { turn_id, call_id, output: truncate(output, MAX_TEXT), is_error })]
         }
-        DriverEvent::Usage { turn_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost } => {
-            vec![agent(EventBody::UsageReported { turn_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost })]
+        DriverEvent::Usage { turn_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, in_turn } => {
+            vec![agent(EventBody::UsageReported { turn_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, in_turn })]
         }
         DriverEvent::TurnEnded { turn_id, status } => vec![agent(EventBody::TurnEnded { turn_id, status }), activity(SeatActivity::Idle)],
         DriverEvent::QuestionRaised { question_id, source, prompt, turn_id } => vec![

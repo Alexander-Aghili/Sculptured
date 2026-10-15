@@ -957,6 +957,10 @@
                 }
               ]
             },
+            "in_turn": {
+              "description": "Counted from one model call while the turn ran (no cost); the turn's last report has the rest.",
+              "type": "boolean"
+            },
             "input_tokens": {
               "type": "integer",
               "format": "uint64",

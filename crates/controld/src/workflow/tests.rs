@@ -817,9 +817,9 @@ async fn a_steps_tokens_come_from_the_turn_that_took_its_assignment() {
     let a = current(&st).tasks[0].history[0].assignment.clone();
     // Usage arrives after complete_work, at the turn's end, in two reports.
     for (i, o) in [(100, 20), (50, 5)] {
-        event(&st, "reference", EventBody::UsageReported { turn_id: Some(a.clone()), input_tokens: i, output_tokens: o, cache_read_tokens: 7, cache_write_tokens: 0, cost: None });
+        event(&st, "reference", EventBody::UsageReported { in_turn: false, turn_id: Some(a.clone()), input_tokens: i, output_tokens: o, cache_read_tokens: 7, cache_write_tokens: 0, cost: None });
     }
-    event(&st, "reference", EventBody::UsageReported { turn_id: Some("other".into()), input_tokens: 999, output_tokens: 999, cache_read_tokens: 0, cache_write_tokens: 0, cost: None });
+    event(&st, "reference", EventBody::UsageReported { in_turn: false, turn_id: Some("other".into()), input_tokens: 999, output_tokens: 999, cache_read_tokens: 0, cache_write_tokens: 0, cost: None });
     let start = current(&st).start_seq;
     let usage = st.store.lock().unwrap().assignment_usage(&[a.clone(), "never-sent".into()], start).unwrap();
     // Only this run's reports count: nothing before the run's start is read.
@@ -846,7 +846,7 @@ async fn a_steps_cost_sums_the_reported_estimates_and_says_where_they_came_from(
     let a = current(&st).tasks[0].history[0].assignment.clone();
     let cost = |usd| Some(Cost { usd, source: CostSource::ClaudeCode });
     for c in [cost(0.02), cost(0.03), None] {
-        event(&st, "reference", EventBody::UsageReported { turn_id: Some(a.clone()), input_tokens: 1, output_tokens: 1, cache_read_tokens: 0, cache_write_tokens: 0, cost: c });
+        event(&st, "reference", EventBody::UsageReported { in_turn: false, turn_id: Some(a.clone()), input_tokens: 1, output_tokens: 1, cache_read_tokens: 0, cache_write_tokens: 0, cost: c });
     }
     let start = current(&st).start_seq; // read before locking the store: current() locks it too
     let usage = st.store.lock().unwrap().assignment_usage(&[a.clone()], start).unwrap();

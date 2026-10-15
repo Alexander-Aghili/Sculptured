@@ -41,8 +41,9 @@ fn consumed(events: &[DriverEvent]) -> Vec<(&str, &str)> {
         })
         .collect()
 }
+/// The usage these events report, summed (the in-turn reports and the turn's last one); empty when none.
 fn usage(events: &[DriverEvent]) -> Vec<[u64; 4]> {
-    events
+    let all: Vec<[u64; 4]> = events
         .iter()
         .filter_map(|e| match e {
             DriverEvent::Usage { input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, .. } => {
@@ -50,7 +51,11 @@ fn usage(events: &[DriverEvent]) -> Vec<[u64; 4]> {
             }
             _ => None,
         })
-        .collect()
+        .collect();
+    if all.is_empty() {
+        return all;
+    }
+    vec![all.iter().fold([0; 4], |a, u| [a[0] + u[0], a[1] + u[1], a[2] + u[2], a[3] + u[3]])]
 }
 
 #[tokio::test]
@@ -93,13 +98,15 @@ async fn interrupt_then_continue() {
     let mut s = driver().launch(spec(dir.path(), vec![])).await.unwrap();
     let mut ev = s.take_events().unwrap();
     s.send(msg("m1", "hang")).await.unwrap();
-    until(&mut ev, |e| matches!(e, DriverEvent::ToolCall { call_id, .. } if call_id == "toolu_hang")).await;
+    let before = until(&mut ev, |e| matches!(e, DriverEvent::ToolCall { call_id, .. } if call_id == "toolu_hang")).await;
+    assert_eq!(usage(&before), [[12, 7, 3, 2]], "the model call is counted as it happens, before the interrupt");
     s.interrupt().await.unwrap();
     let got = until(&mut ev, turn_ended).await;
-    // control_response and the interrupt marker yield nothing: ToolResult, Usage, TurnEnded.
+    // control_response and the interrupt marker yield nothing: ToolResult, then the turn's last report
+    // (no tokens left to add, but the turn's cost), then TurnEnded.
     assert_eq!(got.len(), 3, "{got:?}");
     assert!(matches!(&got[0], DriverEvent::ToolResult { turn_id: Some(t), call_id, is_error: true, .. } if t == "turn-1" && call_id == "toolu_hang"));
-    assert_eq!(usage(&got), [[12, 7, 3, 2]]);
+    assert!(matches!(&got[1], DriverEvent::Usage { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0, cost: Some(_), in_turn: false, .. }), "{:?}", got[1]);
     assert_eq!(got[2], DriverEvent::TurnEnded { turn_id: "turn-1".into(), status: TurnStatus::Interrupted });
     s.send(msg("m2", "hello")).await.unwrap();
     let got = until(&mut ev, turn_ended).await;
@@ -168,8 +175,9 @@ async fn subagent_calls_carry_parent() {
     assert!(got.iter().any(|e| matches!(e, DriverEvent::ToolCall { name, parent_call_id: Some(p), .. } if name == "Bash" && p == "toolu_task")));
     assert!(got.iter().any(|e| matches!(e, DriverEvent::ToolResult { call_id, output, .. } if call_id == "toolu_task" && output == "one file")));
     assert_eq!(consumed(&got), [("m1", "turn-1")]);
-    // modelUsage summed over models: main 12/7/3/2 plus subagent 5/4/1/1. result.usage alone would be 12/7/3/2.
-    assert_eq!(usage(&got), [[17, 11, 4, 3]]);
+    // Two main-thread API messages of 12/7/3/2, counted as they arrive, plus the subagent's 5/4/1/1,
+    // which only modelUsage (summed over models) carries: the turn's last report adds it.
+    assert_eq!(usage(&got), [[29, 18, 7, 5]]);
 }
 
 #[tokio::test]
@@ -314,12 +322,14 @@ fn text_of(events: &[DriverEvent]) -> Vec<&str> {
 async fn a_launch_with_a_usage_baseline_counts_from_it() {
     let dir = tempfile::tempdir().unwrap();
     let mut sp = spec(dir.path(), vec![]);
-    // fake-claude charges [12, 7, 3, 2] per turn; the baseline stands for usage already counted.
+    // fake-claude's one API message uses [12, 7, 3, 2]; the baseline stands for `modelUsage` already
+    // counted before the resume, so the result adds nothing past what the message reported. (The
+    // baseline arithmetic on `modelUsage` is unit-tested in drivers/tests/claude_usage.rs.)
     sp.usage_baseline = Some([5, 5, 1, 1]);
     let mut s = driver().launch(sp).await.unwrap();
     let mut ev = s.take_events().unwrap();
     s.send(msg("m1", "hello")).await.unwrap();
-    assert_eq!(usage(&until(&mut ev, turn_ended).await), [[7, 2, 2, 1]]);
+    assert_eq!(usage(&until(&mut ev, turn_ended).await), [[12, 7, 3, 2]]);
     s.stop(Duration::from_secs(5)).await.unwrap();
 }
 

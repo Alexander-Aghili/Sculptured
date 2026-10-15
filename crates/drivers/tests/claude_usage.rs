@@ -32,3 +32,43 @@ fn a_usage_baseline_is_subtracted_from_the_first_turn_after_a_resume() {
     // The next turn counts from the new totals, not from the baseline again.
     assert_eq!(usage(&mut resumed, &result_with_usage([130, 60, 10, 5])), [30, 10, 0, 0]);
 }
+
+fn assistant(id: &str, u: [u64; 4], parent: Option<&str>) -> String {
+    serde_json::json!({ "type": "assistant", "parent_tool_use_id": parent,
+        "message": { "id": id, "role": "assistant", "content": [{ "type": "text", "text": "…" }],
+                     "usage": { "input_tokens": u[0], "output_tokens": u[1], "cache_read_input_tokens": u[2], "cache_creation_input_tokens": u[3] } } })
+    .to_string()
+}
+
+/// Every usage event of `lines`, as `([input, output, cache_read, cache_write], in_turn)`.
+fn usages(p: &mut ClaudeParser, lines: &[String]) -> Vec<([u64; 4], bool)> {
+    p.on_sent("m".into());
+    lines.iter().flat_map(|l| p.parse_line(l)).filter_map(|e| match e {
+        DriverEvent::Usage { input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, in_turn, .. } => {
+            Some(([input_tokens, output_tokens, cache_read_tokens, cache_write_tokens], in_turn))
+        }
+        _ => None,
+    }).collect()
+}
+
+#[test]
+fn usage_arrives_per_message_not_only_at_result() {
+    let got = usages(&mut ClaudeParser::default(), &[assistant("msg_1", [3, 10, 1000, 50], None), assistant("msg_2", [2, 20, 1100, 0], None)]);
+    assert_eq!(got, [([3, 10, 1000, 50], true), ([2, 20, 1100, 0], true)], "each model call is counted while the turn runs");
+}
+
+#[test]
+fn repeated_lines_of_one_message_count_once() {
+    // One message spans several lines (one per content block); its usage repeats, and output grows.
+    let lines = [assistant("msg_1", [3, 5, 1000, 50], None), assistant("msg_1", [3, 12, 1000, 50], None), assistant("sub", [9, 9, 9, 9], Some("toolu_1"))];
+    assert_eq!(usages(&mut ClaudeParser::default(), &lines), [([3, 5, 1000, 50], true), ([0, 7, 0, 0], true)], "growth only; subagent lines are left to modelUsage");
+}
+
+#[test]
+fn result_reconciles_to_model_usage_exactly() {
+    let lines = [assistant("msg_1", [3, 10, 1000, 50], None), result_with_usage([10, 40, 3000, 50])];
+    let got = usages(&mut ClaudeParser::default(), &lines);
+    assert_eq!(got, [([3, 10, 1000, 50], true), ([7, 30, 2000, 0], false)]);
+    let sum = got.iter().fold([0; 4], |a, (u, _)| [a[0] + u[0], a[1] + u[1], a[2] + u[2], a[3] + u[3]]);
+    assert_eq!(sum, [10, 40, 3000, 50], "the turn's total is modelUsage's, as before");
+}

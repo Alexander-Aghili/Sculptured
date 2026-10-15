@@ -113,6 +113,7 @@ impl Core {
             cache_read_tokens: 0,
             cache_write_tokens: 0,
             cost: None,
+            in_turn: false,
         })?;
         self.emit(DriverEvent::TurnEnded { turn_id: turn, status: TurnStatus::Completed })
     }

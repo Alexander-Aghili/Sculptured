@@ -38,7 +38,7 @@ impl Store {
             "SELECT m.id, COALESCE(SUM(json_extract(e.json,'$.body.input_tokens')),0), COALESCE(SUM(json_extract(e.json,'$.body.output_tokens')),0),
                     COALESCE(SUM(json_extract(e.json,'$.body.cache_read_tokens')),0), COALESCE(SUM(json_extract(e.json,'$.body.cache_write_tokens')),0),
                     SUM(json_extract(e.json,'$.body.cost.usd')), MAX(json_extract(e.json,'$.body.cost.source')),
-                    COUNT(json_extract(e.json,'$.body.cost.usd')) < COUNT(*)
+                    COUNT(json_extract(e.json,'$.body.cost.usd')) < SUM(COALESCE(json_extract(e.json,'$.body.in_turn'), 0) = 0)
              FROM messages m JOIN events e ON e.subject = 'seat:' || m.seat AND e.seq >= ?2
                AND json_extract(e.json,'$.body.type') = 'usage-reported' AND json_extract(e.json,'$.body.turn_id') = m.turn_id
              WHERE m.id IN (SELECT value FROM json_each(?1)) GROUP BY m.id",

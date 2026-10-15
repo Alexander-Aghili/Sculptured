@@ -149,7 +149,7 @@ impl Reader {
         }
         let d: Vec<u64> = now.iter().zip(self.last).map(|(a, b)| a.saturating_sub(b)).collect();
         self.last = now;
-        let b = EventBody::UsageReported { turn_id: self.turn.clone(), input_tokens: d[0].saturating_sub(d[1]), output_tokens: d[2], cache_read_tokens: d[1], cache_write_tokens: 0, cost: None };
+        let b = EventBody::UsageReported { in_turn: false, turn_id: self.turn.clone(), input_tokens: d[0].saturating_sub(d[1]), output_tokens: d[2], cache_read_tokens: d[1], cache_write_tokens: 0, cost: None };
         self.push(at, body(b));
     }
 

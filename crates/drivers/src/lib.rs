@@ -95,7 +95,9 @@ pub enum DriverEvent {
     Text { turn_id: Option<String>, text: String },
     ToolCall { turn_id: Option<String>, call_id: String, name: String, input: serde_json::Value, parent_call_id: Option<String> },
     ToolResult { turn_id: Option<String>, call_id: String, output: String, is_error: bool },
-    Usage { turn_id: Option<String>, input_tokens: u64, output_tokens: u64, cache_read_tokens: u64, cache_write_tokens: u64, cost: Option<model::Cost> },
+    /// `in_turn`: counted from one model call while the turn runs; the turn's final report (false)
+    /// carries the rest, so the turn's reports still add up to the CLI's total.
+    Usage { turn_id: Option<String>, input_tokens: u64, output_tokens: u64, cache_read_tokens: u64, cache_write_tokens: u64, cost: Option<model::Cost>, in_turn: bool },
     TurnEnded { turn_id: String, status: TurnStatus },
     /// The CLI (or a Practice agent) asks the operator something and waits.
     QuestionRaised { question_id: String, source: QuestionSource, prompt: QuestionPrompt, turn_id: Option<String> },

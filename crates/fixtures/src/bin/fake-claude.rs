@@ -52,6 +52,9 @@ struct Fake {
     queued: VecDeque<String>,
     /// The next `result` reports `is_error: true` (the `limit` script).
     next_is_error: bool,
+    /// This turn's main-thread API messages and their usage: `result.modelUsage` grows by their sum,
+    /// as the real CLI's does (a turn with none is charged `MAIN`).
+    turn_messages: BTreeMap<String, [u64; 4]>,
 }
 
 impl Fake {
@@ -106,6 +109,9 @@ impl Fake {
         let mut v = json!({ "type": "assistant", "parent_tool_use_id": parent,
                             "message": { "id": message_id, "type": "message", "role": "assistant", "model": model,
                                          "content": [block], "stop_reason": null, "usage": usage_json(usage) } });
+        if parent.is_none() {
+            self.turn_messages.insert(message_id.to_string(), usage);
+        }
         if parent.is_some() {
             // Every real child line carries these (claude-subagent), as does the prompt line.
             v["subagent_type"] = json!("general-purpose");
@@ -140,6 +146,16 @@ impl Fake {
             "status": "allowed", "rateLimitType": "five_hour", "resetsAt": 1791250200, "isUsingOverage": false } }));
     }
 
+    /// FAKE_PLAN_FILE: adds FAKE_PLAN_STEP to the shared 5-hour use and reports it.
+    fn plan_step(&mut self) {
+        let Ok(file) = std::env::var("FAKE_PLAN_FILE") else { return };
+        let step: f64 = std::env::var("FAKE_PLAN_STEP").ok().and_then(|v| v.parse().ok()).unwrap_or(0.5);
+        let used = plan_add(&file, step);
+        self.out(json!({ "type": "rate_limit_event", "rate_limit_info": {
+            "status": "allowed", "rateLimitType": "five_hour", "resetsAt": 4102444800u64, "isUsingOverage": false,
+            "unifiedWindows": { "five_hour": { "resetsAt": 4102444800u64, "utilization": used / 100.0 } } } }));
+    }
+
     fn thinking_tokens(&mut self) {
         self.out(json!({ "type": "system", "subtype": "thinking_tokens",
                          "estimated_tokens": 5, "estimated_tokens_delta": 5 }));
@@ -162,7 +178,9 @@ impl Fake {
     /// `result.usage` (claude-subagent@10782). `modelUsage` is session-cumulative
     /// and includes subagents.
     fn result(&mut self, interrupted: bool, text: &str) {
-        self.charge("fake", MAIN);
+        let turn = std::mem::take(&mut self.turn_messages);
+        let used = if turn.is_empty() { MAIN } else { turn.values().fold([0; 4], |a, u| [a[0] + u[0], a[1] + u[1], a[2] + u[2], a[3] + u[3]]) };
+        self.charge("fake", used);
         let model_usage: Map<String, Value> = self
             .model_usage
             .iter()
@@ -243,6 +261,25 @@ impl Fake {
                 let m = self.message_id();
                 self.assistant(&m, json!({ "type": "text", "text": "busy done" }), None, "fake", MAIN);
                 self.result(false, "busy done");
+            }
+            // Budget tests: `spend:<calls>:<tokens>` makes `calls` model calls, each reading `tokens` from
+            // the cache, FAKE_SPEND_MS (default 20) apart. With FAKE_PLAN_FILE, each call also adds
+            // FAKE_PLAN_STEP percent (default 0.5) to the plan's 5-hour use kept in that file, shared by
+            // every fake like one account, and reports it as a rate_limit_event.
+            t if t.starts_with("spend:") => {
+                let mut it = t.trim_start_matches("spend:").split(':').map(|n| n.trim().parse::<u64>().ok());
+                let (calls, tokens) = (it.next().flatten().unwrap_or(10), it.next().flatten().unwrap_or(1000));
+                let pause = std::env::var("FAKE_SPEND_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(20);
+                for i in 0..calls {
+                    let (id, m) = (format!("toolu_spend_{i}"), self.message_id());
+                    self.assistant(&m, tool_use(&id, "Bash", json!({ "command": format!("read {i}") })), None, "fake", [0, 10, tokens, 0]);
+                    self.plan_step();
+                    std::thread::sleep(std::time::Duration::from_millis(pause));
+                    self.bash_result(&id, &format!("read {i} ok"), None);
+                }
+                let m = self.message_id();
+                self.assistant(&m, json!({ "type": "text", "text": "spent" }), None, "fake", [0, 5, tokens, 0]);
+                self.result(false, "spent");
             }
             t if t.starts_with("tool:") => {
                 let cmd = t.trim_start_matches("tool:").trim();
@@ -369,6 +406,7 @@ fn main() {
         model_usage: BTreeMap::new(),
         queued: VecDeque::new(),
         next_is_error: false,
+        turn_messages: BTreeMap::new(),
     };
     fake.hooks();
     // FAKE_CLAUDE_IGNORE_EOF: ignore stdin EOF and keep running, with a detached
@@ -418,4 +456,18 @@ fn main() {
         fake.replay(&text);
         fake.turn(&text, &mut stdin);
     }
+}
+
+/// Adds `step` to the percent in `file` under an exclusive lock (several fakes share it) and returns the new value.
+fn plan_add(file: &str, step: f64) -> f64 {
+    use std::io::{Read, Seek};
+    let mut f = std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).open(file).unwrap();
+    f.lock().unwrap();
+    let mut s = String::new();
+    f.read_to_string(&mut s).unwrap();
+    let used = s.trim().parse::<f64>().unwrap_or(0.0) + step;
+    f.set_len(0).unwrap();
+    f.rewind().unwrap();
+    write!(f, "{used}").unwrap();
+    used
 }

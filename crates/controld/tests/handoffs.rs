@@ -1607,7 +1607,7 @@ async fn an_agent_with_a_long_current_start_plans_quickly() {
             let t = Some(turn.clone());
             s.host(&b, EventBody::ToolCalled { turn_id: t.clone(), call_id: call.clone(), name: "Bash".into(), input: json!({ "command": "ls" }), parent_call_id: None });
             s.host(&b, EventBody::ToolResulted { turn_id: t.clone(), call_id: call, output: "a\nb".into(), is_error: false });
-            s.host(&b, EventBody::UsageReported { turn_id: t, input_tokens: 10, output_tokens: 5, cache_read_tokens: 0, cache_write_tokens: 0, cost: None });
+            s.host(&b, EventBody::UsageReported { in_turn: false, turn_id: t, input_tokens: 10, output_tokens: 5, cache_read_tokens: 0, cache_write_tokens: 0, cost: None });
         }
         s.host(&b, EventBody::AgentText { turn_id: Some(turn.clone()), text: "working".into() });
         s.host(&b, EventBody::TurnEnded { turn_id: turn, status: TurnStatus::Completed });

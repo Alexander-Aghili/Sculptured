@@ -222,7 +222,7 @@ fn block(b: &Value, turn: &str) -> Option<Ev> {
 
 fn usage(u: &Value, turn: String) -> EventBody {
     let n = |k: &str| u[k].as_u64().unwrap_or(0);
-    EventBody::UsageReported {
+    EventBody::UsageReported { in_turn: false,
         turn_id: Some(turn),
         input_tokens: n("input_tokens"),
         output_tokens: n("output_tokens"),

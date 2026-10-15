@@ -95,7 +95,7 @@ fn ingest_projects_the_seat_view() {
     let items = s
         .ingest(
             "local",
-            ev(5, A, EventBody::UsageReported {
+            ev(5, A, EventBody::UsageReported { in_turn: false,
                 turn_id: Some("turn-1".into()),
                 input_tokens: 10,
                 output_tokens: 5,
@@ -323,7 +323,7 @@ fn bad_stored_enum_is_an_error_not_a_panic() {
 fn usage_sums_across_reports() {
     let mut s = store();
     for (seq, i, o) in [(1, 10, 5), (2, 7, 3)] {
-        s.ingest("local", ev(seq, A, EventBody::UsageReported {
+        s.ingest("local", ev(seq, A, EventBody::UsageReported { in_turn: false,
             turn_id: None, input_tokens: i, output_tokens: o, cache_read_tokens: 0, cache_write_tokens: 0, cost: None }))
         .unwrap();
     }
