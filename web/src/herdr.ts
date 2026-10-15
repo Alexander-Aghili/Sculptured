@@ -2,7 +2,7 @@ import type { EventRecord } from './generated/EventRecord';
 import type { Provenance } from './generated/Provenance';
 import type { Runtime } from './generated/Runtime';
 import type { SeatView } from './generated/SeatView';
-import { tokensLabel } from './format';
+import { compactNumber, plural, tokensLabel } from './format';
 import { LIFECYCLE } from './status';
 import { RUNTIME_LABEL } from './vocab';
 
@@ -127,6 +127,16 @@ export function shortAge(ms: number | null, now: number): string {
 export function tokensText(seat: Pick<SeatView, 'tokens_in' | 'tokens_out'> | undefined): string {
   if (!seat || seat.tokens_in === null || seat.tokens_out === null) return tokensLabel(null);
   return tokensLabel(seat.tokens_in + seat.tokens_out);
+}
+
+/** The whole run's tokens so far: what every agent reported, and how many have not reported. */
+export function teamTokensText(seats: Pick<SeatView, 'tokens_in' | 'tokens_out'>[]): string {
+  const known = seats.filter((s) => s.tokens_in !== null && s.tokens_out !== null);
+  if (known.length === 0) return '';
+  const total = known.reduce((n, s) => n + (s.tokens_in ?? 0) + (s.tokens_out ?? 0), 0);
+  const missing = seats.length - known.length;
+  if (missing === 0) return `${compactNumber(total)} tokens so far`;
+  return `at least ${compactNumber(total)} tokens so far (${plural(missing, 'agent')} ${missing === 1 ? 'has' : 'have'} not reported)`;
 }
 
 /** Tool names as typed in a terminal: lower case. */

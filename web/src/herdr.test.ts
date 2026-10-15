@@ -110,3 +110,13 @@ describe('words', () => {
     expect(tierOf(null)).toMatchObject({ glyph: '∅', word: 'unknown' });
   });
 });
+
+describe('teamTokensText', () => {
+  it('adds up the tokens every agent reported, and says when some have not', async () => {
+    const { teamTokensText } = await import('./herdr');
+    const s = (i: number | null, o: number | null) => ({ tokens_in: i, tokens_out: o });
+    expect(teamTokensText([s(1_000_000, 200_000), s(300_000, 0)])).toBe('1.5M tokens so far');
+    expect(teamTokensText([s(1_000, 0), s(null, null)])).toBe('at least 1.0k tokens so far (1 agent has not reported)');
+    expect(teamTokensText([s(null, null)])).toBe('');
+  });
+});

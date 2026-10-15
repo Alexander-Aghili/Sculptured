@@ -23,6 +23,7 @@ import { Btn, Icon, Segmented } from './ui';
 import { plural } from '../format';
 import type { TeamDraft } from '../generated/TeamDraft';
 import { liveProjection, stableProjection } from '../release/live';
+import { teamTokensText } from '../herdr';
 
 /** Before history arrives: one constant, so memos keyed on it hold. */
 const NO_LINKS: [never[], never[]] = [[], []];
@@ -224,6 +225,7 @@ export function TeamLive(p: Props) {
           <div className="team-info">
             <span className="rig-counts">
               {WORDS.desired(snap.desired)} · {WORDS.teamCounts(running, snap.rig.seats.length)}
+              {teamTokensText(views) && <span className="team-tokens"> · {teamTokensText(views)}</span>}
               {attention > 0 ? <span className="tone-red"> · {WORDS.needAttention(attention)}</span> : ''}
               {running > 0 && views.every(s => !s.current_turn && !s.current_tool && s.activity === 'idle') && <span> · No active work; sessions are open. Stop team closes them.</span>}
             </span>
