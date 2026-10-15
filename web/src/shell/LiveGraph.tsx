@@ -23,6 +23,7 @@ export type GraphHandle = { fit: () => void; zoomBy: (factor: number) => void };
 
 import { routeEdges } from './edgeGeometry';
 import { useSecondClock } from './secondClock';
+import { allArrowsWanted, QUIET_AFTER } from '../structure/arrowFocus';
 import { CheckMark } from './CheckMark';
 export { routeEdges, edgeGeometry } from './edgeGeometry';
 export type { EdgeGeom } from './edgeGeometry';
@@ -232,6 +233,7 @@ type Props = {
 };
 
 export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, names = {}, selected, onOpen, onAnswer, onSelect, now, ref, pulses, draft, onWorkflow, observedLabels, liveOnly }: Props) {
+  const [hover, setHover] = useState<string | null>(null);
   const { collapsed, setCollapsed } = useGroupVisibility(rig);
   const label = (e:CompiledEdge) => observedLabels?.[`${e.from}→${e.to}`] ?? edgeLabel(e);
   const layout = useMemo(() => given ? (liveOnly ? given : withLiveChildren(given, compiled)) : computeLayout(compiled), [given, compiled, liveOnly]);
@@ -296,11 +298,15 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
   const inTeam = new Set(compiled.seats.map((s) => s.id));
   const offCanvas = compiled.seats.filter((s) => !layout.seats[s.id]);
   const notStarted = liveOnly ? [] : Object.keys(layout.seats).filter((id) => !inTeam.has(id));
+  // Busy runs draw arrows faintly; the pointed-at or selected agent's arrows come forward.
+  const quiet = !allArrowsWanted() && drawnEdges.length > QUIET_AFTER;
+  const focused = hover ?? selected ?? null;
+  const lit = (e: { from: string; to: string }) => (quiet && focused && (e.from === focused || e.to === focused) ? ' is-focus' : '');
   const W = layout.width + 400;
   const H = layout.height + 200;
 
   return (
-    <div className="graph-wrap">
+    <div className={`graph-wrap${quiet ? ' arrows-quiet' : ''}`}>
       <div
         className="graph-viewport"
         ref={viewportEl}
@@ -347,7 +353,7 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
                 <g key={`${e.kind}-${e.from}-${e.to}`}>
                   <path
                     d={g.d}
-                    className={`edge ${e.enforced ? 'enforced' : 'intent'}${flowing ? ' flowing' : ''}${pulsing ? ' handoff-pulse' : ''}`}
+                    className={`edge ${e.enforced ? 'enforced' : 'intent'}${flowing ? ' flowing' : ''}${pulsing ? ' handoff-pulse' : ''}${lit(e)}`}
                     data-testid={`edge-${e.from}-${e.to}`}
                     data-pulse={pulsing ? 'handoff' : undefined}
                     markerEnd={`url(#${flowing ? 'arrow-flow' : 'arrow'}-${rig})`}
@@ -365,7 +371,7 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
             return (
               <span
                 key={`l-${e.kind}-${e.from}-${e.to}`}
-                className={`edge-label ${e.enforced ? 'enforced' : 'intent'}${g.wrap ? ' wrap' : ''}`}
+                className={`edge-label ${e.enforced ? 'enforced' : 'intent'}${g.wrap ? ' wrap' : ''}${lit(e)}`}
                 data-testid={`edge-label-${e.from}-${e.to}`}
                 style={{ left: g.x, top: g.y, maxWidth: g.maxWidth }}
                 aria-hidden="true"
@@ -379,7 +385,7 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
             const a = agents[s.id];
             if (!b || !a || projection.hidden.has(s.id) || fold.hidden.has(s.id)) return null;
             return (
-              <div key={s.id} className="card-slot" style={{ left: b.x, top: b.y, width: b.w, height: b.h }}>
+              <div key={s.id} className="card-slot" style={{ left: b.x, top: b.y, width: b.w, height: b.h }} onPointerEnter={() => setHover(s.id)} onPointerLeave={() => setHover((h) => (h === s.id ? null : h))}>
                 <AgentBox
                   a={a}
                   selected={selected === s.id}

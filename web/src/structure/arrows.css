@@ -1,0 +1,6 @@
+/* Busy boards: arrows are faint until a card or group is pointed at or selected (see arrowFocus.ts). */
+.arrows-quiet .edge:not(.is-focus):not(.wire) { opacity: 0.14; }
+.arrows-quiet .edge.is-focus { stroke: var(--accent); stroke-width: 2.2px; }
+.arrows-quiet .edge-label { transition: opacity 0.12s; }
+.arrows-quiet .edge-label:not(.is-focus):not(:focus-visible) { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .arrows-quiet .edge-label { transition: none; } }

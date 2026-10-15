@@ -35,6 +35,7 @@ import { FolderPicker, shortPath, useHome } from './FolderPicker';
 import { connectionSentence, kindVendor, LOCK_REASON, nameOf, type Edit } from './Panels';
 import { markClass, type Marks } from './assistant/compare';
 import { ChangeBadge } from './assistant/ChangeBadge';
+import { QUIET_AFTER, useArrowFocus } from './arrowFocus';
 import { handoffWords } from '../shell/model';
 import { plural } from '../format';
 import { workflowBounds, inputBox, stageBoxes, workflowLinks, WorkflowGraph, WorkflowAgentActions, type WorkflowTarget } from '../workflow/WorkflowGraph';
@@ -123,6 +124,8 @@ const bundleWords = (n: number) => `${n} arrows`;
 
 export function StructureCanvas(p: Props) {
   const mark = (id: string) => markClass(p.marks, id);
+  const af = useArrowFocus(p.draft, p.selection);
+  const lit = (from: string, to: string, sel: boolean) => (sel || af.isLit(from, to) ? ' is-focus' : '');
   const { teamId, draft, issues, selection, onSelect, edit, locked } = p;
   const ids = useId();
   const { collapsed, setCollapsed } = useGroupVisibility(teamId);
@@ -542,7 +545,7 @@ export function StructureCanvas(p: Props) {
   const empty = draft.agents.length === 0;
 
   return (
-    <div className="sb-canvas">
+    <div className={`sb-canvas${af.quiet ? ' arrows-quiet' : ''}`}>
       <p className="sb-legend muted">Solid arrow: hands work to (it starts after). Dashed: reports to / watches (not enforced). Click an arrow for details.</p>
       <details className="sb-tools-disclosure" ref={paletteDisclosure} open>
         <summary>Edit tools</summary>
@@ -580,6 +583,7 @@ export function StructureCanvas(p: Props) {
         {!p.groupOnly && <GroupPalette draft={draft} locked={locked} onDrag={blockDown} onAdd={b=>addBlock(b)} />}
         {!p.groupOnly && <TeamFolderButton draft={draft} locked={locked} onChoose={folder => edit(d => folderForAll(d, folder))} />}
         <Btn onClick={toggleFullText} aria-pressed={fullText} icon="list" tip="Show every card's full text">Full text</Btn>
+        {draft.connections.length > QUIET_AFTER && <Btn onClick={af.toggleAll} aria-pressed={af.allArrows} icon="route" tip="Draw every arrow at full strength. Otherwise a busy board shows a card's arrows when you point at it or select it.">All arrows</Btn>}
         <span className="tb-sep" aria-hidden="true">
           ·
         </span>
@@ -636,6 +640,7 @@ export function StructureCanvas(p: Props) {
                 style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
                 onPointerDown={hidden ? groupDown(g.id) : undefined}
                 onContextMenu={(e) => menuAt(e, { kind: 'group', id: g.id })}
+                {...af.hoverProps(g.id)}
               >
                 <button
                   type="button"
@@ -677,7 +682,7 @@ export function StructureCanvas(p: Props) {
                 <g key={c.id}><path className="edge-hit" d={g.d} onPointerDown={e => e.stopPropagation()} onClick={() => onSelect(g.merged.length > 1 ? bundleGroup(c) : {kind:'connection',id:c.id})} />
                 <path
                   d={g.d}
-                  className={`edge ${c.kind === 'hands-work-to' ? 'enforced' : 'intent'}${sel ? ' selected' : ''}${mark(c.id)}`}
+                  className={`edge ${c.kind === 'hands-work-to' ? 'enforced' : 'intent'}${sel ? ' selected' : ''}${mark(c.id)}${lit(c.from, c.to, sel)}`}
                   markerEnd={`url(#${sel ? `sb-arrow-sel-${ids}` : `sb-arrow-${ids}`})`}
                 /></g>
               );
@@ -706,7 +711,7 @@ export function StructureCanvas(p: Props) {
             if (n > 1) {
               const target = bundleGroup(c);
               return (
-                <button key={`l-${c.id}`} type="button" className={`edge-label sb-edge-label enforced${g.wrap ? ' wrap' : ''}`} style={{ left: g.x, top: g.y, maxWidth: g.maxWidth }}
+                <button key={`l-${c.id}`} type="button" className={`edge-label sb-edge-label enforced${g.wrap ? ' wrap' : ''}${lit(c.from, c.to, false)}`} style={{ left: g.x, top: g.y, maxWidth: g.maxWidth }}
                   data-connection={c.id} aria-label={`${n} arrows from ${endName(c.from)} to ${endName(c.to)}; show the group's contents to see each`}
                   onClick={() => onSelect(target)}>{bundleWords(n)}</button>
               );
@@ -715,7 +720,7 @@ export function StructureCanvas(p: Props) {
               <button
                 key={`l-${c.id}`}
                 type="button"
-                className={`edge-label sb-edge-label ${c.kind === 'hands-work-to' ? 'enforced' : 'intent'}${g.wrap ? ' wrap' : ''}${sel ? ' selected' : ''}${mark(c.id)}`}
+                className={`edge-label sb-edge-label ${c.kind === 'hands-work-to' ? 'enforced' : 'intent'}${g.wrap ? ' wrap' : ''}${sel ? ' selected' : ''}${mark(c.id)}${lit(c.from, c.to, sel)}`}
                 style={{ left: g.x, top: g.y, maxWidth: g.maxWidth }}
                 data-connection={c.id}
                 aria-label={`${connectionSentence(draft, c)}${ci.length ? `, ${ci.length} to fix` : ''}`}
@@ -743,6 +748,7 @@ export function StructureCanvas(p: Props) {
               <div
                 key={a.id}
                 className={`card-slot sb-slot${dragging ? ' dragging' : ''}${fullText ? ' full-text' : ''}`}
+                {...af.hoverProps(a.id)}
                 style={{ left: a.x, top: a.y, width: CARD_W, height: fullText ? 'auto' : CARD_H, minHeight: CARD_H }}
                 ref={(el) => { if (el) slots.current.set(a.id, el); else slots.current.delete(a.id); }}
               >
