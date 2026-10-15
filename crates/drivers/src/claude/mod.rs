@@ -68,6 +68,9 @@ impl ClaudeStreamDriver {
         for dir in &spec.add_dirs {
             a.extend(["--add-dir".to_string(), dir.display().to_string()]);
         }
+        if let Some(setup) = &spec.claude_setup {
+            a.extend(setup.claude_args());
+        }
         a.extend(spec.extra_args.iter().cloned());
         a
     }

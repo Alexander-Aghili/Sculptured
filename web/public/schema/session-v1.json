@@ -419,6 +419,22 @@
         "subagent_events"
       ]
     },
+    "ClaudeSetup": {
+      "description": "Which of the person's own Claude Code setup Claude agents load. Sculptured's own tools load either way.",
+      "type": "object",
+      "properties": {
+        "global": {
+          "description": "`~/.claude`: plugins, skills, hooks, settings and MCP servers. Off by default: a team's agents\nrarely need them, and every agent re-reads them on every model call.",
+          "type": "boolean",
+          "default": false
+        },
+        "project": {
+          "description": "The agent folder's `.claude/` (settings, plugins, skills) and local settings. On by default.",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
     "ConnectionKind": {
       "oneOf": [
         {
@@ -2679,6 +2695,10 @@
         "budget": {
           "description": "What one run may use (Advanced). Absent = no budget.",
           "$ref": "#/$defs/RunBudget"
+        },
+        "claude_setup": {
+          "description": "Which of the person's own Claude Code setup Claude agents load (Advanced).",
+          "$ref": "#/$defs/ClaudeSetup"
         },
         "connections": {
           "type": "array",

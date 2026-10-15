@@ -171,6 +171,9 @@ a.pg-line-link:hover .pg-text { color: var(--accent); }
 /* Team Advanced: the team's own limits on spawned agents. */
 .ta-limits { border:0; margin:0 0 10px; padding:0; display:grid; gap:6px; }
 .ta-limit { display:grid; grid-template-columns:1fr 7em; gap:8px; align-items:center; font-size:13px; }
+.ta-check { display:grid; grid-template-columns:auto 1fr; gap:8px; align-items:start; font-size:13px; }
+.ta-check > span { display:grid; gap:2px; }
+.ta-check b { font-weight:500; }
 .ta-budget { border:0; margin:0 0 12px; padding:0; display:grid; gap:6px; min-width:0; }
 .ta-budget-head, .ta-budget-row { display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:13px; }
 .ta-budget-head { font-size:12px; color:var(--muted, #667); }

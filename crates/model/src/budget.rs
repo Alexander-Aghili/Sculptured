@@ -110,3 +110,49 @@ impl RunBudget {
         out
     }
 }
+
+/// Which of the person's own Claude Code setup Claude agents load. Sculptured's own tools load either way.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct ClaudeSetup {
+    /// `~/.claude`: plugins, skills, hooks, settings and MCP servers. Off by default: a team's agents
+    /// rarely need them, and every agent re-reads them on every model call.
+    #[serde(default)]
+    pub global: bool,
+    /// The agent folder's `.claude/` (settings, plugins, skills) and local settings. On by default.
+    #[serde(default = "on")]
+    pub project: bool,
+}
+
+fn on() -> bool {
+    true
+}
+
+impl Default for ClaudeSetup {
+    fn default() -> Self {
+        Self { global: false, project: true }
+    }
+}
+
+impl ClaudeSetup {
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// The Claude Code flags for this setup: which setting files load, and (without the person's
+    /// global setup) only the MCP servers Sculptured passes.
+    pub fn claude_args(&self) -> Vec<String> {
+        let mut sources = Vec::new();
+        if self.global {
+            sources.push("user");
+        }
+        if self.project {
+            sources.extend(["project", "local"]);
+        }
+        let mut a = vec!["--setting-sources".to_string(), sources.join(",")];
+        if !self.global {
+            a.push("--strict-mcp-config".to_string());
+        }
+        a
+    }
+}

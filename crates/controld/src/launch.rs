@@ -55,7 +55,13 @@ fn fitted_params(
             (None, vec![dir.display().to_string()])
         }
     };
+    // Claude agents load only the parts of the person's own Claude Code setup the team allows;
+    // with all of it allowed nothing is sent, as before.
+    let claude_setup = (seat.runtime == Runtime::ClaudeCode)
+        .then(|| st.store.lock().unwrap().draft(rig).ok().flatten().map(|d| d.claude_setup).unwrap_or_default())
+        .filter(|s| !(s.global && s.project));
     let mut params = LaunchParams {
+        claude_setup,
         cwd,
         model: seat.model.clone(),
         posture,

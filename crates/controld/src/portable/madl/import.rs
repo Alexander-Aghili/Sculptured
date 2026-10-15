@@ -25,7 +25,7 @@ pub fn from_madl(doc: &m::Document) -> Imported {
     for (path, why) in budget_dropped {
         cx.drop(path, why);
     }
-    let mut team = TeamDraft { budget,
+    let mut team = TeamDraft { budget, claude_setup: cx.get("claude_setup").unwrap_or_default(),
         workflow: cx.get("workflow"),
         input: None,
         folder: cx.get("folder"),

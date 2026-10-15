@@ -43,6 +43,7 @@ fn budgets_and_agent_limits_round_trip_through_madl() {
     a.token_limit = Some(serde_json::from_value(json!({ "tokens": 2000000, "soft": 1000000, "counts": "all", "include_subagents": false })).unwrap());
     a.turn_limit = Some(model::SoftHard { soft: None, hard: 40 });
     a.minute_limit = Some(model::SoftHard { soft: Some(20), hard: 30 });
+    file.team.claude_setup = model::ClaudeSetup { global: true, project: false };
     round_trip(&file);
     let doc = to_madl(&file);
     let yaml = serde_yaml_ng::to_string(&doc).unwrap();

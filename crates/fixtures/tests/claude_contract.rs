@@ -445,3 +445,21 @@ async fn a_well_behaved_agent_exits_on_the_interrupt_alone() {
     s.hard_stop().await.unwrap();
     assert!(t.elapsed() < Duration::from_millis(1000), "Ctrl+C alone ended it: {:?}", t.elapsed());
 }
+
+#[tokio::test]
+async fn a_claude_setup_reaches_the_cli_as_its_flags() {
+    let dir = tempfile::tempdir().unwrap();
+    let argv = dir.path().join("argv.txt");
+    let mut sp = spec(dir.path(), vec![("FAKE_CLAUDE_ARGV_LOG".into(), argv.display().to_string())]);
+    sp.claude_setup = Some(model::ClaudeSetup::default());
+    let mut s = driver().launch(sp).await.unwrap();
+    let mut ev = s.take_events().unwrap();
+    s.send(msg("m1", "hello")).await.unwrap();
+    until(&mut ev, turn_ended).await;
+    let args = std::fs::read_to_string(&argv).unwrap();
+    let args: Vec<&str> = args.lines().collect();
+    let at = args.iter().position(|a| *a == "--setting-sources").expect("setting sources passed");
+    assert_eq!(args[at + 1], "project,local");
+    assert!(args.contains(&"--strict-mcp-config"), "{args:?}");
+    s.stop(Duration::from_secs(5)).await.unwrap();
+}

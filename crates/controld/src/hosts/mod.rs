@@ -98,6 +98,10 @@ fn drop_features(params: &mut LaunchParams, missing: &[&str]) -> Vec<&'static st
                 params.usage_baseline = None;
                 lost.push("its earlier usage count");
             }
+            features::CLAUDE_SETUP => {
+                params.claude_setup = None;
+                lost.push("the setting that leaves out your own Claude Code plugins, skills and hooks");
+            }
             _ => {}
         }
     }

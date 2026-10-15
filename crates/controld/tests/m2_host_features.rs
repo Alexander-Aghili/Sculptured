@@ -360,3 +360,40 @@ async fn a_command_the_runner_cannot_do_is_refused_as_older_runner() {
     assert_eq!(s.st.hosts.command("local", restart()).await.unwrap_err(), OLDER, "the words relaunch maps to 409 older_runner");
     assert!(commands(&mut ws, Duration::from_millis(300)).await.is_empty(), "nothing reaches the older runner");
 }
+
+const CLAUDE_SPEC: &str = r#"
+version: "0.2"
+name: r
+pods:
+  - id: dev
+    label: Dev
+    members:
+      - { id: a, agent_ref: "local:a", profile: default, runtime: claude-code, cwd: "." }
+      - { id: b, agent_ref: "local:b", profile: default, runtime: codex, cwd: "." }
+"#;
+
+#[tokio::test]
+async fn claude_agents_leave_out_the_persons_own_setup_and_an_older_runner_says_it_cannot() {
+    let s = serve().await;
+    let rig = rigspec::compile(CLAUDE_SPEC).unwrap();
+    s.st.store.lock().unwrap().upsert_rig(&rig, &RigSource::File { path: "/specs/r.yaml".into() }, Desired::Running).unwrap();
+    let (claude, codex) = (rig.seats.iter().find(|x| x.id == "dev.a@r").unwrap(), rig.seats.iter().find(|x| x.id == "dev.b@r").unwrap());
+    let _ws = host(&s, hello(&[], &[], &[features::CLAUDE_SETUP])).await;
+    wait_for("host connected", || s.st.hosts.is_connected("local")).await;
+    let params = controld::launch::launch_params(&s.st, "local", "r", claude, s.home.path()).unwrap();
+    assert_eq!(params.claude_setup, Some(model::ClaudeSetup::default()), "global setup off, project on");
+    let params = controld::launch::launch_params(&s.st, "local", "r", codex, s.home.path()).unwrap();
+    assert_eq!(params.claude_setup, None, "Codex agents are not affected");
+    drop(_ws);
+    wait_for("host gone", || !s.st.hosts.is_connected("local")).await;
+
+    let _ws = host(&s, hello(&[], &[], &[])).await;
+    wait_for("host connected", || s.st.hosts.is_connected("local")).await;
+    let params = controld::launch::launch_params(&s.st, "local", "r", claude, s.home.path()).unwrap();
+    assert_eq!(params.claude_setup, None, "an older runner gets the launch without it");
+    let note = events_of(&s, "dev.a@r").into_iter().find_map(|b| match b {
+        EventBody::FeaturesDropped { features, note } if features.iter().any(|f| f == "claude-setup") => Some(note),
+        _ => None,
+    });
+    assert!(note.is_some_and(|n| n.contains("leaves out your own Claude Code plugins")), "the agent says so");
+}

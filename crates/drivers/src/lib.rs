@@ -59,6 +59,8 @@ pub struct LaunchSpec {
     pub sandboxed: bool,
     /// More folders the agent may work in (a team's items folder, `copies: per-item`).
     pub add_dirs: Vec<PathBuf>,
+    /// Claude: which of the person's own Claude Code setup to load; None = all of it.
+    pub claude_setup: Option<model::ClaudeSetup>,
 }
 
 impl LaunchSpec {
@@ -76,6 +78,7 @@ impl LaunchSpec {
             usage_baseline: None,
             sandboxed: false,
             add_dirs: vec![],
+            claude_setup: None,
         }
     }
 }

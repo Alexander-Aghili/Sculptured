@@ -202,8 +202,8 @@ impl Supervisor {
 
     /// What this hostd can do beyond M1, for its Hello. Seat tools only when it serves their socket.
     pub fn features(&self) -> Vec<String> {
-        use host_proto::features::{ANSWER, POSTURE, RESTART, SEAT_TOOLS, USAGE_BASELINE};
-        let mut f = vec![POSTURE, RESTART, ANSWER, USAGE_BASELINE];
+        use host_proto::features::{ANSWER, CLAUDE_SETUP, POSTURE, RESTART, SEAT_TOOLS, USAGE_BASELINE};
+        let mut f = vec![POSTURE, RESTART, ANSWER, USAGE_BASELINE, CLAUDE_SETUP];
         if self.inner.seat_tools.is_some() {
             f.push(SEAT_TOOLS);
         }

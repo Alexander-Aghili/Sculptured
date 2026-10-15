@@ -52,6 +52,9 @@ pub struct LaunchParams {
     /// Local mode only: more folders the agent may work in. A connected computer ignores it.
     #[serde(default)]
     pub add_dirs: Vec<String>,
+    /// Claude agents: which of the person's own Claude Code setup to load. None = all of it (as before).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claude_setup: Option<model::ClaudeSetup>,
 }
 
 /// How a new tenure gets its native session.
@@ -174,6 +177,8 @@ pub mod features {
     pub const USAGE_BASELINE: &str = "usage-baseline";
     /// Answers `ToHost::Op` (local operations: folders, git, copies, CLIs, plan usage).
     pub const LOCAL_OPS: &str = "local-ops";
+    /// Honours `LaunchParams.claude_setup` (leaves out the person's own Claude Code setup).
+    pub const CLAUDE_SETUP: &str = "claude-setup";
 }
 
 /// Run the agent in its own git copy (worktree) of the folder, made on the computer that runs it.
@@ -196,6 +201,9 @@ impl LaunchParams {
         }
         if self.usage_baseline.is_some() {
             f.push(features::USAGE_BASELINE);
+        }
+        if self.claude_setup.is_some() {
+            f.push(features::CLAUDE_SETUP);
         }
         if self.own_copy.is_some() {
             f.push(features::LOCAL_OPS);

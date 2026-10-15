@@ -267,6 +267,10 @@ pub struct TeamDraft {
     #[serde(default, skip_serializing_if = "TeamLimits::is_empty")]
     #[ts(as = "Option<TeamLimits>", optional)]
     pub limits: TeamLimits,
+    /// Which of the person's own Claude Code setup Claude agents load (Advanced).
+    #[serde(default, skip_serializing_if = "crate::ClaudeSetup::is_default")]
+    #[ts(as = "Option<crate::ClaudeSetup>", optional)]
+    pub claude_setup: crate::ClaudeSetup,
     /// What one run may use (Advanced). Absent = no budget.
     #[serde(default, skip_serializing_if = "crate::RunBudget::is_empty")]
     #[ts(as = "Option<crate::RunBudget>", optional)]

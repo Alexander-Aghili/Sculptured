@@ -45,3 +45,17 @@ fn run_budget_round_trips_and_is_omitted_when_empty() {
     assert_eq!(from_value::<RunBudget>(v).unwrap(), b);
     assert!(RunBudget::default().is_empty());
 }
+
+#[test]
+fn claude_setup_flags_leave_out_what_the_team_turned_off() {
+    let flags = |global, project| ClaudeSetup { global, project }.claude_args();
+    assert_eq!(ClaudeSetup::default(), ClaudeSetup { global: false, project: true }, "global off, project on by default");
+    assert_eq!(flags(false, true), ["--setting-sources", "project,local", "--strict-mcp-config"]);
+    assert_eq!(flags(true, false), ["--setting-sources", "user"]);
+    assert_eq!(flags(false, false), ["--setting-sources", "", "--strict-mcp-config"]);
+    let d: TeamDraft = serde_json::from_value(json!({ "id": "t", "name": "T", "revision": 0 })).unwrap();
+    assert_eq!(d.claude_setup, ClaudeSetup::default(), "a team saved before the setting gets the default");
+    assert!(to_value(&d).unwrap().get("claude_setup").is_none(), "the default is not written");
+    let d: TeamDraft = serde_json::from_value(json!({ "id": "t", "name": "T", "revision": 0, "claude_setup": { "global": true } })).unwrap();
+    assert_eq!(d.claude_setup, ClaudeSetup { global: true, project: true });
+}
