@@ -61,7 +61,7 @@ To stop everything yourself, choose **Stop team…**, then **Stop everything now
 
 ## How close to the limit it stops
 
-Claude Code and Codex report usage after each model call, so no tool can promise to stop at exactly 30%. Sculptured stops early by one model call for each agent working at that moment, then interrupts at once, so a run ends at or just under the hard value. The more agents work at the same time, the larger that margin; **Most agents working at once** keeps it small.
+Claude Code and Codex report usage after each model call, so no tool can promise to stop at exactly 30%. Sculptured always wraps up first, then stops early by about one model call for each agent working at that moment and interrupts at once, so a run usually ends near the hard value; it can pass it by a little when calls are large or plan readings are late. The more agents work at the same time, the larger that margin; **Most agents working at once** keeps it small. A budget covers one run: starting the team again starts a new count.
 
 <Note>
 The stop that interrupts at once and the per-call token count need an up-to-date runner. Reinstall the runner from **Computers** on each computer that runs agents. An older runner still stops agents, within five seconds instead of two, and its Claude usage is counted when each reply ends.

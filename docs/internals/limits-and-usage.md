@@ -50,7 +50,7 @@ A refusal is recorded as `report-rejected` on the parent. The Run board shows th
 | Limit | Set where | Counts | When reached |
 |---|---|---|---|
 | Token limit (`TokenLimit`) | on the agent in the team design (`advanced.token_limit`: `tokens` is the hard value, `soft` optional) | `all` (input + output + cache read + cache write), `new` (all but cache reads) or `output`, summed over usage reports since the run started; with `include_subagents` (default true), its descendants too | soft value (default 85%): soft stop; hard value, less one model call per working agent: hard stop (`collaboration::stop_now`) |
-| Turn limit (`advanced.turn_limit`, `SoftHard<u32>`) | on the agent | `turn-started` events of the agent and its descendants since the run started | soft: soft stop; hard: hard stop |
+| Turn limit (`advanced.turn_limit`, `SoftHard<u32>`) | on the agent | turns of the agent and its descendants since the run started | soft: once that many turns have ended, soft stop; hard: when a turn past it starts, hard stop (so the wrap-up turn finishes) |
 | Minute limit (`advanced.minute_limit`, `SoftHard<u32>`) | on the agent | time between `turn-started` and `turn-ended` (an open turn counts to now), agent and descendants | soft: soft stop; hard: hard stop |
 | Output budget | per team, `POST /api/teams/{id}/budget` with `output_limit` 1–1 000 000, only while stopped | each agent's output tokens since the run started, against the same per-agent number | hard stop, mode `Budget` |
 
@@ -67,7 +67,7 @@ stateDiagram-v2
 - `controls::run` checks budgets, agent limits and soft stops once a second; `budget::run` also checks agent limits (`token_limits::check`) after usage, plan and turn-end events, at most every 0.1 s (`EVENT_CHECK_EVERY`; a skipped event schedules a check).
 - A soft stop sends a wrap-up instruction (an interrupt first if a turn runs). It asks for a summary "within approximately 5,000 additional output tokens" and says that usage reports may arrive late.
 - A launch is refused while the agent's budget is used up: "Agent output budget exhausted; start a new project run to reset it".
-- Claude usage arrives per model call (§5), so a hard stop comes within one model call per working agent; the hard check subtracts that reserve (`token_limits::reserve`).
+- Claude usage arrives per model call (§5). The token reserve (`token_limits::reserve`) is the largest counted share (the limit's own `counts`) of one per-call report × the agent's working seats; it brings the wrap-up forward, and once the agent is wrapping up, the stop. Only `budget::run` checks agent limits.
 
 ## 4. Plan-usage holds
 
@@ -150,8 +150,9 @@ flowchart LR
   D -- "otherwise" --> H["runner"]
 ```
 
-- **Measuring** (`budget::measure`): a plan share is the window's change since the baseline. The baseline is a reading at Start no older than 2 minutes (`FRESH_MS`), else the first reading after Start plus the tokens before it at the learned rate. Between readings, the share is `last reading + tokens since × rate`, where the rate (percent per token) is learned from the run's first and last readings, else the last run's (`settings` key `budget-rate:<provider>`). A later `resets_at` starts a new window at 0. Readings are account-wide, so use outside the run counts.
-- **Reserve**: agents working on that plan × the largest single usage report in the run × the rate. A meter trips its hard value when `used + reserve ≥ hard`, so in-flight calls end at or just under it.
+- **Measuring** (`budget::measure`): a plan share is the window's change since the baseline. The baseline is a reading at Start no older than 2 minutes (`FRESH_MS`), else the first reading after Start plus the tokens before it at the learned rate. Between readings, the share is `last reading + tokens since × rate`, where the rate (percent per token) is learned from the run's first and last readings, else the last run's (`settings` key `budget-rate:<provider>:<window>`). A later `resets_at` starts a new window at 0. Readings are account-wide, so use outside the run counts.
+- **Reserve**: agents working on that plan × the largest single per-call report in the run (Claude's end-of-turn reports are left out: they can carry a whole turn's remainder) × the rate. A run always wraps up before it stops: from Normal, `used ≥ soft` or `used + reserve ≥ hard` wraps up, and only `used ≥ hard` stops at once; while wrapping up, `used + reserve ≥ hard` stops.
+- **Every Start writes a record** (an empty budget too) before any agent launches, so the gate, checks and board only ever see the current run's; a start that fails removes it (`budget::forget`).
 - **Acting**: WrapUp sends the existing soft stop to every running agent, one after another (each takes the team claim). Stopped calls `collaboration::stop_now` once for all root agents (one claim, every seat at once); a stopped run whose agents still run 3 s later is stopped again.
 - **The gate** sits in `HostRegistry::command_now`, so every Launch, Restart and Send passes it whoever sends it (Start, spawn, copies, dispatch, handoffs, people). Interrupts, stops and answers are never held. Past soft: refused with `Run budget: <reason>`; the wrap-up instruction itself still reaches agents with a control recorded. `spawn_agent` refuses earlier, before creating a child. With `max_working`, a Send to an agent that is not working, while that many agents are working, starting or holding an unconsumed message, is queued in `budget_queue` and the sender is told it went; `gate::deliver` sends the oldest when a slot frees, through `command_ungated`.
 - `GET /api/teams/{id}/budget` adds `run` (`RunStatus {state, meters, wrap_up_ms}`) and `waiting` (agents with a queued message). `POST /api/teams/{id}/stop-now` stops every running root agent with `stop_now`.

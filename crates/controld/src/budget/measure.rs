@@ -48,8 +48,11 @@ fn provider_of_runtime(runtime: &str) -> &'static str {
 pub fn spend(store: &Store, rig: &str, start_seq: i64) -> rusqlite::Result<HashMap<&'static str, Spend>> {
     let n = "COALESCE(json_extract(e.json,'$.body.input_tokens'),0) + COALESCE(json_extract(e.json,'$.body.output_tokens'),0)
            + COALESCE(json_extract(e.json,'$.body.cache_read_tokens'),0) + COALESCE(json_extract(e.json,'$.body.cache_write_tokens'),0)";
+    // A Claude turn's last report can carry a whole turn's remainder: only its per-call reports count
+    // toward the largest call. Codex reports are per call.
     let sql = format!(
-        "SELECT s.runtime, COALESCE(SUM({n}), 0), COALESCE(MAX({n}), 0) FROM events e JOIN seats s ON e.subject = 'seat:' || s.id
+        "SELECT s.runtime, COALESCE(SUM({n}), 0),
+                COALESCE(MAX(CASE WHEN s.runtime <> 'claude-code' OR json_extract(e.json,'$.body.in_turn') = 1 THEN {n} END), 0) FROM events e JOIN seats s ON e.subject = 'seat:' || s.id
          WHERE s.rig = ?1 AND e.seq > ?2 AND json_extract(e.json, '$.body.type') = 'usage-reported' GROUP BY s.runtime"
     );
     let mut q = store.connection().prepare(&sql)?;
@@ -136,7 +139,7 @@ pub fn meters(r: &Record, spend: &HashMap<&str, Spend>, working: &HashMap<&str, 
     let mut out = Vec::new();
     for (t, b) in r.plans.iter().zip(&r.budget.plan) {
         let s = spend.get(t.provider.as_str()).copied().unwrap_or_default();
-        let rate = rate(t, rates.get(&t.provider).copied());
+        let rate = rate(t, rates.get(&format!("{}:{}", t.provider, t.window)).copied());
         let measured = share(t, s.tokens, rate);
         let reserve = rate.map_or(0.0, |r| working.get(t.provider.as_str()).copied().unwrap_or(0) as f64 * s.max_call as f64 * r);
         out.push(Meter { what: window_words(&t.provider, &t.window), unit: "percent".into(), used: measured.map(|m| m.0),

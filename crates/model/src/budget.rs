@@ -19,8 +19,9 @@ pub struct SoftHard<T> {
 macro_rules! soft_hard_int {
     ($t:ty) => {
         impl SoftHard<$t> {
+            /// The soft value; absent, 85% of hard rounded down, but at least 1 when hard is.
             pub fn soft_value(&self) -> $t {
-                self.soft.unwrap_or_else(|| (self.hard as f64 * SOFT_SHARE).floor() as $t)
+                self.soft.unwrap_or_else(|| ((self.hard as f64 * SOFT_SHARE).floor() as $t).max(self.hard.min(1)))
             }
             /// What is wrong with it, in words naming `what`; None when it is usable.
             pub fn problem(&self, what: &str) -> Option<String> {

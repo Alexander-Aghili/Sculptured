@@ -100,7 +100,18 @@ fn unqueue(store: &Store, message_id: &str) -> rusqlite::Result<()> {
     store.connection().execute("DELETE FROM budget_queue WHERE message_id = ?1", [message_id]).map(|_| ())
 }
 
-/// Sends waiting messages while slots are free, oldest first; past the soft value they are dropped
+fn still_queued(store: &Store, message_id: &str) -> rusqlite::Result<bool> {
+    let state: Option<String> = store.connection().query_row("SELECT state FROM messages WHERE id = ?1", [message_id], |r| r.get(0)).ok();
+    Ok(state.as_deref() == Some("queued"))
+}
+
+fn not_sent(st: &crate::state::AppState, seat: String, message_id: String, reason: String) -> rusqlite::Result<()> {
+    st.local_event(crate::hosts::controld(), model::Subject::Seat(seat), model::Provenance::Operator, model::EventBody::MessageFailed { message_id, reason })?;
+    Ok(())
+}
+
+/// Sends waiting messages while slots are free, oldest first. A message that has meanwhile failed
+/// (its agent stopped or restarted) is dropped; past the soft value every waiting message is dropped
 /// and recorded as not sent.
 pub async fn deliver(st: &crate::state::AppState, rig: &str) -> rusqlite::Result<()> {
     let (list, record) = {
@@ -109,10 +120,12 @@ pub async fn deliver(st: &crate::state::AppState, rig: &str) -> rusqlite::Result
     };
     let Some(r) = record else { return Ok(()) };
     for (seat, message_id, cmd) in list {
-        if !matches!(r.state, BudgetState::Normal) {
+        let queued = still_queued(&st.store.lock().unwrap(), &message_id)?;
+        if !queued || !matches!(r.state, BudgetState::Normal) {
             unqueue(&st.store.lock().unwrap(), &message_id)?;
-            let reason = "Not sent: the run's budget stopped new work".to_string();
-            st.local_event(crate::hosts::controld(), model::Subject::Seat(seat), model::Provenance::Operator, model::EventBody::MessageFailed { message_id, reason })?;
+            if queued {
+                not_sent(st, seat, message_id, "Not sent: the run's budget stopped new work".into())?;
+            }
             continue;
         }
         let free = r.budget.max_working.is_none_or(|max| busy(&st.store.lock().unwrap(), rig, &seat).is_ok_and(|n| n < max));
@@ -120,9 +133,12 @@ pub async fn deliver(st: &crate::state::AppState, rig: &str) -> rusqlite::Result
             return Ok(());
         }
         unqueue(&st.store.lock().unwrap(), &message_id)?;
-        let Ok(host) = crate::launch::seat_host(st, &seat) else { continue };
-        if let Err(e) = st.hosts.command_ungated(&host, cmd).await {
-            st.local_event(crate::hosts::controld(), model::Subject::Seat(seat), model::Provenance::ProtocolObserved, model::EventBody::MessageFailed { message_id, reason: e.into_message() })?;
+        let sent = match crate::launch::seat_host(st, &seat) {
+            Ok(host) => st.hosts.command_ungated(&host, cmd).await.map_err(|e| e.into_message()),
+            Err(e) => Err(e.message.to_string()),
+        };
+        if let Err(reason) = sent {
+            not_sent(st, seat, message_id, reason)?;
         }
     }
     Ok(())

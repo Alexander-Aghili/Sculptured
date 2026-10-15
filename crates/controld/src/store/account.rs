@@ -14,6 +14,8 @@ pub struct UsageRow {
     pub cache_write: u64,
     pub cost_usd: Option<f64>,
     pub cost_source: Option<String>,
+    /// Counted from one model call while a turn ran: never priced (the turn's last report is).
+    pub in_turn: bool,
 }
 
 pub struct ActivityCounts {
@@ -29,7 +31,8 @@ impl Store {
             "SELECT s.rig, s.runtime, e.at_ms,
                     COALESCE(json_extract(e.json, '$.body.input_tokens'), 0), COALESCE(json_extract(e.json, '$.body.output_tokens'), 0),
                     COALESCE(json_extract(e.json, '$.body.cache_read_tokens'), 0), COALESCE(json_extract(e.json, '$.body.cache_write_tokens'), 0),
-                    json_extract(e.json, '$.body.cost.usd'), json_extract(e.json, '$.body.cost.source')
+                    json_extract(e.json, '$.body.cost.usd'), json_extract(e.json, '$.body.cost.source'),
+                    COALESCE(json_extract(e.json, '$.body.in_turn'), 0)
              FROM events e JOIN seats s ON e.subject = 'seat:' || s.id
              WHERE json_extract(e.json, '$.body.type') = 'usage-reported'",
         )?;
@@ -44,6 +47,7 @@ impl Store {
                 cache_write: r.get::<_, i64>(6)?.max(0) as u64,
                 cost_usd: r.get(7)?,
                 cost_source: r.get(8)?,
+                in_turn: r.get(9)?,
             })
         })?;
         rows.collect()

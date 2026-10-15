@@ -113,11 +113,15 @@ pub(super) async fn start_team(State(st): State<AppState>, Path(id): Path<String
         let spec_dir = st2.home.as_deref().cloned().unwrap_or_else(|| PathBuf::from("/"));
         let after_seq = st2.store.lock().unwrap().last_seq()?;
         let source = RigSource::Team { id: id.clone(), revision: draft.revision };
-        reconciler::start_rig_claimed(&st2, build.rig.clone(), source, spec_dir, claim).map_err(|e| match e.code.as_ref() {
-            "rig_running" => team_running(),
-            _ => e,
-        })?;
+        // The run's budget is recorded before any agent launches, so the gate never sees an earlier run's.
         crate::budget::begin(&st2, &id, &draft.budget, after_seq)?;
+        reconciler::start_rig_claimed(&st2, build.rig.clone(), source, spec_dir, claim).map_err(|e| {
+            let _ = crate::budget::forget(&st2, &id, after_seq);
+            match e.code.as_ref() {
+                "rig_running" => team_running(),
+                _ => e,
+            }
+        })?;
         tokio::spawn(reconciler::deliver_jobs(st2.clone(), jobs(&draft), after_seq, build.rig.launch_layers.len()));
         crate::analytics::team_started(&st2, &draft);
         Ok(json!({ "rig": build.rig.name, "warnings": build.warnings }))

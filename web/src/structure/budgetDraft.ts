@@ -13,7 +13,7 @@ export const PLAN_ROWS: { provider: 'claude' | 'codex'; window: 'five_hour' | 's
 
 /** The soft value a limit gets when only its hard value is set (the server applies the same). */
 export const SOFT_SHARE = 0.85;
-export const softOf = (v: SoftHard<number>, whole = false) => v.soft ?? (whole ? Math.floor(v.hard * SOFT_SHARE) : v.hard * SOFT_SHARE);
+export const softOf = (v: SoftHard<number>, whole = false) => v.soft ?? (whole ? Math.max(Math.floor(v.hard * SOFT_SHARE), Math.min(v.hard, 1)) : v.hard * SOFT_SHARE);
 
 const isEmpty = (b: RunBudget) => !b.plan?.length && !b.tokens && !b.minutes && b.max_working == null;
 

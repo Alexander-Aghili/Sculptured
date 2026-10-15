@@ -71,6 +71,8 @@ async fn a_run_wraps_up_at_soft_and_stops_at_hard_within_the_bound() {
     let account = plan_percent(&plan) - 0.5;
     assert!(account <= 20.0 + 2.0 * 0.5, "the run added {account:.1}% against a 20% hard limit");
     assert!(account >= 15.0, "it ran most of its budget first: {account:.1}%");
+    let rate: String = s.st.store.lock().unwrap().connection().query_row("SELECT json FROM settings WHERE k = 'budget-rate:claude:five_hour'", [], |r| r.get(0)).unwrap();
+    assert!((rate.parse::<f64>().unwrap() - 0.5 / 1010.0).abs() < 1e-6, "the learned rate is kept per plan window: {rate}");
 }
 
 #[tokio::test]
@@ -78,7 +80,7 @@ async fn with_no_plan_reading_a_learned_rate_still_stops_the_run() {
     let s = serve().await;
     let _runner = claude_runner(&s).await;
     // An earlier run learned 0.001% per token; this run's CLIs report no plan readings at all.
-    s.st.store.lock().unwrap().connection().execute("INSERT INTO settings (k, json) VALUES ('budget-rate:claude', '0.001')", []).unwrap();
+    s.st.store.lock().unwrap().connection().execute("INSERT INTO settings (k, json) VALUES ('budget-rate:claude:five_hour', '0.001')", []).unwrap();
     let dir = tempfile::tempdir_in(s.home.path()).unwrap();
     let id = team(&s, dir.path(), &[("a", "spend:400:1000:120".into())], json!({ "plan": [{ "provider": "claude", "window": "five_hour", "hard": 10.0 }] })).await;
     start_team(&s, &id).await;
@@ -212,7 +214,46 @@ async fn a_turn_limit_wraps_up_then_stops_the_agent() {
     let a = seat(&id, "a");
     // Soft is 85% of 2 = 1 turn: after its job the agent is asked to wrap up (its 2nd turn), then stopped.
     wait_long("the agent is stopped", || lifecycle(&s.st, &a) == Some(SeatLifecycle::Stopped)).await;
-    assert!(turns(&s, &a).len() <= 2, "{:?}", turns(&s, &a));
+    assert_eq!(turns(&s, &a).len(), 2, "its job, then its wrap-up turn, both finished: {:?}", turns(&s, &a));
+}
+
+#[tokio::test]
+async fn a_new_run_without_a_budget_is_not_governed_by_the_last_runs_record() {
+    let s = serve().await;
+    let _runner = claude_runner(&s).await;
+    let dir = tempfile::tempdir_in(s.home.path()).unwrap();
+    let id = team(&s, dir.path(), &[("a", "spend:400:1000:120".into())], json!({ "tokens": { "hard": 3000 }, "max_working": 1 })).await;
+    start_team(&s, &id).await;
+    wait_long("the first run is stopped", || matches!(state(&s, &id), BudgetState::Stopped { .. })).await;
+    let a = seat(&id, "a");
+    wait_for("its agent stopped", || lifecycle(&s.st, &a) == Some(SeatLifecycle::Stopped)).await;
+    let (_, rec) = get(&s.router, &format!("/api/teams/{id}")).await;
+    let mut draft = rec["draft"].clone();
+    draft.as_object_mut().unwrap().remove("budget");
+    draft["agents"][0]["job"] = json!("spend:3:100:20");
+    let (status, body) = call(&s.router, "PUT", &format!("/api/teams/{id}"), json!({ "request_id": rid(), "revision": draft["revision"], "draft": draft })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let before = turns(&s, &a).len();
+    start_team(&s, &id).await;
+    wait_long("the new run's job ran", || turns(&s, &a).len() > before).await;
+    assert!(controld::budget::status(&s.st, &id).unwrap().is_none(), "the board shows no budget for this run");
+    let refused = events(&s.st, &a).iter().any(|e| matches!(&e.body, model::EventBody::MessageFailed { reason, .. } if reason.contains("Run budget")));
+    assert!(!refused, "nothing was refused by the old run's budget");
+}
+
+#[tokio::test]
+async fn an_output_only_token_limit_is_not_tripped_by_cache_reads() {
+    let s = serve().await;
+    let _runner = claude_runner(&s).await;
+    let dir = tempfile::tempdir_in(s.home.path()).unwrap();
+    // Each call reads 1000 tokens from the cache but writes 10: 205 output tokens in all.
+    let id = team(&s, dir.path(), &[("a", "spend:20:1000:20".into())], json!({})).await;
+    with_advanced(&s, &id, "a", json!({ "token_limit": { "tokens": 1000, "counts": "output", "include_subagents": true } })).await;
+    start_team(&s, &id).await;
+    let a = seat(&id, "a");
+    wait_long("its job finished", || !turns(&s, &a).is_empty()).await;
+    assert_eq!(lifecycle(&s.st, &a), Some(SeatLifecycle::Running), "205 output tokens of 1000 stop nothing");
+    assert_eq!(s.st.store.lock().unwrap().control(&a).unwrap(), None);
 }
 
 #[tokio::test]

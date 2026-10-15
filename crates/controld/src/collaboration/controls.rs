@@ -133,7 +133,6 @@ pub async fn run(st: AppState) {
         if let Err(e) = super::budgets::check(&st).await {
             tracing::warn!(error=?e,"output-budget check failed");
         }
-        super::token_limits::check(&st).await;
         if let Err(e) = check(&st).await {
             tracing::warn!(error=?e,"soft-stop check failed");
         }

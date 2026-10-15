@@ -158,7 +158,7 @@ describe('what a Start may cost', () => {
       'Up to 8 agents could work at the same time (Lead hands work to 8 at once); the run budget lets 4 work at once and the rest wait.',
       'Agents can start helpers without limit. Set Most agents and Levels of children in Advanced.',
       'Run budget: Claude 5-hour: wrap up at 25.5%, stop at 30%; tokens: wrap up at 1.0M, stop at 2.0M.',
-      'Sculptured stops the run one model call early for each agent working, and a stop reaches each agent within a moment, so a run should end at or just under each hard value (up to 4 agents working at once).',
+      'Sculptured wraps up first and stops early by about one model call for each agent working (up to 4 at once), so a run usually ends near each hard value. Usage is reported after each call, so it can pass a hard value by a little.',
     ]);
   });
 

@@ -14,9 +14,9 @@ fn minutes_out(v: SoftHard<u32>) -> m::Limit<String> {
     out(v.soft.map(|s| format!("{s}m")), format!("{}m", v.hard))
 }
 
-/// Whole minutes, rounding a part minute up so a limit never grows.
+/// Whole minutes, rounding a part minute down (at least 1) so a limit never grows.
 fn minutes(text: &str) -> Option<u32> {
-    madl::duration::seconds(text).map(|s| s.div_ceil(60).min(u64::from(u32::MAX)) as u32)
+    madl::duration::seconds(text).map(|s| (s / 60).clamp(1, u64::from(u32::MAX)) as u32)
 }
 
 fn minutes_in(l: &m::Limit<String>) -> Option<SoftHard<u32>> {

@@ -24,23 +24,21 @@ pub struct RunStatus {
     pub wrap_up_ms: Option<i64>,
 }
 
-/// The newest reading of `window` on `provider`'s plan: (percent, resets_at, observed_ms).
-fn reading(st: &AppState, provider: &str, window: &str) -> Option<measure::Observed> {
-    let all = crate::plan_usage::current(st);
-    let v = all.into_iter().find(|v| v.usage.provider == provider)?;
+/// The newest reading of `window` on `provider`'s plan in `all`: (percent, resets_at, observed_ms).
+fn reading(all: &[crate::plan_usage::PlanUsageView], provider: &str, window: &str) -> Option<measure::Observed> {
+    let v = all.iter().find(|v| v.usage.provider == provider)?;
     let w = v.usage.windows.iter().find(|w| w.name == window)?;
     Some((w.used_percent?, w.resets_at, v.observed_ms))
 }
 
-/// Records the budget of a run that is starting; events after `start_seq` are the run's.
+/// Records the budget of a run that is starting (an empty one too, so an earlier run's record never
+/// governs this run); events after `start_seq` are the run's. Call before any agent launches.
 pub fn begin(st: &AppState, rig: &str, budget: &model::RunBudget, start_seq: i64) -> rusqlite::Result<()> {
-    if budget.is_empty() {
-        return Ok(());
-    }
     let now = model::now_ms();
+    let all = if budget.plan.is_empty() { vec![] } else { crate::plan_usage::current(st) };
     let plans = budget.plan.iter().map(|b| {
         let mut t = PlanTrack { provider: b.provider.clone(), window: b.window.clone(), ..Default::default() };
-        let fresh = reading(st, &b.provider, &b.window).filter(|(_, resets, at)| now - at <= measure::FRESH_MS && resets.is_none_or(|r| r * 1000 > now));
+        let fresh = reading(&all, &b.provider, &b.window).filter(|(_, resets, at)| now - at <= measure::FRESH_MS && resets.is_none_or(|r| r * 1000 > now));
         if let Some((percent, resets_at, at_ms)) = fresh {
             t.baseline = Some(percent);
             t.resets_at = resets_at;
@@ -53,22 +51,33 @@ pub fn begin(st: &AppState, rig: &str, budget: &model::RunBudget, start_seq: i64
     st.store.lock().unwrap().put_run_budget(rig, &r)
 }
 
-fn stored_rate(store: &Store, provider: &str) -> rusqlite::Result<Option<f64>> {
-    let v: Option<String> = store.connection().query_row("SELECT json FROM settings WHERE k = ?1", [format!("budget-rate:{provider}")], |r| r.get(0)).optional()?;
+/// Forgets the record `begin` wrote for a start that then failed.
+pub fn forget(st: &AppState, rig: &str, start_seq: i64) -> rusqlite::Result<()> {
+    st.store.lock().unwrap().connection().execute("DELETE FROM run_budgets WHERE rig = ?1 AND start_seq = ?2", params![rig, start_seq]).map(|_| ())
+}
+
+/// A learned rate is per plan window: a weekly window's percent per token is far smaller.
+fn rate_key(t: &PlanTrack) -> String {
+    format!("budget-rate:{}:{}", t.provider, t.window)
+}
+
+fn stored_rate(store: &Store, t: &PlanTrack) -> rusqlite::Result<Option<f64>> {
+    let v: Option<String> = store.connection().query_row("SELECT json FROM settings WHERE k = ?1", [rate_key(t)], |r| r.get(0)).optional()?;
     Ok(v.and_then(|j| j.parse().ok()))
 }
 
-fn save_rate(store: &Store, provider: &str, rate: f64) -> rusqlite::Result<()> {
+fn save_rate(store: &Store, t: &PlanTrack, rate: f64) -> rusqlite::Result<()> {
     store.connection().execute(
         "INSERT INTO settings (k, json) VALUES (?1, ?2) ON CONFLICT (k) DO UPDATE SET json = excluded.json",
-        params![format!("budget-rate:{provider}"), rate.to_string()],
+        params![rate_key(t), rate.to_string()],
     )?;
     Ok(())
 }
 
 /// Folds the newest readings into `r` and returns its meters (saving learned rates).
 fn measure(st: &AppState, rig: &str, r: &mut Record) -> rusqlite::Result<Vec<Meter>> {
-    let observed: Vec<Option<measure::Observed>> = r.plans.iter().map(|t| reading(st, &t.provider, &t.window)).collect();
+    let all = if r.plans.is_empty() { vec![] } else { crate::plan_usage::current(st) };
+    let observed: Vec<Option<measure::Observed>> = r.plans.iter().map(|t| reading(&all, &t.provider, &t.window)).collect();
     let store = st.store.lock().unwrap();
     let spend = measure::spend(&store, rig, r.start_seq)?;
     let working = measure::working(&store, rig)?;
@@ -80,10 +89,10 @@ fn measure(st: &AppState, rig: &str, r: &mut Record) -> rusqlite::Result<Vec<Met
         }
         let learned = measure::rate(t, None);
         if let Some(rate) = learned {
-            save_rate(&store, &t.provider, rate)?;
+            save_rate(&store, t, rate)?;
         }
-        if let Some(rate) = learned.or(stored_rate(&store, &t.provider)?) {
-            rates.insert(t.provider.clone(), rate);
+        if let Some(rate) = learned.or(stored_rate(&store, t)?) {
+            rates.insert(format!("{}:{}", t.provider, t.window), rate);
         }
     }
     let meters = measure::meters(r, &spend, &working, &rates, model::now_ms());
@@ -102,20 +111,24 @@ fn amount(m: &Meter, v: f64) -> String {
     }
 }
 
-/// The new state, if a meter calls for one: hard first (counting what working agents may still add).
-fn decide(state: &BudgetState, meters: &[Meter], now: i64) -> Option<BudgetState> {
+/// The new state, if a meter calls for one. A run always wraps up before it stops, unless a value is
+/// already past its hard value: from Normal, the reserve (what working agents may still add) brings
+/// the wrap-up forward; once wrapping up, it brings the stop forward.
+pub fn decide(state: &BudgetState, meters: &[Meter], now: i64) -> Option<BudgetState> {
     if matches!(state, BudgetState::Stopped { .. }) {
         return None;
     }
-    let hit = |m: &&Meter, limit: f64, reserve: f64| m.used.is_some_and(|u| u + reserve >= limit);
-    if let Some(m) = meters.iter().find(|m| hit(m, m.hard, m.reserve)) {
+    let normal = matches!(state, BudgetState::Normal);
+    let past = |m: &&Meter, limit: f64, reserve: f64| m.used.is_some_and(|u| u + reserve >= limit);
+    let hard = |m: &&Meter| past(m, m.hard, if normal { 0.0 } else { m.reserve });
+    if let Some(m) = meters.iter().find(hard) {
         let reason = format!("{}: {} used of the run's hard limit of {}; every agent was stopped", m.what, amount(m, m.used.unwrap_or(0.0)), amount(m, m.hard));
         return Some(BudgetState::Stopped { reason, at_ms: now });
     }
-    if matches!(state, BudgetState::Normal)
-        && let Some(m) = meters.iter().find(|m| hit(m, m.soft, 0.0))
-    {
-        let reason = format!("{}: {} used, past the run's soft limit of {}; no new work, agents are wrapping up", m.what, amount(m, m.used.unwrap_or(0.0)), amount(m, m.soft));
+    let soft = |m: &&Meter| past(m, m.soft, 0.0) || past(m, m.hard, m.reserve);
+    if normal && let Some(m) = meters.iter().find(soft) {
+        let reason = format!("{}: {} used, near the run's limits (wrap up at {}, stop at {}); no new work, agents are wrapping up",
+            m.what, amount(m, m.used.unwrap_or(0.0)), amount(m, m.soft), amount(m, m.hard));
         return Some(BudgetState::WrapUp { reason, at_ms: now });
     }
     None
@@ -161,17 +174,28 @@ fn stop_again(r: &Record, live: bool, now: i64) -> bool {
     matches!(r.state, BudgetState::Stopped { at_ms, .. } if live && now - at_ms > 3_000)
 }
 
+/// Repeats what a run's state calls for when it did not take (the team was busy): a stopped run's
+/// agents are stopped again, and agents a wrap-up missed get it. True when the run is stopped.
+async fn catch_up(st: &AppState, rig: &str, r: &Record) -> rusqlite::Result<bool> {
+    match r.state {
+        BudgetState::Stopped { .. } => {
+            if stop_again(r, true, model::now_ms()) {
+                act(st, rig, &r.state).await?;
+            }
+            Ok(true)
+        }
+        BudgetState::WrapUp { .. } => act(st, rig, &r.state).await.map(|_| false),
+        BudgetState::Normal => Ok(false),
+    }
+}
+
 /// Measures every budgeted run and acts on what it finds.
 pub async fn check(st: &AppState) -> rusqlite::Result<()> {
     let rigs = st.store.lock().unwrap().budgeted_rigs()?;
     for rig in rigs {
         let Some(mut r) = st.store.lock().unwrap().run_budget(&rig)? else { continue };
         let live = !running(&st.store.lock().unwrap(), &rig)?.0.is_empty();
-        if stop_again(&r, live, model::now_ms()) {
-            act(st, &rig, &r.state.clone()).await?;
-            continue;
-        }
-        if matches!(r.state, BudgetState::Stopped { .. }) || !live {
+        if r.budget.is_empty() || !live || catch_up(st, &rig, &r).await? {
             continue;
         }
         let meters = measure(st, &rig, &mut r)?;
@@ -193,7 +217,7 @@ pub async fn check(st: &AppState) -> rusqlite::Result<()> {
 
 /// The run's budget for the board; None when its latest run had none.
 pub fn status(st: &AppState, rig: &str) -> rusqlite::Result<Option<RunStatus>> {
-    let Some(mut r) = st.store.lock().unwrap().run_budget(rig)? else { return Ok(None) };
+    let Some(mut r) = st.store.lock().unwrap().run_budget(rig)?.filter(|r| !r.budget.is_empty()) else { return Ok(None) };
     let meters = measure(st, rig, &mut r)?;
     Ok(Some(RunStatus { state: r.state, meters, wrap_up_ms: r.wrap_up_ms }))
 }
@@ -246,5 +270,25 @@ async fn pass(st: &AppState) {
         if let Err(e) = gate::deliver(st, &rig).await {
             tracing::warn!(%rig, error = %e, "waiting messages not sent");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn meter(used: f64, reserve: f64) -> Meter {
+        Meter { what: "Claude 5-hour".into(), unit: "percent".into(), used: Some(used), soft: 25.5, hard: 30.0, reserve, estimated: false, observed_ms: None }
+    }
+
+    #[test]
+    fn a_run_wraps_up_before_it_stops_even_when_the_reserve_is_large() {
+        let normal = BudgetState::Normal;
+        assert_eq!(decide(&normal, &[meter(20.0, 1.0)], 1), None);
+        // Six agents at about 1% a call: the reserve passes the hard value before the soft one is reached.
+        assert!(matches!(decide(&normal, &[meter(24.0, 6.0)], 1), Some(BudgetState::WrapUp { .. })), "wrap up first");
+        let wrapping = BudgetState::WrapUp { reason: String::new(), at_ms: 1 };
+        assert!(matches!(decide(&wrapping, &[meter(24.0, 6.0)], 2), Some(BudgetState::Stopped { .. })), "then stop, a call early");
+        assert!(matches!(decide(&normal, &[meter(31.0, 0.0)], 1), Some(BudgetState::Stopped { .. })), "already past hard: stop at once");
     }
 }

@@ -198,9 +198,8 @@ impl ClaudeParser {
     fn assistant(&mut self, v: &Value, out: &mut Vec<DriverEvent>) {
         let parent = v["parent_tool_use_id"].as_str().map(str::to_string);
         let turn = self.ensure_turn(out);
-        if parent.is_none() {
-            self.message_usage(&v["message"], &turn, out);
-        }
+        // A native subagent's calls count as they happen too (`modelUsage` at the end includes them).
+        self.message_usage(&v["message"], &turn, out);
         for b in v["message"]["content"].as_array().cloned().unwrap_or_default() {
             match b["type"].as_str().unwrap_or("") {
                 "text" => {

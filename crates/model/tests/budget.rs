@@ -5,6 +5,7 @@ use serde_json::{from_value, json, to_value};
 fn soft_defaults_to_85_percent_of_hard() {
     assert_eq!(SoftHard { soft: None, hard: 1000u64 }.soft_value(), 850);
     assert_eq!(SoftHard { soft: Some(10u32), hard: 60 }.soft_value(), 10);
+    assert_eq!(SoftHard { soft: None, hard: 1u32 }.soft_value(), 1, "a one-turn limit does not wrap up before it starts");
     let p = PlanBudget { provider: "claude".into(), window: "five_hour".into(), soft: None, hard: 30.0 };
     assert!((p.soft_value() - 25.5).abs() < 1e-9);
 }

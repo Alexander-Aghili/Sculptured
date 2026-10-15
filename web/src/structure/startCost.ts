@@ -37,7 +37,7 @@ export function budgetNotes(d: TeamDraft, atOnce: number): string[] {
   const n = Math.max(1, Math.min(atOnce, b?.max_working ?? atOnce));
   return [
     `Run budget: ${parts.join('; ')}.`,
-    `Sculptured stops the run one model call early for each agent working, and a stop reaches each agent within a moment, so a run should end at or just under each hard value (up to ${n} ${n === 1 ? 'agent' : 'agents'} working at once).`,
+    `Sculptured wraps up first and stops early by about one model call for each agent working (up to ${n} at once), so a run usually ends near each hard value. Usage is reported after each call, so it can pass a hard value by a little.`,
   ];
 }
 

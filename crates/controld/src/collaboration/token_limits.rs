@@ -55,9 +55,10 @@ pub fn reached(store: &Store, view: &SeatView) -> rusqlite::Result<bool> {
     Ok(counted(store, view, &limit)?.is_some_and(|used| used >= limit.tokens))
 }
 
-/// Turns started and minutes spent working by `seats` since `start_seq` (an open turn counts to `now`).
-fn turns_and_minutes(store: &Store, seats: &[String], start_seq: i64, now: i64) -> rusqlite::Result<(u32, f64)> {
-    let (mut turns, mut ms) = (0u32, 0i64);
+/// Turns started, turns ended, and minutes spent working by `seats` since `start_seq` (an open turn
+/// counts to `now`).
+fn turns_and_minutes(store: &Store, seats: &[String], start_seq: i64, now: i64) -> rusqlite::Result<(u32, u32, f64)> {
+    let (mut turns, mut ended, mut ms) = (0u32, 0u32, 0i64);
     for seat in seats {
         let key = Subject::Seat(seat.clone()).key();
         let mut q = store.connection().prepare(
@@ -72,71 +73,103 @@ fn turns_and_minutes(store: &Store, seats: &[String], start_seq: i64, now: i64) 
                     turns += 1;
                     open = Some(at);
                 }
-                (_, at) => ms += open.take().map_or(0, |o| at - o),
+                (_, at) => {
+                    ended += 1;
+                    ms += open.take().map_or(0, |o| at - o);
+                }
             }
         }
         ms += open.map_or(0, |o| now - o);
     }
-    Ok((turns, ms.max(0) as f64 / 60_000.0))
+    Ok((turns, ended, ms.max(0) as f64 / 60_000.0))
 }
 
-/// The largest single report among the agent's seats (about one model call), times how many of them work now.
+/// The largest counted share of one report among the agent's seats (about one model call), times how
+/// many of them work now. A Claude turn's closing report can carry a whole turn's remainder, so only
+/// its per-call reports count; Codex reports are per call.
 fn reserve(store: &Store, view: &SeatView, limit: &TokenLimit, start_seq: i64) -> rusqlite::Result<u64> {
     let seats = if limit.include_subagents { with_descendants(store, &view.id)? } else { vec![view.id.clone()] };
+    let per_call = if view.runtime == rigspec::Runtime::ClaudeCode { " AND json_extract(json,'$.body.in_turn') = 1" } else { "" };
     let (mut max, mut working) = (0u64, 0u64);
     for s in &seats {
         let key = Subject::Seat(s.clone()).key();
-        let n = "COALESCE(json_extract(json,'$.body.input_tokens'),0)+COALESCE(json_extract(json,'$.body.output_tokens'),0)+COALESCE(json_extract(json,'$.body.cache_read_tokens'),0)+COALESCE(json_extract(json,'$.body.cache_write_tokens'),0)";
-        let m: i64 = store.connection().query_row(
-            &format!("SELECT COALESCE(MAX({n}),0) FROM events WHERE subject = ?1 AND seq > ?2 AND json_extract(json,'$.body.type') = 'usage-reported'"),
-            params![key, start_seq], |r| r.get(0))?;
-        max = max.max(m.max(0) as u64);
+        let mut q = store.connection().prepare(&format!(
+            "SELECT COALESCE(json_extract(json,'$.body.input_tokens'),0), COALESCE(json_extract(json,'$.body.output_tokens'),0),
+                    COALESCE(json_extract(json,'$.body.cache_read_tokens'),0), COALESCE(json_extract(json,'$.body.cache_write_tokens'),0)
+             FROM events WHERE subject = ?1 AND seq > ?2 AND json_extract(json,'$.body.type') = 'usage-reported'{per_call}"))?;
+        let rows = q.query_map(params![key, start_seq], |r| Ok([r.get::<_, i64>(0)?, r.get(1)?, r.get(2)?, r.get(3)?].map(|v| v.max(0) as u64)))?;
+        for row in rows {
+            max = max.max(limit.counts.of(row?));
+        }
         working += u64::from(store.seat(s)?.is_some_and(|v| v.activity == model::SeatActivity::Working));
     }
     Ok(max * working)
 }
 
-/// Why the agent must wrap up (soft) or stop now (hard), from its own limits; (None, None) when neither.
-pub fn standing(store: &Store, view: &SeatView) -> rusqlite::Result<(Option<String>, Option<String>)> {
-    let draft = store.draft(&view.rig)?;
-    let Some(adv) = draft.and_then(|d| d.agents.into_iter().find(|a| a.id == view.member)).map(|a| a.advanced) else { return Ok((None, None)) };
-    let Some((start, _)) = crate::handoffs::current_start(store, &view.rig)? else { return Ok((None, None)) };
-    let (mut soft, mut hard) = (None, None);
-    // `reserve`: what the working agents may still add before a stop reaches them.
-    let mut judge = |what: &str, used: f64, s: f64, h: f64, reserve: f64, unit: &str| {
-        if used + reserve >= h {
-            hard.get_or_insert(format!("{what} limit: {used:.0} of {h:.0} {unit} used; stopped at once"));
-        } else if used >= s {
-            soft.get_or_insert(format!("{what} limit: {used:.0} {unit} used, past the soft limit of {s:.0}; wrapping up"));
+/// Soft and hard reasons from one limit. The agent always wraps up before it is stopped, unless it is
+/// already past the hard value: before its wrap-up, the reserve (what it may still add before a stop
+/// reaches it) brings the wrap-up forward; after, it brings the stop forward.
+#[derive(Default)]
+struct Verdict {
+    soft: Option<String>,
+    hard: Option<String>,
+}
+
+impl Verdict {
+    fn judge(&mut self, what: &str, used: f64, (s, h, reserve): (f64, f64, f64), unit: &str, wrapping_up: bool) {
+        let stop = used >= h || (wrapping_up && used + reserve >= h);
+        if stop {
+            self.hard.get_or_insert(format!("{what} limit: {used:.0} of {h:.0} {unit} used; stopped at once"));
+        } else if used >= s || used + reserve >= h {
+            self.soft.get_or_insert(format!("{what} limit: {used:.0} {unit} used, near its limits (wrap up at {s:.0}, stop at {h:.0}); wrapping up"));
         }
-    };
+    }
+}
+
+/// Why the agent must wrap up (soft) or stop now (hard), from its own limits; (None, None) when neither.
+pub fn standing(store: &Store, view: &SeatView, adv: &model::AgentAdvanced, start: i64) -> rusqlite::Result<(Option<String>, Option<String>)> {
+    let wrapping_up = store.control(&view.id)?.is_some();
+    let mut v = Verdict::default();
     if let Some(t) = adv.token_limit {
         let used = counted(store, view, &t)?.unwrap_or(0);
-        // A stop reaches an agent after the model call it is in: count one more call for each working agent.
         let reserve = reserve(store, view, &t, start)? as f64;
-        judge("Token", used as f64, t.soft_value() as f64, t.tokens as f64, reserve, "tokens");
+        v.judge("Token", used as f64, (t.soft_value() as f64, t.tokens as f64, reserve), "tokens", wrapping_up);
     }
     if adv.turn_limit.is_some() || adv.minute_limit.is_some() {
         let seats = with_descendants(store, &view.id)?;
-        let (turns, minutes) = turns_and_minutes(store, &seats, start, model::now_ms())?;
+        let (started, ended, minutes) = turns_and_minutes(store, &seats, start, model::now_ms())?;
         if let Some(t) = adv.turn_limit {
-            judge("Turn", turns as f64, t.soft_value() as f64, t.hard as f64, 0.0, "turns");
+            // At most `hard` turns: the stop comes when one more starts, so the wrap-up turn can finish;
+            // the wrap-up is asked for once `soft` turns have ended.
+            if started > t.hard {
+                v.hard.get_or_insert(format!("Turn limit: {started} turns started, past the limit of {}; stopped at once", t.hard));
+            } else if ended >= t.soft_value() {
+                v.soft.get_or_insert(format!("Turn limit: {ended} turns done (wrap up at {}, stop at {}); wrapping up", t.soft_value(), t.hard));
+            }
         }
         if let Some(m) = adv.minute_limit {
-            judge("Time", minutes, m.soft_value() as f64, m.hard as f64, 0.0, "minutes");
+            v.judge("Time", minutes, (m.soft_value() as f64, m.hard as f64, 0.0), "minutes", wrapping_up);
         }
     }
-    Ok((soft, hard))
+    Ok((v.soft, v.hard))
 }
 
 /// Running agents due a wrap-up (not already stopping) and agents due a stop now, with the reasons.
+/// Teams whose agents have no limits are skipped before anything else is read.
 #[allow(clippy::type_complexity)]
 fn due(store: &Store) -> rusqlite::Result<(Vec<(String, String)>, Vec<(String, String, String)>)> {
     let (mut soft, mut hard) = (vec![], vec![]);
     for rig in store.list_rigs()? {
+        let Some(draft) = store.draft(&rig.name)? else { continue };
+        let limited = |a: &model::AgentAdvanced| a.token_limit.is_some() || a.turn_limit.is_some() || a.minute_limit.is_some();
+        if !draft.agents.iter().any(|a| limited(&a.advanced)) {
+            continue;
+        }
+        let Some((start, _)) = crate::handoffs::current_start(store, &rig.name)? else { continue };
         let Some(snap) = store.rig_snapshot(&rig.name)? else { continue };
         for view in snap.seats.iter().filter(|v| matches!(v.lifecycle, SeatLifecycle::Running | SeatLifecycle::Launching)) {
-            match standing(store, view)? {
+            let Some(adv) = draft.agents.iter().find(|a| a.id == view.member).map(|a| &a.advanced).filter(|a| limited(a)) else { continue };
+            match standing(store, view, adv, start)? {
                 (_, Some(why)) if store.control(&view.id)? != Some(crate::store::ControlMode::Hard) => hard.push((view.rig.clone(), view.id.clone(), why)),
                 (Some(why), None) if store.control(&view.id)?.is_none() => soft.push((view.id.clone(), why)),
                 _ => {}

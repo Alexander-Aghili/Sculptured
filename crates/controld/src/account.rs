@@ -111,10 +111,11 @@ fn summarize(st: &AppState, now_ms: i64) -> rusqlite::Result<AccountUsage> {
         totals.output += r.output;
         totals.cache_read += r.cache_read;
         totals.cache_write += r.cache_write;
-        totals.reports += 1;
+        totals.reports += u64::from(!r.in_turn);
         let cost = r.cost_usd.unwrap_or(0.0);
         match (r.cost_usd, r.cost_source) {
             (Some(c), Some(source)) => { usd += c; *by_source.entry(source).or_default() += c; }
+            _ if r.in_turn => {}
             _ => without_cost += 1,
         }
         let age = today - r.at_ms.div_euclid(DAY_MS);

@@ -61,7 +61,7 @@ fn usage_arrives_per_message_not_only_at_result() {
 fn repeated_lines_of_one_message_count_once() {
     // One message spans several lines (one per content block); its usage repeats, and output grows.
     let lines = [assistant("msg_1", [3, 5, 1000, 50], None), assistant("msg_1", [3, 12, 1000, 50], None), assistant("sub", [9, 9, 9, 9], Some("toolu_1"))];
-    assert_eq!(usages(&mut ClaudeParser::default(), &lines), [([3, 5, 1000, 50], true), ([0, 7, 0, 0], true)], "growth only; subagent lines are left to modelUsage");
+    assert_eq!(usages(&mut ClaudeParser::default(), &lines), [([3, 5, 1000, 50], true), ([0, 7, 0, 0], true), ([9, 9, 9, 9], true)], "growth only; a subagent's call counts too");
 }
 
 #[test]
