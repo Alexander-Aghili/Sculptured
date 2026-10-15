@@ -20,8 +20,8 @@ export function PlanWindows({ plan }: { plan: PlanSeries[] }) {
         <rect className="plan-track" x={x(0)} y={12} width={x(100) - x(0)} height={12} rx={4} />
         <rect className="plan-before" x={x(0)} y={12} width={x(s.first) - x(0)} height={12} rx={4} />
         <rect className="plan-added" x={x(s.first)} y={12} width={Math.max(2, x(s.highest) - x(s.first))} height={12} />
-        {soft !== null && <g><line className="plan-mark" x1={x(s.first + soft)} x2={x(s.first + soft)} y1={6} y2={30} /><text className="usage-axis" x={x(s.first + soft)} y={42} textAnchor="middle">wrap up</text></g>}
-        {hard !== null && <g><line className="plan-mark plan-stop" x1={x(s.first + hard)} x2={x(s.first + hard)} y1={6} y2={30} /><text className="usage-axis" x={x(s.first + hard)} y={42} textAnchor="middle">stop</text></g>}
+        {soft !== null && <g><line className="plan-mark" x1={x(s.first + soft)} x2={x(s.first + soft)} y1={6} y2={30} /><text className="usage-axis" x={x(s.first + soft) - 3} y={42} textAnchor="end">wrap up {soft}</text></g>}
+        {hard !== null && <g><line className="plan-mark plan-stop" x1={x(s.first + hard)} x2={x(s.first + hard)} y1={6} y2={30} /><text className="usage-axis" x={x(s.first + hard) + 3} y={42}>stop {hard}</text></g>}
         <text className="usage-axis" x={PAD.l - 6} y={22} textAnchor="end">{providerName(s.provider)}</text>
       </svg>
       {s.events.length > 0 && <ul className="tokens-events">{s.events.map((e) => <li key={e.at_ms}>{clock(e.at_ms)} · {e.kind === 'stop' ? 'Stopped' : 'Wrapped up'}: {e.reason}</li>)}</ul>}
@@ -46,7 +46,8 @@ export function Timeline({ timeline, name }: { timeline: TokensReport['timeline'
       <text className="usage-axis" x={PAD.l - 6} y={yT(top) + 4} textAnchor="end">{tokens(top)}</text>
       <line className="usage-grid" x1={PAD.l} x2={W - PAD.r} y1={yT(0)} y2={yT(0)} />
       {pts.map((p) => <rect key={p.at_ms} className="tokens-bar" x={x(p.at_ms) + 1} y={yT(p.tokens)} width={bw} height={Math.max(0, yT(0) - yT(p.tokens))} rx={2} />)}
-      <text className="usage-axis" x={PAD.l - 6} y={yA(most) + 4} textAnchor="end">{most} agents</text>
+      <text className="usage-axis" x={PAD.l - 6} y={yA(most) + 4} textAnchor="end">{most}</text>
+      <text className="usage-axis" x={PAD.l} y={yA(most) - 8}>agents working</text>
       <line className="usage-grid" x1={PAD.l} x2={W - PAD.r} y1={yA(0)} y2={yA(0)} />
       <path className="usage-line tokens-working" d={pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.at_ms)},${yA(p.agents_working)} H${x(p.at_ms + timeline.interval_ms)}`).join(' ')} />
       {timeline.fanouts.map((f) => <g key={f.at_ms}><line className="usage-cross" x1={x(f.at_ms)} x2={x(f.at_ms)} y1={8} y2={210} strokeDasharray="4 3" /><text className="usage-axis" x={x(f.at_ms) + 4} y={16}>{f.agents} started{f.from ? ` from ${name(f.from)}` : ''}</text></g>)}

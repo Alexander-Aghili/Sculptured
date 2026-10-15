@@ -11,16 +11,18 @@ const fig = (f: Figure<number>, show: (n: number) => string = tokens) => f.value
 export function AgentsTable({ report, agent }: { report: TokensReport; agent: AgentLink }) {
   return <div className="traffic-table"><table>
     <caption>Every agent, most tokens first. Start re-read is the starting context times its calls; growth re-read is what it added, times the later calls that re-sent it.</caption>
-    <thead><tr><th>Agent</th><th>Group</th><th>Calls</th><th>Tokens</th><th>Starting context</th><th>Final context</th><th>Start re-read</th><th>Growth re-read</th><th>Model time</th><th>Waiting</th></tr></thead>
+    <thead><tr><th>Agent</th><th>Group</th><th>Calls</th><th>Tokens</th><th>Starting context</th><th>Final context</th><th>Start re-read</th><th>Growth re-read</th><th>Model time</th><th>Waiting (derived)</th></tr></thead>
     <tbody>{report.agents.map((a) => <tr key={a.id}>
       <td>{agent(a.id)}{a.parent && <span className="muted"> · started by {agent(a.parent)}</span>}</td>
       <td>{a.group ?? ''}</td><td>{a.calls}</td><td>{a.tokens.toLocaleString()}</td>
       <td>{tokens(a.starting_context)}</td><td>{tokens(a.final_context)}</td>
       <td>{tokens(a.start_reread)}</td><td>{tokens(a.growth_reread)}</td>
-      <td>{fig(a.model_ms, (n) => seconds(n))}</td><td>{fig(a.waiting_ms, (n) => seconds(n))}</td>
+      <td>{seconds(a.model_ms.value)}</td><td>{seconds(a.waiting_ms.value)}</td>
     </tr>)}</tbody>
   </table></div>;
 }
+
+const clip = (t: string) => (t.length > 140 ? `${t.slice(0, 140)}…` : t);
 
 /** The things in agents' context whose re-reads cost the most. */
 export function Costliest({ report, agent }: { report: TokensReport; agent: AgentLink }) {
@@ -30,7 +32,7 @@ export function Costliest({ report, agent }: { report: TokensReport; agent: Agen
     <caption>What cost the most: its size, times the calls that re-sent it.</caption>
     <thead><tr><th>Agent</th><th>What</th><th>Command or file</th><th>Size</th><th>Re-read</th></tr></thead>
     <tbody>{rows.map((c, i) => <tr key={i}>
-      <td>{agent(c.agent)}</td><td>{c.cause}</td><td className="tokens-target">{c.tool ? `${c.tool}: ` : ''}{c.target ?? ''}</td>
+      <td>{agent(c.agent)}</td><td>{c.cause}</td><td className="tokens-target" title={c.target ?? undefined}>{c.tool ? `${c.tool}: ` : ''}{clip(c.target ?? '')}</td>
       <td>{fig(c.tokens)}</td><td>{fig(c.reread)}</td>
     </tr>)}</tbody>
   </table></div>;
