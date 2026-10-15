@@ -24,7 +24,7 @@ describe('BudgetFields', () => {
     render(<Harness start={teamDraft({ id: 't', name: 'T' })} />);
     fireEvent.change(screen.getByLabelText('Claude, 5-hour window: hard (% of plan)'), { target: { value: '30' } });
     expect(budget()).toEqual({ plan: [{ provider: 'claude', window: 'five_hour', hard: 30 }] });
-    expect(screen.getByLabelText('Claude, 5-hour window: soft (% of plan)')).toHaveAttribute('placeholder', '25.5 (85%)');
+    expect(screen.getByLabelText('Claude, 5-hour window: soft (% of plan)')).toHaveAttribute('placeholder', '25.5');
     fireEvent.change(screen.getByLabelText('Claude, 5-hour window: soft (% of plan)'), { target: { value: '20' } });
     expect(budget().plan[0]).toEqual({ provider: 'claude', window: 'five_hour', soft: 20, hard: 30 });
     fireEvent.change(screen.getByLabelText('Claude, 5-hour window: hard (% of plan)'), { target: { value: '' } });

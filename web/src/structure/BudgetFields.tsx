@@ -17,20 +17,15 @@ type PairProps = {
 /** One limit's soft and hard values; the soft box shows the 85% default until one is typed. */
 function Pair({ label, unit, value, locked, whole, onChange }: PairProps) {
   const set = (soft: number | null, hard: number | null) => onChange(softHard(soft, hard));
-  const fallback = value ? `${+softOf(value, whole).toFixed(1)} (85%)` : 'no limit';
+  const fallback = value ? `${+softOf(value, whole).toFixed(1)}` : '–';
   return (
-    <tr>
-      <th scope="row">{label}</th>
-      <td>
-        <input className="fld-input" type="number" min={0} step="any" aria-label={`${label}: soft (${unit})`} placeholder={fallback} disabled={locked || !value}
+    <div className="ta-budget-row" role="group" aria-label={label}>
+      <span className="ta-budget-label">{label}{unit === '% of plan' ? ' (%)' : unit === 'minutes' ? ' (minutes)' : ''}</span>
+      <input className="fld-input" type="number" min={0} step="any" aria-label={`${label}: soft (${unit})`} placeholder={fallback} disabled={locked || !value}
           value={value?.soft ?? ''} onChange={(e) => set(num(e.target.value), value?.hard ?? null)} />
-      </td>
-      <td>
-        <input className="fld-input" type="number" min={0} step="any" aria-label={`${label}: hard (${unit})`} placeholder="no limit" disabled={locked}
+      <input className="fld-input" type="number" min={0} step="any" aria-label={`${label}: hard (${unit})`} placeholder="–" disabled={locked}
           value={value?.hard ?? ''} onChange={(e) => set(value?.soft ?? null, num(e.target.value))} />
-      </td>
-      <td className="muted">{unit}</td>
-    </tr>
+    </div>
   );
 }
 
@@ -48,8 +43,9 @@ function MaxWorking({ draft, edit, locked }: { draft: TeamDraft; edit: Edit; loc
   );
 }
 
-const NOTE = 'At a soft value no new work starts and every agent wraps up with a summary. At a hard value every agent is stopped at once, like Ctrl+C. '
-  + 'Leave soft empty for 85% of hard. Plan percentages count all your use of that plan, including outside Sculptured. The Run board shows each budget as the run goes.';
+const NOTE = 'Soft: no new work starts and every agent wraps up with a summary. Hard: every agent is stopped at once, like Ctrl+C. '
+  + 'Empty soft = 85% of hard. Plan percentages count all your use of that plan, including outside Sculptured. The Run board shows each budget as the run goes.';
+
 
 /** What one run of the team may use. Blank = no budget; Sculptured sets none of its own. */
 export function BudgetFields({ draft, edit, locked }: { draft: TeamDraft; edit: Edit; locked: boolean }) {
@@ -58,9 +54,8 @@ export function BudgetFields({ draft, edit, locked }: { draft: TeamDraft; edit: 
   return (
     <fieldset className="ta-budget">
       <legend className="fld-label">Run budget</legend>
-      <table className="ta-budget-table">
-        <thead><tr><td /><th scope="col">Soft: wrap up</th><th scope="col">Hard: stop now</th><td /></tr></thead>
-        <tbody>
+      <div className="ta-budget-head" aria-hidden="true"><span>Soft: wrap up</span><span>Hard: stop</span></div>
+      <div className="ta-budget-rows">
           {PLAN_ROWS.map((r) => (
             <Pair key={`${r.provider}-${r.window}`} label={r.label} unit="% of plan" value={planOf(b, r.provider, r.window)} locked={locked}
               onChange={(v) => edit((d) => withBudget(d, (x) => withPlan(x, r.provider, r.window, v)), `budget:${r.provider}:${r.window}`)} />
@@ -69,8 +64,7 @@ export function BudgetFields({ draft, edit, locked }: { draft: TeamDraft; edit: 
             onChange={(v) => edit((d) => withBudget(d, (x) => ({ ...x, tokens: v })), 'budget:tokens')} />
           <Pair label="Time" unit="minutes" whole value={b?.minutes} locked={locked}
             onChange={(v) => edit((d) => withBudget(d, (x) => ({ ...x, minutes: v })), 'budget:minutes')} />
-        </tbody>
-      </table>
+      </div>
       <MaxWorking draft={draft} edit={edit} locked={locked} />
       {problems.map((p) => <p key={p} className="reason fld-reason" role="alert">{p}</p>)}
       <p className="fld-meta">{NOTE}</p>
