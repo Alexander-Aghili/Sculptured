@@ -236,6 +236,8 @@ pub enum EventBody {
     },
     /// The CLI's report of how much of the signed-in plan is used (account-wide).
     PlanUsageReported { usage: crate::PlanUsage },
+    /// The run's budget changed state: `wrap-up` (its soft value was reached) or `stopped` (its hard value).
+    BudgetStateChanged { state: String, reason: String },
     /// Sculptured began running the agent's check command (its design's "check", in its folder).
     CheckStarted { command: String },
     /// The check's outcome as Sculptured observed it: the command's own exit status, not the agent's word.

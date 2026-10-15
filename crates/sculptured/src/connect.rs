@@ -247,7 +247,8 @@ pub fn set_caps(policy: &mut hostd::policy::RunnerPolicy, changes: &[(String, bo
             "cli-sign-in" | "cli_sign_in" => &mut c.cli_sign_in,
             "plan-usage" | "plan_usage" => &mut c.plan_usage,
             "generate" => &mut c.generate,
-            other => return Err(format!("Unknown capability {other:?}: use git, copies, checks, cli-sign-in, plan-usage or generate")),
+            "usage-reports" | "usage_reports" => &mut c.usage_reports,
+            other => return Err(format!("Unknown capability {other:?}: use git, copies, checks, cli-sign-in, plan-usage, generate or usage-reports")),
         };
         *slot = Some(*on);
     }

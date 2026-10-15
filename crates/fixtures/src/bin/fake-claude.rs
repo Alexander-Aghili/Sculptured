@@ -71,6 +71,20 @@ impl Fake {
         v["session_id"] = json!(self.sid);
         v["uuid"] = json!(format!("00000000-0000-4000-8000-{:012}", self.lines_out));
         self.emit_raw(&v);
+        if v["type"] == "assistant" || v["type"] == "user" {
+            self.log(v);
+        }
+    }
+
+    /// With `FAKE_CLAUDE_PROJECTS` set, keeps the session's messages in `<that folder>/<session>.jsonl`,
+    /// timestamped now, as the real CLI keeps them under `~/.claude/projects/<folder>/`.
+    fn log(&self, mut v: Value) {
+        let Ok(dir) = std::env::var("FAKE_CLAUDE_PROJECTS") else { return };
+        v["timestamp"] = json!(fixtures::now_rfc3339());
+        let path = std::path::Path::new(&dir).join(format!("{}.jsonl", self.sid));
+        let _ = std::fs::create_dir_all(&dir);
+        let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path).expect("session log");
+        writeln!(f, "{v}").unwrap();
     }
 
     fn message_id(&mut self) -> String {
@@ -210,6 +224,7 @@ impl Fake {
     }
 
     fn turn(&mut self, text: &str, stdin: &mut Stdin) {
+        self.log(json!({ "type": "user", "session_id": self.sid, "message": { "role": "user", "content": text } }));
         // Interpret fixture commands inside the team's captured briefing envelope.
         let payload = fixtures::work_message(text);
         let text = payload.as_str();

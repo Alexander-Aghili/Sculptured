@@ -78,6 +78,12 @@ const EXPORT_CHUNK: i64 = 2000;
 /// order, each exactly as recorded (an event this build can't read is still written unchanged).
 /// The store is locked briefly for the header, then once per chunk of events.
 pub fn export_run(st: &AppState, team: &str, seq: i64) -> Result<String, ApiError> {
+    export_events(st, team, seq, None).map(|(text, _)| text)
+}
+
+/// The run as `sculptured.session/v1` with only the events whose type is in `keep` (all when None),
+/// and when the run ended (None while it goes).
+pub(crate) fn export_events(st: &AppState, team: &str, seq: i64, keep: Option<&[&str]>) -> Result<(String, Option<i64>), ApiError> {
     let header = {
         let store = st.store.lock().unwrap();
         let (run, end) = history::bounds(&store, team, seq)?;
@@ -98,6 +104,7 @@ pub fn export_run(st: &AppState, team: &str, seq: i64) -> Result<String, ApiErro
         (header, end)
     };
     let (header, end) = header;
+    let ended_ms = header.ended_ms;
     let mut out = serde_json::to_string(&header).expect("header serializes");
     out.push('\n');
     let mut from = seq;
@@ -105,7 +112,7 @@ pub fn export_run(st: &AppState, team: &str, seq: i64) -> Result<String, ApiErro
         let rows = st.store.lock().unwrap().run_events(team, from, end, EXPORT_CHUNK)?;
         let Some((last, _)) = rows.last() else { break };
         from = last + 1;
-        for (_, raw) in &rows {
+        for (_, raw) in rows.iter().filter(|(_, raw)| keep.is_none_or(|k| k.contains(&event_type(raw)))) {
             out.push_str(r#"{"origin":"observed","event":"#);
             out.push_str(raw);
             out.push_str("}\n");
@@ -114,7 +121,15 @@ pub fn export_run(st: &AppState, team: &str, seq: i64) -> Result<String, ApiErro
             break;
         }
     }
-    Ok(out)
+    Ok((out, ended_ms))
+}
+
+/// An event's `body.type`, from its stored JSON.
+fn event_type(raw: &str) -> &str {
+    const AT: &str = r#""body":{"type":""#;
+    let Some(i) = raw.find(AT) else { return "" };
+    let rest = &raw[i + AT.len()..];
+    rest.split('"').next().unwrap_or("")
 }
 
 pub(crate) fn download(name: &str, text: String) -> Response {

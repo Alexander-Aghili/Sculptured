@@ -70,7 +70,7 @@ estimated_tokens: number | null, } | { "type": "context-reported", turn_id: stri
 /**
  * The CLI's runtime window (None = the CLI did not say).
  */
-window_tokens: number | null, basis: ContextBasis, } | { "type": "plan-usage-reported", usage: PlanUsage, } | { "type": "check-started", command: string, } | { "type": "check-ran", command: string, passed: boolean, exit_code: number | null, timed_out: boolean, 
+window_tokens: number | null, basis: ContextBasis, } | { "type": "plan-usage-reported", usage: PlanUsage, } | { "type": "budget-state-changed", state: string, reason: string, } | { "type": "check-started", command: string, } | { "type": "check-ran", command: string, passed: boolean, exit_code: number | null, timed_out: boolean, 
 /**
  * The last part of its combined output.
  */

@@ -137,7 +137,7 @@ pub struct HostPolicyInfo {
     pub allowed_folders: Vec<String>,
     /// `full` or `sandboxed`.
     pub access: String,
-    /// Enabled: `git`, `copies`, `checks`, `cli_sign_in`, `plan_usage`.
+    /// Enabled: `git`, `copies`, `checks`, `cli_sign_in`, `plan_usage`, `generate`, `usage_reports`.
     pub capabilities: Vec<String>,
     /// `linux`, `macos`, `windows`.
     pub platform: String,
@@ -179,6 +179,8 @@ pub mod features {
     pub const LOCAL_OPS: &str = "local-ops";
     /// Honours `LaunchParams.claude_setup` (leaves out the person's own Claude Code setup).
     pub const CLAUDE_SETUP: &str = "claude-setup";
+    /// Answers `LocalOp::AnalyzeRun` (where a run's tokens went).
+    pub const USAGE_REPORTS: &str = "usage-reports";
 }
 
 /// Run the agent in its own git copy (worktree) of the folder, made on the computer that runs it.

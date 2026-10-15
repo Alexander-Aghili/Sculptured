@@ -38,6 +38,7 @@ pub mod settings;
 pub mod state;
 pub mod decisions;
 pub mod schedules;
+pub mod run_reports;
 pub mod store;
 pub mod teams;
 mod team_context;

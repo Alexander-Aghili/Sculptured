@@ -45,7 +45,7 @@ export function ComputersPage() {
   );
 }
 
-const CAPS: Record<string, string> = { git: 'Git', copies: "Agents' own copies", checks: 'Checks', cli_sign_in: 'Sign-in from the browser', plan_usage: 'Plan usage' };
+const CAPS: Record<string, string> = { git: 'Git', copies: "Agents' own copies", checks: 'Checks', cli_sign_in: 'Sign-in from the browser', plan_usage: 'Plan usage', generate: 'Generating teams with AI', usage_reports: 'Where tokens went' };
 
 /** What a connected computer allows, and its Claude Code / Codex sign-in, signed in from here. */
 function ComputerDetails({ id, name, policy }: { id: string; name: string; policy: HostPolicyInfo }) {

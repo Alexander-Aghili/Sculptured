@@ -209,10 +209,23 @@ pub async fn check(st: &AppState) -> rusqlite::Result<()> {
         st.store.lock().unwrap().put_run_budget(&rig, &r)?;
         if let Some(n) = next {
             tracing::info!(%rig, state = ?n, "run budget");
+            record(st, &rig, &n)?;
             act(st, &rig, &n).await?;
         }
     }
     Ok(())
+}
+
+/// Writes the change to the run's log, where run exports and reports of the run read it.
+fn record(st: &AppState, rig: &str, state: &BudgetState) -> rusqlite::Result<()> {
+    let (name, reason) = match state {
+        BudgetState::WrapUp { reason, .. } => ("wrap-up", reason),
+        BudgetState::Stopped { reason, .. } => ("stopped", reason),
+        BudgetState::Normal => return Ok(()),
+    };
+    let body = model::EventBody::BudgetStateChanged { state: name.into(), reason: reason.clone() };
+    let subject = model::Subject::Rig(rig.to_string());
+    st.local_event(crate::hosts::controld(), subject, model::Provenance::ProtocolObserved, body).map(|_| ())
 }
 
 /// The run's budget for the board; None when its latest run had none.

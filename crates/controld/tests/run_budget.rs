@@ -102,6 +102,12 @@ async fn token_and_time_budgets_enforce_without_plan_readings() {
     let r = s.st.store.lock().unwrap().run_budget(&id).unwrap().unwrap();
     assert!(r.wrap_up_ms.is_some(), "85% of 30 000 tokens wrapped up first");
     assert!(r.peak_tokens <= 30_000 + 1010, "{}", r.peak_tokens);
+    let changes = s.st.store.lock().unwrap().latest_of_types(&model::Subject::Rig(id.clone()), &["budget-state-changed"], 10).unwrap();
+    let states: Vec<String> = changes.iter().rev().map(|e| match &e.body {
+        model::EventBody::BudgetStateChanged { state, reason } => { assert!(!reason.is_empty()); state.clone() }
+        other => panic!("{other:?}"),
+    }).collect();
+    assert_eq!(states, ["wrap-up", "stopped"], "the run's log records each change, for reports of the run");
 
     let id = team(&s, dir.path(), &[("a", "spend:400:10:50".into())], json!({ "minutes": { "soft": 0, "hard": 1 } })).await;
     start_team(&s, &id).await;

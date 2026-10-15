@@ -9,7 +9,7 @@ export type HostPolicyInfo = { allowed_folders: Array<string>,
  */
 access: string, 
 /**
- * Enabled: `git`, `copies`, `checks`, `cli_sign_in`, `plan_usage`.
+ * Enabled: `git`, `copies`, `checks`, `cli_sign_in`, `plan_usage`, `generate`, `usage_reports`.
  */
 capabilities: Array<string>, 
 /**

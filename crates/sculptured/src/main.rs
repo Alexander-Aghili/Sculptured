@@ -84,7 +84,7 @@ enum Cmd {
         /// Let agents act as you do on this computer (the default).
         #[arg(long)]
         full_access: bool,
-        /// Turn on something the account may do here: git, copies, checks, cli-sign-in, plan-usage (repeatable).
+        /// Turn on something the account may do here: git, copies, checks, cli-sign-in, plan-usage, generate, usage-reports (repeatable).
         #[arg(long, value_name = "CAPABILITY")]
         enable: Vec<String>,
         /// Turn off something the account may do here (repeatable).

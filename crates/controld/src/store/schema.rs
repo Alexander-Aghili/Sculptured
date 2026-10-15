@@ -188,6 +188,7 @@ const MIGRATIONS: &[&str] = &[
      CREATE TABLE IF NOT EXISTS team_decisions (team TEXT NOT NULL, id TEXT NOT NULL, at_ms INTEGER NOT NULL, author TEXT NOT NULL, text TEXT NOT NULL, source TEXT NOT NULL, hidden_ms INTEGER, PRIMARY KEY(team, id));",
     "CREATE TABLE IF NOT EXISTS run_budgets (rig TEXT NOT NULL, start_seq INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY(rig, start_seq));
      CREATE TABLE IF NOT EXISTS budget_queue (seat TEXT NOT NULL, message_id TEXT PRIMARY KEY, json TEXT NOT NULL, at_ms INTEGER NOT NULL);",
+    "CREATE TABLE IF NOT EXISTS run_reports (rig TEXT NOT NULL, start_seq INTEGER NOT NULL, json TEXT NOT NULL, at_ms INTEGER NOT NULL, PRIMARY KEY(rig, start_seq));",
 ];
 
 /// The schema version this build writes.

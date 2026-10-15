@@ -209,6 +209,7 @@ impl Supervisor {
         }
         if self.inner.ops.is_some() {
             f.push(host_proto::features::LOCAL_OPS);
+            f.push(host_proto::features::USAGE_REPORTS);
         }
         f.into_iter().map(String::from).collect()
     }

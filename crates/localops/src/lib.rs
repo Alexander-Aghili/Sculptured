@@ -9,6 +9,7 @@ pub mod programs;
 pub mod generate;
 pub mod git;
 pub mod plan;
+pub mod analyze;
 
 use std::path::{Path, PathBuf};
 
@@ -59,6 +60,9 @@ pub enum LocalOp {
     PlanUsage,
     /// One structured, tool-less call to the user's Claude Code or Codex (`generate`).
     Generate { cli: String, model: Option<String>, prompt: String, schema: serde_json::Value },
+    /// Where a team run's tokens went, from this computer's Claude Code and Codex session files and the
+    /// run's links (a filtered `sculptured.session/v1`); answers a `mais.report/v1` report.
+    AnalyzeRun { sessions: Vec<analyze::RunSession>, export: String },
 }
 
 /// A work item of a team, named rather than given as a path: the computer finds its copy itself.
@@ -137,6 +141,7 @@ pub async fn execute(cx: &Context, op: LocalOp) -> Result<serde_json::Value, Loc
         }
         LocalOp::PlanUsage => blocking(move || Ok(json(plan::codex_files(&cx.codex_home)))).await,
         LocalOp::Generate { cli, model, prompt, schema } => generate::run(&cx, &cli, model.as_deref(), &prompt, &schema).await,
+        LocalOp::AnalyzeRun { sessions, export } => blocking(move || analyze::run(&cx, &sessions, &export)).await,
     }
 }
 

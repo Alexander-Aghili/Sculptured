@@ -28,6 +28,9 @@ pub struct Capabilities {
     pub plan_usage: bool,
     /// One tool-less Claude Code / Codex call that drafts a team (no files, no tools).
     pub generate: bool,
+    /// Reports of where a team run's tokens went, from the CLIs' session files (sizes, causes, commands
+    /// and file names; never file contents).
+    pub usage_reports: bool,
 }
 
 /// The owner's own choices; a capability left unset follows the access level's default, so switching
@@ -46,6 +49,8 @@ pub struct CapabilityChoices {
     pub plan_usage: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generate: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_reports: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,6 +107,7 @@ impl RunnerPolicy {
             cli_sign_in: c.cli_sign_in.unwrap_or(true),
             plan_usage: c.plan_usage.unwrap_or(true),
             generate: c.generate.unwrap_or(true),
+            usage_reports: c.usage_reports.unwrap_or(true),
         }
     }
 
@@ -147,6 +153,8 @@ impl RunnerPolicy {
             Op::Generate { .. } if !caps.generate => return off("Generating teams with AI", "generate"),
             Op::Generate { .. } => op.clone(),
             Op::PlanUsage => Op::PlanUsage,
+            Op::AnalyzeRun { .. } if !caps.usage_reports => return off("Reports of where tokens went", "usage-reports"),
+            Op::AnalyzeRun { .. } => op.clone(),
         })
     }
 
@@ -167,7 +175,7 @@ impl RunnerPolicy {
     /// What this computer allows, for the Hello and the Computers page.
     pub fn info(&self) -> host_proto::HostPolicyInfo {
         let c = self.caps();
-        let caps = [("git", c.git), ("copies", c.copies), ("checks", c.checks), ("cli_sign_in", c.cli_sign_in), ("plan_usage", c.plan_usage), ("generate", c.generate)];
+        let caps = [("git", c.git), ("copies", c.copies), ("checks", c.checks), ("cli_sign_in", c.cli_sign_in), ("plan_usage", c.plan_usage), ("generate", c.generate), ("usage_reports", c.usage_reports)];
         host_proto::HostPolicyInfo {
             allowed_folders: self.allowed_folders.iter().map(|f| f.display().to_string()).collect(),
             access: if self.sandboxed() { "sandboxed".into() } else { "full".into() },
