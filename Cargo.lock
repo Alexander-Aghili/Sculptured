@@ -1388,7 +1388,7 @@ dependencies = [
 [[package]]
 name = "madl"
 version = "0.1.0"
-source = "git+https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language?rev=f52bca7bb520b12b5b2caa02ec5c4e6ef95e4301#f52bca7bb520b12b5b2caa02ec5c4e6ef95e4301"
+source = "git+https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language?rev=ea9c2dd849ab41367b0cccbba86d613dadcf276d#ea9c2dd849ab41367b0cccbba86d613dadcf276d"
 dependencies = [
  "schemars",
  "serde",

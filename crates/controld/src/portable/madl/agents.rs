@@ -49,16 +49,12 @@ impl Cx<'_> {
     fn advanced(&mut self, at: &str, a: &m::Agent, r: &AgentSettings) -> AgentAdvanced {
         let ext = ext_of(&a.extensions);
         let counts = ext.get("token_counts").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default();
-        let budget = r.settings.restrictions.budget.as_ref();
-        let token_limit = budget.and_then(|b| b.tokens).map(|tokens| {
-            let include_subagents = budget.and_then(|b| b.scope) != Some(m::BudgetScope::Own);
-            TokenLimit { soft: None, tokens, counts, include_subagents }
-        });
+        let (token_limit, turn_limit, minute_limit) = super::limits::agent_in(r.settings.restrictions.budget.as_ref(), counts);
         if a.checks.len() > 1 {
             self.drop(format!("{at}/checks/1"), "Sculptured runs one check per agent; the first was kept");
         }
         self.unkept_agent_parts(at, a);
-        AgentAdvanced { turn_limit: None, minute_limit: None,
+        AgentAdvanced { turn_limit, minute_limit,
             model: self.model(at, r),
             permission: ext.get("permission").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default(),
             resume: match r.settings.preferences.resume {

@@ -122,3 +122,22 @@ async fn asking_needs_a_request() {
     let (status, body) = call(&s.router, "POST", &format!("/api/teams/{team}/assistant"), json!({ "options": opts(), "messages": [] })).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 }
+
+#[tokio::test]
+async fn a_proposal_keeps_the_saved_budget_and_agent_limits() {
+    let d = tempfile::tempdir().unwrap();
+    let s = served(d.path()).await;
+    let team = practice_chain(&s, "Pair", &[("a", "Alpha", "plan"), ("b", "Beta", "build")], &[("a", "b")]).await;
+    let (_, rec) = get(&s.router, &format!("/api/teams/{team}")).await;
+    let mut draft = rec["draft"].clone();
+    draft["budget"] = json!({ "plan": [{ "provider": "claude", "window": "five_hour", "hard": 30.0 }], "max_working": 3 });
+    draft["agents"][0]["advanced"]["turn_limit"] = json!({ "hard": 12 });
+    let (status, body) = call(&s.router, "PUT", &format!("/api/teams/{team}"), json!({ "request_id": rid(), "revision": draft["revision"], "draft": draft })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    answer(d.path(), 1, "Added a tester.", WITH_TESTER);
+    let p = ask(&s, &team, json!({ "options": opts(), "messages": [{ "role": "person", "text": "Add a tester" }] })).await;
+    assert_eq!(p["draft"]["budget"], json!({ "plan": [{ "provider": "claude", "window": "five_hour", "hard": 30.0 }], "max_working": 3 }), "the proposal said nothing about budgets");
+    assert_eq!(p["draft"]["agents"][0]["advanced"]["turn_limit"], json!({ "hard": 12 }));
+    let prompt = std::fs::read_to_string(d.path().join("prompts")).unwrap();
+    assert!(prompt.contains("max_working: 3"), "the CLI sees the budget it designs within: {prompt}");
+}

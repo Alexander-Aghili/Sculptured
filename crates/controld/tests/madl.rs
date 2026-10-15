@@ -31,6 +31,25 @@ fn an_example_team_round_trips_through_madl() {
 }
 
 #[test]
+fn budgets_and_agent_limits_round_trip_through_madl() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/teams/gstack-roles.sculptured-team.json")).unwrap();
+    let mut file: TeamFile = serde_json::from_str(&text).unwrap();
+    file.team.revision = 0;
+    file.team.budget = serde_json::from_value(json!({
+        "plan": [{ "provider": "claude", "window": "five_hour", "soft": 25.0, "hard": 30.0 }, { "provider": "codex", "window": "seven_day", "hard": 10.0 }],
+        "tokens": { "hard": 50000000 }, "minutes": { "soft": 45, "hard": 60 }, "max_working": 6,
+    })).unwrap();
+    let a = &mut file.team.agents[0].advanced;
+    a.token_limit = Some(serde_json::from_value(json!({ "tokens": 2000000, "soft": 1000000, "counts": "all", "include_subagents": false })).unwrap());
+    a.turn_limit = Some(model::SoftHard { soft: None, hard: 40 });
+    a.minute_limit = Some(model::SoftHard { soft: Some(20), hard: 30 });
+    round_trip(&file);
+    let doc = to_madl(&file);
+    let yaml = serde_yaml_ng::to_string(&doc).unwrap();
+    assert!(yaml.contains("wall_clock:\n      soft: 45m\n      hard: 60m") && yaml.contains("max_working: 6"), "{yaml}");
+}
+
+#[test]
 fn a_workflow_team_round_trips_and_its_stages_are_drawn_in_madl() {
     let mut team = rigspec::textbook::template("book", "Book", true);
     team.agents[0].advanced.token_limit = Some(model::TokenLimit { soft: None, tokens: 50_000, counts: model::TokenCount::Output, include_subagents: false });

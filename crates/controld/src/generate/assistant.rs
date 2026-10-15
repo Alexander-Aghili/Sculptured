@@ -135,6 +135,19 @@ fn for_prompt(doc: &m::Document) -> m::Document {
     d
 }
 
+/// Budgets are the person's: the run budget and the existing agents' limits stay as saved,
+/// whatever the proposal says (a new agent keeps what the proposal gives it).
+fn keep_budgets(before: &m::Document, doc: &mut m::Document) {
+    doc.system.budget = before.system.budget.clone();
+    for a in &mut doc.agents {
+        let Some(was) = before.agents.iter().find(|b| b.id == a.id) else { continue };
+        let saved = was.settings.as_ref().and_then(|s| s.restrictions.as_ref()).and_then(|r| r.budget.clone());
+        let settings = a.settings.get_or_insert_with(Default::default);
+        let restrictions = settings.restrictions.get_or_insert_with(Default::default);
+        restrictions.budget = saved;
+    }
+}
+
 /// Put back what [`for_prompt`] left out, by id, and place what is new.
 fn restore(before: &m::Document, doc: &mut m::Document) {
     doc.extensions = before.extensions.clone();
@@ -144,6 +157,7 @@ fn restore(before: &m::Document, doc: &mut m::Document) {
     for a in &mut doc.agents {
         a.extensions = before.agents.iter().find(|b| b.id == a.id).map(|b| b.extensions.clone()).unwrap_or_default();
     }
+    keep_budgets(before, doc);
     doc.connections.extend(before.connections.iter().filter(|c| is_drawn_from_workflow(&c.extensions)).cloned());
     doc.steps.extend(before.steps.iter().filter(|s| is_drawn_from_workflow(&s.extensions)).cloned());
     doc.layout = Some(super::assistant_layout::place(before.layout.clone().unwrap_or_default(), doc));

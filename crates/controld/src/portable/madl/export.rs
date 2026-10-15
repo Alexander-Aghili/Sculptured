@@ -23,7 +23,7 @@ pub fn to_madl(file: &TeamFile) -> m::Document {
     let team = &file.team;
     let mut doc = m::Document {
         madl: "draft".into(),
-        system: m::System { id: team.id.clone(), name: team.name.clone(), description: None },
+        system: m::System { id: team.id.clone(), name: team.name.clone(), description: None, budget: super::limits::run_out(&team.budget) },
         defaults: defaults(file),
         groups: team.groups.iter().map(group).collect(),
         agents: team.agents.iter().map(|a| agent(team, a, file.settings.own_copies)).collect(),
@@ -105,9 +105,7 @@ fn resume(r: ResumeBehaviour) -> Option<m::Resume> {
 }
 
 fn budget(a: &DraftAgent) -> Option<m::Settings> {
-    let limit = a.advanced.token_limit?;
-    let scope = if limit.include_subagents { m::BudgetScope::Shared } else { m::BudgetScope::Own };
-    let budget = m::Budget { tokens: Some(limit.tokens), scope: Some(scope), ..Default::default() };
+    let budget = super::limits::agent_out(&a.advanced)?;
     let restrictions = m::Restrictions { budget: Some(budget), ..Default::default() };
     Some(m::Settings { restrictions: Some(restrictions), ..Default::default() })
 }

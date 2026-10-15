@@ -21,7 +21,11 @@ pub struct Imported {
 pub fn from_madl(doc: &m::Document) -> Imported {
     let resolved = madl::resolve(doc);
     let mut cx = Cx { doc, ext: ext_of(&doc.extensions), dropped: Vec::new() };
-    let mut team = TeamDraft { budget: Default::default(),
+    let (budget, budget_dropped) = super::limits::run_in(doc.system.budget.as_ref());
+    for (path, why) in budget_dropped {
+        cx.drop(path, why);
+    }
+    let mut team = TeamDraft { budget,
         workflow: cx.get("workflow"),
         input: None,
         folder: cx.get("folder"),
