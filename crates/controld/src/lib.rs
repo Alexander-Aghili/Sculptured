@@ -11,6 +11,7 @@ pub mod hosted;
 pub mod copies;
 pub mod ops;
 pub mod plan_usage;
+pub mod budget;
 pub mod usage;
 pub mod account;
 pub mod background;

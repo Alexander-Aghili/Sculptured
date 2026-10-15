@@ -21,7 +21,7 @@ fn usage_since(store: &Store, seat: &str, start_seq: i64) -> rusqlite::Result<[u
 }
 
 /// `seat` and, recursively, every agent it spawned.
-fn with_descendants(store: &Store, seat: &str) -> rusqlite::Result<Vec<String>> {
+pub(crate) fn with_descendants(store: &Store, seat: &str) -> rusqlite::Result<Vec<String>> {
     let mut all = vec![seat.to_string()];
     let mut i = 0;
     while i < all.len() {

@@ -15,7 +15,7 @@ use axum::{
     response::Response,
     routing::{get, post},
 };
-pub use controls::{control_agent, run, Control};
+pub use controls::{control_agent, run, stop_now, Control};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 

@@ -117,6 +117,7 @@ pub(super) async fn start_team(State(st): State<AppState>, Path(id): Path<String
             "rig_running" => team_running(),
             _ => e,
         })?;
+        crate::budget::begin(&st2, &id, &draft.budget, after_seq)?;
         tokio::spawn(reconciler::deliver_jobs(st2.clone(), jobs(&draft), after_seq, build.rig.launch_layers.len()));
         crate::analytics::team_started(&st2, &draft);
         Ok(json!({ "rig": build.rig.name, "warnings": build.warnings }))

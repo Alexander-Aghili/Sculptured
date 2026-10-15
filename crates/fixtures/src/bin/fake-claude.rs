@@ -146,11 +146,9 @@ impl Fake {
             "status": "allowed", "rateLimitType": "five_hour", "resetsAt": 1791250200, "isUsingOverage": false } }));
     }
 
-    /// FAKE_PLAN_FILE: adds FAKE_PLAN_STEP to the shared 5-hour use and reports it.
-    fn plan_step(&mut self) {
-        let Ok(file) = std::env::var("FAKE_PLAN_FILE") else { return };
-        let step: f64 = std::env::var("FAKE_PLAN_STEP").ok().and_then(|v| v.parse().ok()).unwrap_or(0.5);
-        let used = plan_add(&file, step);
+    /// Adds `step` to the shared 5-hour use in `file` and reports it.
+    fn plan_step(&mut self, file: &str, step: f64) {
+        let used = plan_add(file, step);
         self.out(json!({ "type": "rate_limit_event", "rate_limit_info": {
             "status": "allowed", "rateLimitType": "five_hour", "resetsAt": 4102444800u64, "isUsingOverage": false,
             "unifiedWindows": { "five_hour": { "resetsAt": 4102444800u64, "utilization": used / 100.0 } } } }));
@@ -275,18 +273,21 @@ impl Fake {
                 self.assistant(&m, json!({ "type": "text", "text": "busy done" }), None, "fake", MAIN);
                 self.result(false, "busy done");
             }
-            // Budget tests: `spend:<calls>:<tokens>` makes `calls` model calls, each reading `tokens` from
-            // the cache, FAKE_SPEND_MS (default 20) apart. With FAKE_PLAN_FILE, each call also adds
-            // FAKE_PLAN_STEP percent (default 0.5) to the plan's 5-hour use kept in that file, shared by
-            // every fake like one account, and reports it as a rate_limit_event.
+            // Budget tests: `spend:<calls>:<tokens>[:<pause ms>[:<plan file>[:<step>]]]` makes `calls` model
+            // calls, each reading `tokens` from the cache, `pause` ms apart (default 20). With a plan
+            // file, each call also adds `step` percent (default 0.5) to the 5-hour use kept in that
+            // file, shared by every fake like one account, and reports it as a rate_limit_event.
             t if t.starts_with("spend:") => {
-                let mut it = t.trim_start_matches("spend:").split(':').map(|n| n.trim().parse::<u64>().ok());
-                let (calls, tokens) = (it.next().flatten().unwrap_or(10), it.next().flatten().unwrap_or(1000));
-                let pause = std::env::var("FAKE_SPEND_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(20);
+                let parts: Vec<&str> = t.trim_start_matches("spend:").split(':').map(str::trim).collect();
+                let num = |i: usize, d: u64| parts.get(i).and_then(|n| n.parse().ok()).unwrap_or(d);
+                let (calls, tokens, pause) = (num(0, 10), num(1, 1000), num(2, 20));
+                let plan = parts.get(3).filter(|f| !f.is_empty()).map(|f| (f.to_string(), parts.get(4).and_then(|n| n.parse().ok()).unwrap_or(0.5)));
                 for i in 0..calls {
                     let (id, m) = (format!("toolu_spend_{i}"), self.message_id());
                     self.assistant(&m, tool_use(&id, "Bash", json!({ "command": format!("read {i}") })), None, "fake", [0, 10, tokens, 0]);
-                    self.plan_step();
+                    if let Some((file, step)) = &plan {
+                        self.plan_step(file, *step);
+                    }
                     std::thread::sleep(std::time::Duration::from_millis(pause));
                     self.bash_result(&id, &format!("read {i} ok"), None);
                 }

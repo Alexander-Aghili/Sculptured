@@ -100,6 +100,25 @@ pub async fn control_agent(st: &AppState, seat: &str, control: Control) -> Resul
     st.store.lock().unwrap().set_control_message(seat, &id)?;
     Ok(())
 }
+/// Stops `seats` (all of team `rig`) and every agent they started, now and all at once, like Ctrl+C,
+/// under one claim on the team (separate `control_agent` calls would refuse each other).
+pub async fn stop_now(st: &AppState, rig: &str, seats: &[String]) -> Result<(), ApiError> {
+    let _claim = st.try_begin_boot(rig).ok_or_else(|| ApiError::conflict("team_starting", "Project is changing. Retry the stop after that operation finishes."))?;
+    let mut all: Vec<String> = Vec::new();
+    {
+        let store = st.store.lock().unwrap();
+        for s in seats {
+            all.extend(super::token_limits::with_descendants(&store, s)?.into_iter().filter(|d| !all.contains(d)).collect::<Vec<_>>());
+        }
+    }
+    for id in &all {
+        record(st, id, ControlMode::Hard)?;
+    }
+    let results = futures::future::join_all(all.iter().map(|id| reconciler::stop_seat_now(st, id))).await;
+    let failures: Vec<String> = all.iter().zip(results).filter_map(|(id, r)| r.err().map(|e| format!("{id}: {}", e.message))).collect();
+    if failures.is_empty() { Ok(()) } else { Err(ApiError::conflict("stop_failed", failures.join("; "))) }
+}
+
 fn record(st: &AppState, seat: &str, mode: ControlMode) -> Result<(), ApiError> {
     let store = st.store.lock().unwrap();
     let baseline = store.seat(seat)?.and_then(|s| s.tokens_out).unwrap_or(0);

@@ -11,4 +11,5 @@ pub fn ensure_running(st: &AppState) {
     rt.spawn(crate::workflow::run(st.clone()));
     rt.spawn(crate::collaboration::run(st.clone()));
     rt.spawn(crate::checks::run(st.clone()));
+    rt.spawn(crate::budget::run(st.clone()));
 }
