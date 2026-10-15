@@ -53,8 +53,9 @@ async fn a_run_wraps_up_at_soft_and_stops_at_hard_within_the_bound() {
     let _runner = claude_runner(&s).await;
     let dir = tempfile::tempdir_in(s.home.path()).unwrap();
     let plan = dir.path().join("plan");
-    // Each call: 1000 tokens and 0.5% of the window, 30 ms apart; two agents together.
-    let job = format!("spend:400:1000:30:{}:0.5", plan.display());
+    // Each call: 1000 tokens and 0.5% of the window, 120 ms apart (real calls take seconds; checks run
+    // every 0.1 s at most); two agents together.
+    let job = format!("spend:400:1000:120:{}:0.5", plan.display());
     let id = team(&s, dir.path(), &[("a", job.clone()), ("b", job)], json!({ "plan": [{ "provider": "claude", "window": "five_hour", "soft": 10.0, "hard": 20.0 }] })).await;
     start_team(&s, &id).await;
     wait_long("the run wraps up", || !matches!(state(&s, &id), BudgetState::Normal)).await;
@@ -79,7 +80,7 @@ async fn with_no_plan_reading_a_learned_rate_still_stops_the_run() {
     // An earlier run learned 0.001% per token; this run's CLIs report no plan readings at all.
     s.st.store.lock().unwrap().connection().execute("INSERT INTO settings (k, json) VALUES ('budget-rate:claude', '0.001')", []).unwrap();
     let dir = tempfile::tempdir_in(s.home.path()).unwrap();
-    let id = team(&s, dir.path(), &[("a", "spend:400:1000:20".into())], json!({ "plan": [{ "provider": "claude", "window": "five_hour", "hard": 10.0 }] })).await;
+    let id = team(&s, dir.path(), &[("a", "spend:400:1000:120".into())], json!({ "plan": [{ "provider": "claude", "window": "five_hour", "hard": 10.0 }] })).await;
     start_team(&s, &id).await;
     wait_long("the run is stopped on the estimate", || matches!(state(&s, &id), BudgetState::Stopped { .. })).await;
     let st = controld::budget::status(&s.st, &id).unwrap().unwrap();
@@ -93,7 +94,7 @@ async fn token_and_time_budgets_enforce_without_plan_readings() {
     let s = serve().await;
     let _runner = claude_runner(&s).await;
     let dir = tempfile::tempdir_in(s.home.path()).unwrap();
-    let id = team(&s, dir.path(), &[("a", "spend:400:1000:20".into())], json!({ "tokens": { "hard": 30000 } })).await;
+    let id = team(&s, dir.path(), &[("a", "spend:400:1000:120".into())], json!({ "tokens": { "hard": 30000 } })).await;
     start_team(&s, &id).await;
     wait_long("the token budget stops the run", || matches!(state(&s, &id), BudgetState::Stopped { .. })).await;
     let r = s.st.store.lock().unwrap().run_budget(&id).unwrap().unwrap();
@@ -164,4 +165,52 @@ async fn every_path_to_new_work_is_refused_past_the_soft_value() {
     assert!(controld::budget::gate::refusal(&store, &id).unwrap().is_some(), "spawn_agent refuses before creating a child");
     store.record_control(&a, controld::store::ControlMode::Soft, 0).unwrap();
     assert_eq!(decide(&store, &send).unwrap(), Gate::Pass, "the wrap-up instruction reaches an agent that is wrapping up");
+}
+
+/// `team`, then sets `advanced` on agent `agent` (e.g. its limits).
+async fn with_advanced(s: &Served, id: &str, agent: &str, advanced: Value) {
+    let (_, rec) = get(&s.router, &format!("/api/teams/{id}")).await;
+    let mut draft = rec["draft"].clone();
+    let a = draft["agents"].as_array_mut().unwrap().iter_mut().find(|a| a["id"] == agent).unwrap();
+    for (k, v) in advanced.as_object().unwrap() {
+        a["advanced"][k] = v.clone();
+    }
+    let (status, body) = call(&s.router, "PUT", &format!("/api/teams/{id}"), json!({ "request_id": rid(), "revision": draft["revision"], "draft": draft })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
+
+fn tokens_of(s: &Served, seat: &str) -> u64 {
+    events(&s.st, seat).iter().map(|e| match e.body {
+        model::EventBody::UsageReported { input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, .. } => input_tokens + output_tokens + cache_read_tokens + cache_write_tokens,
+        _ => 0,
+    }).sum()
+}
+
+#[tokio::test]
+async fn an_agent_wraps_up_at_its_soft_tokens_and_stops_at_hard() {
+    let s = serve().await;
+    let _runner = claude_runner(&s).await;
+    let dir = tempfile::tempdir_in(s.home.path()).unwrap();
+    let id = team(&s, dir.path(), &[("a", "spend:400:1000:120".into())], json!({})).await;
+    with_advanced(&s, &id, "a", json!({ "token_limit": { "tokens": 20000, "soft": 10000 } })).await;
+    start_team(&s, &id).await;
+    let a = seat(&id, "a");
+    wait_long("the agent is stopped", || lifecycle(&s.st, &a) == Some(SeatLifecycle::Stopped)).await;
+    let asked = events(&s.st, &a).iter().any(|e| matches!(&e.body, model::EventBody::MessageQueued { text, .. } if text.contains("Soft stop requested")));
+    assert!(asked, "it was asked to wrap up at 10 000 tokens");
+    assert!(tokens_of(&s, &a) <= 20_000 + 2 * 1010, "stopped at the hard value: {}", tokens_of(&s, &a));
+}
+
+#[tokio::test]
+async fn a_turn_limit_wraps_up_then_stops_the_agent() {
+    let s = serve().await;
+    let _runner = claude_runner(&s).await;
+    let dir = tempfile::tempdir_in(s.home.path()).unwrap();
+    let id = team(&s, dir.path(), &[("a", "hello".into())], json!({})).await;
+    with_advanced(&s, &id, "a", json!({ "turn_limit": { "hard": 2 } })).await;
+    start_team(&s, &id).await;
+    let a = seat(&id, "a");
+    // Soft is 85% of 2 = 1 turn: after its job the agent is asked to wrap up (its 2nd turn), then stopped.
+    wait_long("the agent is stopped", || lifecycle(&s.st, &a) == Some(SeatLifecycle::Stopped)).await;
+    assert!(turns(&s, &a).len() <= 2, "{:?}", turns(&s, &a));
 }

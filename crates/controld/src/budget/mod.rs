@@ -203,23 +203,38 @@ fn is_spend(item: &crate::views::StreamItem) -> bool {
     matches!(item.event.body, model::EventBody::UsageReported { .. } | model::EventBody::PlanUsageReported { .. } | model::EventBody::TurnEnded { .. })
 }
 
-/// Checks every second, and as soon as usage or a plan reading arrives.
+/// Event-driven checks run at most this often (the 1-second tick runs regardless).
+const EVENT_CHECK_EVERY: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// Checks every second, and soon after usage, a plan reading or a turn's end arrives.
 pub async fn run(st: AppState) {
     let mut hub = st.hub.subscribe();
     let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
+    let (mut last, mut pending) = (tokio::time::Instant::now(), false);
     loop {
         tokio::select! {
             _ = tick.tick() => {}
-            item = hub.recv() => match item {
-                Ok(i) if is_spend(&i) => {}
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
-                Ok(_) => continue,
-                Err(_) => return,
-            },
+            _ = tokio::time::sleep_until(last + EVENT_CHECK_EVERY), if pending => {}
+            item = hub.recv() => {
+                let spend = match item {
+                    Ok(i) => is_spend(&i),
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => true,
+                    Err(_) => return,
+                };
+                if !spend {
+                    continue;
+                }
+                if last.elapsed() < EVENT_CHECK_EVERY {
+                    pending = true; // checked soon, by the branch above
+                    continue;
+                }
+            }
         }
+        (last, pending) = (tokio::time::Instant::now(), false);
         if let Err(e) = check(&st).await {
             tracing::warn!(error = %e, "run budget check failed");
         }
+        crate::collaboration::check_agent_limits(&st).await;
         let waiting = gate::rigs_waiting(&st.store.lock().unwrap()).unwrap_or_default();
         for rig in waiting {
             if let Err(e) = gate::deliver(&st, &rig).await {
