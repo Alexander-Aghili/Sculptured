@@ -259,6 +259,21 @@ fn local_driver(st: &AppState, seat: &rigspec::CompiledSeat, host: &str) -> Opti
     Some(driver)
 }
 
+/// A Launch, or, for an agent its team's Start asked to resume, a Restart that resumes its last
+/// conversation (on a runner that can; otherwise it starts fresh).
+fn start_command(st: &AppState, host: &str, seat: &str, driver: &str, mut params: host_proto::LaunchParams) -> HostCommand {
+    let resume = st.start_resumes.lock().unwrap().remove(seat);
+    match resume.filter(|_| st.hosts.host_supports(host, host_proto::features::RESTART)) {
+        Some((native_session_id, baseline)) => {
+            if st.hosts.host_supports(host, host_proto::features::USAGE_BASELINE) {
+                params.usage_baseline = Some(baseline);
+            }
+            HostCommand::Restart { seat: seat.to_string(), driver: driver.to_string(), params, mode: host_proto::LaunchMode::Resume { native_session_id }, cause: model::TenureCause::Resume }
+        }
+        None => HostCommand::Launch { seat: seat.to_string(), driver: driver.to_string(), params },
+    }
+}
+
 /// Launches one seat on the local host. False (with the seat in attention, saying why)
 /// when it could not be launched.
 pub(crate) async fn launch_one(st: &AppState, seat: &rigspec::CompiledSeat, spec_dir: &Path) -> bool {
@@ -283,7 +298,7 @@ pub(crate) async fn launch_one(st: &AppState, seat: &rigspec::CompiledSeat, spec
     if let Err(e) = st.store.lock().unwrap().set_seat_cwd(seat_id, &params.cwd) {
         tracing::error!(seat = %seat_id, error = %e, "cannot record the agent's folder");
     }
-    let cmd = HostCommand::Launch { seat: seat_id.clone(), driver: driver.to_string(), params };
+    let cmd = start_command(st, &host, seat_id, driver, params);
     match st.hosts.command(&host, cmd).await {
         Ok(()) => true,
         Err(e) if e.contains("already running") => {

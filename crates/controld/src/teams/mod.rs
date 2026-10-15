@@ -33,6 +33,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/teams/{id}/validate", post(validate_team))
         .route("/api/teams/{id}/spec", get(team_spec))
         .route("/api/teams/{id}/start", post(start_team))
+        .route("/api/teams/{id}/resumable", get(run::resumable))
         .route("/api/teams/{id}/stop", post(stop_team))
         .route("/api/teams/{id}/textbook/prepare", post(textbook::prepare))
 }

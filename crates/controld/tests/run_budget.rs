@@ -277,3 +277,40 @@ async fn stop_everything_now_stops_every_agent_at_once_and_the_board_sees_the_me
     wait_for("both stopped", || [&a, &b].iter().all(|x| lifecycle(&s.st, x) == Some(SeatLifecycle::Stopped))).await;
     assert!(t.elapsed() < Duration::from_secs(3), "{:?}", t.elapsed());
 }
+
+fn tenures(s: &Served, seat: &str) -> Vec<(model::TenureCause, Option<String>)> {
+    events(&s.st, seat).into_iter().filter_map(|e| match e.body {
+        model::EventBody::TenureStarted { cause, native_session_id, .. } => Some((cause, native_session_id)),
+        _ => None,
+    }).collect()
+}
+
+#[tokio::test]
+async fn start_can_resume_each_agents_last_conversation_or_start_fresh() {
+    let s = serve().await;
+    let _runner = claude_runner(&s).await;
+    let dir = tempfile::tempdir_in(s.home.path()).unwrap();
+    let id = team(&s, dir.path(), &[("a", "hello".into())], json!({})).await;
+    let a = seat(&id, "a");
+    let (_, body) = get(&s.router, &format!("/api/teams/{id}/resumable")).await;
+    assert_eq!(body["agents"], json!([]), "nothing to resume before a first run");
+    start_team(&s, &id).await;
+    wait_long("the job ran", || turns(&s, &a).len() == 1).await;
+    stop_team(&s, &id).await;
+    wait_for("stopped", || lifecycle(&s.st, &a) == Some(SeatLifecycle::Stopped)).await;
+    let first = tenures(&s, &a)[0].1.clone().expect("a session id");
+
+    let (_, body) = get(&s.router, &format!("/api/teams/{id}/resumable")).await;
+    assert_eq!(body["agents"], json!([{ "seat": a, "name": "a" }]));
+    let (status, body) = call(&s.router, "POST", &format!("/api/teams/{id}/start"), json!({ "request_id": rid(), "resume": true })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    wait_long("the resumed job ran", || turns(&s, &a).len() == 2).await;
+    assert_eq!(tenures(&s, &a)[1], (model::TenureCause::Resume, Some(first.clone())), "the agent continued its own conversation");
+    stop_team(&s, &id).await;
+    wait_for("stopped again", || lifecycle(&s.st, &a) == Some(SeatLifecycle::Stopped)).await;
+
+    start_team(&s, &id).await;
+    wait_long("the fresh job ran", || turns(&s, &a).len() == 3).await;
+    let t = &tenures(&s, &a)[2];
+    assert!(t.0 != model::TenureCause::Resume && t.1.as_deref() != Some(first.as_str()), "a plain Start begins a new conversation: {t:?}");
+}

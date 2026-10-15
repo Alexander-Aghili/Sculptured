@@ -64,6 +64,17 @@ Claude Code and Codex report usage after each model call, so no tool can promise
 The stop that interrupts at once and the per-call token count need an up-to-date runner. Reinstall the runner from **Computers** on each computer that runs agents. An older runner still stops agents, within five seconds instead of two, and its Claude usage is counted when each reply ends.
 </Note>
 
+## Leave out what agents don't need
+
+Every Claude agent starts with your own Claude Code setup unless the team leaves it out: the list of every skill you installed, your plugins' instructions, your hooks and MCP servers. Each agent re-reads all of it on every model call. Team **Advanced** → **Claude Code setup for agents** has two switches:
+
+| Switch | Covers | Default |
+|---|---|---|
+| **Global plugins and settings** | your `~/.claude`: plugins, skills, hooks, settings, MCP servers | off |
+| **Project plugins and settings** | the agent folder's `.claude`: its settings, plugins and skills | on |
+
+Sculptured's own agent tools load either way. The setting takes effect the next time an agent starts.
+
 ## Keeping a large team within a small budget
 
 A team of two dozen agents that reads hundreds of PDF pages can use a whole 5-hour window in half an hour. To stay within a third of it:
@@ -71,6 +82,7 @@ A team of two dozen agents that reads hundreds of PDF pages can use a whole 5-ho
 - **Let agents read PDFs as text.** The `read_pdf` tool gives agents a PDF's text and names the pages that need to be looked at as images. Reading pages as images costs far more.
 - **Set Most agents working at once** to 6 or fewer, and **Most levels of children** to 1, in Advanced.
 - **Split the work into stages** across runs, for example reading and planning in one run and building in the next.
+- **Start fresh** rather than resuming when the earlier conversations aren't needed: a resumed agent re-reads its whole earlier conversation on every step.
 - **Set the budget a little below what you can afford**, for example hard 25% when 30% is your limit, because your other use in the same window counts too.
 
 ## In MADL files

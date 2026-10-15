@@ -41,6 +41,9 @@ pub struct AppState {
     pub cli_programs: Arc<(PathBuf, PathBuf)>,
     /// Check stages and merges running for workflows (`workflow::jobs`).
     pub workflow_jobs: Arc<crate::workflow::Jobs>,
+    /// Agents a Start asked to resume: seat → (its last session id, that session's usage so far).
+    /// `launch_one` takes each entry once.
+    pub start_resumes: Arc<Mutex<HashMap<String, (String, [u64; 4])>>>,
     /// Hosted beta analytics (None: local mode, which sends nothing).
     pub analytics: Option<Arc<crate::analytics::Analytics>>,
 }
@@ -68,6 +71,7 @@ impl AppState {
             background_started: Arc::default(),
             cli_programs: Arc::new((PathBuf::from("claude"), PathBuf::from("codex"))),
             workflow_jobs: Arc::default(),
+            start_resumes: Arc::default(),
             analytics: None,
         }
     }

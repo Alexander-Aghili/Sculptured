@@ -48,6 +48,7 @@ describe('startConfirmation', () => {
       // The Practice helper has no upstream either, so it starts first too.
       body: 'They run in ~/projects/web-shop and use your Claude account. First to start: Lead and Helper.',
       efficiency: [],
+      team: 't',
     });
   });
 
@@ -58,6 +59,7 @@ describe('startConfirmation', () => {
       title: 'Start 3 Claude agents and 1 Codex agent?',
       body: 'They run in 2 folders (~/projects/web-shop and ~/notes) and use your Claude and Codex accounts. First to start: Lead.',
       efficiency: [],
+      team: 't',
     });
     // Without a known home folder the full path is shown.
     expect(startConfirmation(teamDraft({ agents: [claude('solo')], connections: [] }), null)?.body).toBe(
@@ -95,7 +97,7 @@ describe('Start team asks first when the team has real agents', () => {
 
     await user.click(start);
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Start team' }));
-    await waitFor(() => expect(api.startTeam).toHaveBeenCalledWith('t', expect.any(Number), expect.any(String)));
+    await waitFor(() => expect(api.startTeam).toHaveBeenCalledWith('t', expect.any(Number), expect.any(String), false, false));
     await waitFor(() => expect(where()).toBe('/rig/t'));
   });
 
@@ -133,7 +135,7 @@ describe('Start team asks first when the team has real agents', () => {
     expect(screen.getByRole('alertdialog')).toHaveAccessibleName('Start 3 Claude agents and 1 Codex agent?');
     expect(api.startTeam).not.toHaveBeenCalled();
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Start team' }));
-    await waitFor(() => expect(api.startTeam).toHaveBeenCalledWith('t', 1, expect.any(String)));
+    await waitFor(() => expect(api.startTeam).toHaveBeenCalledWith('t', 1, expect.any(String), false, false));
   });
 });
 

@@ -7,6 +7,11 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 15 October 2026
 
+### Leaner agents, and resuming a team
+
+- **Claude agents no longer load your own Claude Code setup** (your plugins, skills, hooks, settings and MCP servers in `~/.claude`). Every agent re-read it on every model call; in one 26-agent run it was about 40% of each agent's starting context. Team **Advanced** → **Claude Code setup for agents** turns it back on, and turns the project's own `.claude` settings off. Sculptured's agent tools load either way. A runner that has not been reinstalled still loads everything, and the agent says so.
+- **Start fresh or resume.** When a stopped team's agents have a last conversation, the Start confirmation asks whether each agent should continue it or begin a new one. Starting fresh is the default; a resumed agent re-reads its earlier conversation on every step, so it costs more.
+
 ### Budgets
 
 - **Run budgets.** Team **Advanced** → **Run budget** keeps one run within a share of your Claude or Codex plan window (5-hour or weekly), a token count or a time. Each has a **soft** value, where no new work starts and agents wrap up with a summary, and a **hard** value, where every agent is stopped at once. See [Budgets and limits](/guides/budgets).

@@ -190,8 +190,11 @@ export const api = {
   saveTeam: (id: string, revision: number, draft: TeamDraft, requestId = newRequestId(), opts?: RequestOptions) =>
     request<TeamRecord>('PUT', teamUrl(id), { request_id: requestId, revision, draft }, opts),
   /** `overPlanLimit`: start although a plan the team uses is near its limit (the server's `plan_limit` refusal). */
-  startTeam: (id: string, revision: number, requestId = newRequestId(), overPlanLimit = false) =>
-    post<StartResult>(`${teamUrl(id)}/start`, requestId, overPlanLimit ? { revision, over_plan_limit: true } : { revision }),
+  /** `resume`: each agent continues its last conversation where it has one. */
+  startTeam: (id: string, revision: number, requestId = newRequestId(), overPlanLimit = false, resume = false) =>
+    post<StartResult>(`${teamUrl(id)}/start`, requestId, { revision, ...(overPlanLimit ? { over_plan_limit: true } : {}), ...(resume ? { resume: true } : {}) }),
+  /** Agents of a stopped team with a last conversation Start could resume. */
+  resumable: (id: string) => get<{ agents: { seat: string; name: string }[] }>(`${teamUrl(id)}/resumable`),
   stopTeam: (id: string, requestId = newRequestId()) =>
     post<StopRigOutcome>(`${teamUrl(id)}/stop`, requestId),
   /** Stops every agent now, like Ctrl+C: interrupted at once, forced after 2 seconds. */

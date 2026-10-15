@@ -50,6 +50,38 @@ pub(super) struct StartReq {
     /// Start although a plan this team uses is near its limit (`plan_usage::held`).
     #[serde(default)]
     over_plan_limit: bool,
+    /// Each agent continues its last conversation where it has one; otherwise it starts fresh.
+    #[serde(default)]
+    resume: bool,
+}
+
+/// Agents of a stopped team with a last conversation to resume: (seat, name).
+fn resumable_agents(st: &AppState, id: &str) -> Result<Vec<(String, String)>, ApiError> {
+    let store = st.store.lock().unwrap();
+    let Some(snap) = store.rig_snapshot(id)? else { return Ok(vec![]) };
+    let draft = store.draft(id)?;
+    let name = |member: &str| draft.as_ref().and_then(|d| d.agents.iter().find(|a| a.id == member).map(|a| a.name.clone())).unwrap_or_else(|| member.to_string());
+    Ok(snap.seats.into_iter()
+        .filter(|s| matches!(s.runtime, rigspec::Runtime::ClaudeCode | rigspec::Runtime::Codex) && s.native_session_id.is_some() && store.parent(&s.id).ok().flatten().is_none())
+        .map(|s| (s.id.clone(), name(&s.member)))
+        .collect())
+}
+
+pub(super) async fn resumable(State(st): State<AppState>, Path(id): Path<String>) -> Response {
+    super::respond(resumable_agents(&st, &id).map(|a| json!({ "agents": a.into_iter().map(|(seat, name)| json!({ "seat": seat, "name": name })).collect::<Vec<_>>() })))
+}
+
+/// Remembers, for `launch_one`, each agent to resume and its session's usage so far.
+fn plan_resumes(st: &AppState, id: &str) -> Result<usize, ApiError> {
+    let agents = resumable_agents(st, id)?;
+    for (seat, _) in &agents {
+        let session = st.store.lock().unwrap().seat(seat)?.and_then(|v| v.native_session_id);
+        if let Some(session) = session {
+            let baseline = crate::restore::usage_baseline(st, seat)?;
+            st.start_resumes.lock().unwrap().insert(seat.clone(), (session, baseline));
+        }
+    }
+    Ok(agents.len())
 }
 
 /// The draft's build, when it is the revision the client saw (if it said) and it can start:
@@ -115,6 +147,9 @@ pub(super) async fn start_team(State(st): State<AppState>, Path(id): Path<String
         let source = RigSource::Team { id: id.clone(), revision: draft.revision };
         // The run's budget is recorded before any agent launches, so the gate never sees an earlier run's.
         crate::budget::begin(&st2, &id, &draft.budget, after_seq)?;
+        if req.resume {
+            plan_resumes(&st2, &id)?;
+        }
         reconciler::start_rig_claimed(&st2, build.rig.clone(), source, spec_dir, claim).map_err(|e| {
             let _ = crate::budget::forget(&st2, &id, after_seq);
             match e.code.as_ref() {

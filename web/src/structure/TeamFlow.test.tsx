@@ -403,7 +403,7 @@ describe('After Sculptured restarts', () => {
     expect(within(note).getByText(REASON)).toHaveAttribute('data-raw-evidence');
     expect(openRigWords(document.querySelector<HTMLElement>('.app')!)).toEqual([]);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Start team' }));
-    await waitFor(() => expect(api.startTeam).toHaveBeenCalledWith('t', 3, expect.any(String)));
+    await waitFor(() => expect(api.startTeam).toHaveBeenCalledWith('t', 3, expect.any(String), false, false));
   });
 
   it('a start from Live that the server refuses says why in words and points to the Structure board', async () => {

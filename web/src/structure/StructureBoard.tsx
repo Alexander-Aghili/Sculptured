@@ -295,8 +295,10 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
 
   const home = useHome();
   const confirmStart = useStartConfirm();
-  const start = async (overPlanLimit = false) => {
+  const lastResume = useRef(false);
+  const start = async (overPlanLimit = false, resume = lastResume.current) => {
     if (reason) return;
+    lastResume.current = resume;
     setStarting(true);
     setStartError(null);
     setPlanHeld(false);
@@ -307,8 +309,8 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
     }
     try {
       const r = overPlanLimit
-        ? await api.startTeam(teamId, saved.revision, undefined, true)
-        : await startOnce((id) => api.startTeam(teamId, saved.revision, id));
+        ? await api.startTeam(teamId, saved.revision, undefined, true, resume)
+        : await startOnce((id) => api.startTeam(teamId, saved.revision, id, false, resume));
       onStarted(r.warnings ?? []);
     } catch (e) {
       if (e instanceof ApiError) {
@@ -474,7 +476,7 @@ export function StructureBoard({ teamId, running, started, narrow, detailsShown 
             icon="play"
             className="start-btn"
             // Real agents use your own logins: say what starts, where, before it does.
-            onClick={() => confirmStart.ask(startConfirmation(draft, home), () => void start())}
+            onClick={() => confirmStart.ask(startConfirmation(draft, home), (c) => void start(false, c.resume))}
             disabled={!!reason} aria-describedby={reason ? `${ids}-why` : undefined} aria-label="Start team">
             <span>
               Start<span className="wide-only"> team</span>

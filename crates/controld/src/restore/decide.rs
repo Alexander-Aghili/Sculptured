@@ -140,7 +140,7 @@ async fn relaunch_and_send(st: &AppState, seat: &str, mode: LaunchMode, cause: T
 
 /// The session's usage so far: every report since the tenure that opened it (resumes continue it), so
 /// the first turn after the resume does not count the whole session again.
-fn usage_baseline(st: &AppState, seat: &str) -> Result<[u64; 4], ApiError> {
+pub(crate) fn usage_baseline(st: &AppState, seat: &str) -> Result<[u64; 4], ApiError> {
     let subject = Subject::Seat(seat.to_string());
     let events = st.store.lock().unwrap().events_of_types(&subject, 0, &["tenure-started", "usage-reported"])?;
     let mut b = [0u64; 4];

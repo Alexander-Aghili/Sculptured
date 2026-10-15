@@ -68,7 +68,7 @@ type Props = {
   startWarnings?: DraftIssue[];
   onDismissWarnings?: () => void;
   /** Starts the team again (a team built here whose agents have no process). */
-  onStartTeam?: (requestId: string) => Promise<StartResult>;
+  onStartTeam?: (requestId: string, resume: boolean) => Promise<StartResult>;
   /** Asked before Start when the team has real (non-Practice) agents. */
   startConfirm?: StartConfirmation | null;
 };
@@ -143,12 +143,13 @@ export function TeamLive(p: Props) {
   const [startError, setStartError] = useState<{ text: string; issues: DraftIssue[] } | null>(null);
   const startOnce = useRequestOnce();
   const confirmStart = useStartConfirm();
-  const startTeam = async () => {
+  const startTeam = async (resume = false) => {
     if (!p.onStartTeam) return;
+    const onStart = p.onStartTeam;
     setStartError(null);
     setStartingNow(true);
     try {
-      await startOnce(p.onStartTeam);
+      await startOnce((id) => onStart(id, resume));
     } catch (e) {
       setStartError({ text: errorText(e), issues: issuesOf(e) });
     } finally {
@@ -263,7 +264,7 @@ export function TeamLive(p: Props) {
           </div>
           </details>
           {canStart && (
-            <Btn variant="primary" icon="play" className="start-btn" onClick={() => confirmStart.ask(p.startConfirm ?? null, () => void startTeam())} disabled={startingNow} aria-label="Start team">
+            <Btn variant="primary" icon="play" className="start-btn" onClick={() => confirmStart.ask(p.startConfirm ?? null, (c) => void startTeam(c.resume))} disabled={startingNow} aria-label="Start team">
               <span>
                 Start<span className="wide-only"> team</span>
               </span>

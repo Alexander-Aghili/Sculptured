@@ -1,4 +1,5 @@
 import { effectiveFolder } from '../draft/folders';
+import { api } from '../api';
 import { useEffect, useRef, useState } from 'react';
 import type { CompiledRig } from '../generated/CompiledRig';
 import type { Runtime } from '../generated/Runtime';
@@ -10,7 +11,9 @@ import { plural } from '../format';
 import { efficiencyNotes } from './startCost';
 
 /** What starting a team with real agents does, said before it happens. */
-export type StartConfirmation = { title: string; body: string; efficiency: string[] };
+export type StartConfirmation = { title: string; body: string; efficiency: string[]; team?: string };
+/** What the person chose in the confirmation. */
+export type StartChoice = { resume: boolean };
 
 const list = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
 
@@ -46,16 +49,42 @@ export function startConfirmation(d: TeamDraft | undefined, home: string | null)
     handsTo,
     home,
   );
-  return c && { ...c, efficiency: efficiencyNotes(d, handsTo) };
+  return c && { ...c, efficiency: efficiencyNotes(d, handsTo), team: d.id };
 }
 
 /** The same from a started team's compiled spec, for when its design has not loaded yet. */
 export function specStartConfirmation(rig: CompiledRig, names: NameMap, home: string | null): StartConfirmation | null {
   const kind = (r: Runtime): Starter['kind'] => (r === 'claude-code' ? 'claude' : r === 'codex' ? 'codex' : 'other');
-  return describe(
+  const c = describe(
     rig.seats.map((s) => ({ id: s.id, name: nameForId(s.id, names), kind: kind(s.runtime), folder: s.cwd === '.' ? null : s.cwd })),
     rig.edges.filter((e) => e.kind === 'delegates_to'),
     home,
+  );
+  return c && { ...c, team: rig.name };
+}
+
+/** Agents with a last conversation to resume, once the dialog opens; empty when none or unknown. */
+function useResumable(team: string | undefined) {
+  const [agents, setAgents] = useState<string[]>([]);
+  useEffect(() => {
+    if (!team) return;
+    let live = true;
+    api.resumable(team).then((r) => live && setAgents(r.agents.map((a) => a.name)), () => {});
+    return () => { live = false; };
+  }, [team]);
+  return agents;
+}
+
+/** Start fresh (default) or resume each agent's last conversation, offered when there is one to resume. */
+function FreshOrResume({ agents, resume, setResume }: { agents: string[]; resume: boolean; setResume: (r: boolean) => void }) {
+  if (agents.length === 0) return null;
+  return (
+    <fieldset className="pad start-mode">
+      <legend className="fld-label">Conversations</legend>
+      <label><input type="radio" name="start-mode" checked={!resume} onChange={() => setResume(false)} /> <b>Start fresh</b>: every agent begins a new conversation. Your files stay as they are.</label>
+      <label><input type="radio" name="start-mode" checked={resume} onChange={() => setResume(true)} /> <b>Resume</b>: {plural(agents.length, 'agent')} ({list(agents.slice(0, 4))}{agents.length > 4 ? ', …' : ''}) continue their last conversation; the others start fresh.</label>
+      {resume && <p className="tone-amber">A resumed agent keeps everything from its last run in its context and re-reads it on every step, so each step costs more.</p>}
+    </fieldset>
   );
 }
 
@@ -65,9 +94,22 @@ function CostNotes({ notes }: { notes: string[] }) {
   return <ul className="pad start-cost tone-amber" aria-label="What this may cost">{notes.map((n) => <li key={n}>{n}</li>)}</ul>;
 }
 
+/** Escape closes; every other key stays in the dialog, so board shortcuts don't fire behind it. */
+function keys(onCancel: () => void) {
+  return (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onCancel();
+    }
+  };
+}
+
 /** A modal asking before a costly Start. Cancel has focus, so Enter alone never starts. */
-export function StartConfirm({ c, onConfirm, onCancel }: { c: StartConfirmation; onConfirm: () => void; onCancel: () => void }) {
+export function StartConfirm({ c, onConfirm, onCancel }: { c: StartConfirmation; onConfirm: (choice: StartChoice) => void; onCancel: () => void }) {
   const cancel = useRef<HTMLButtonElement>(null);
+  const agents = useResumable(c.team);
+  const [resume, setResume] = useState(false);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     cancel.current?.focus();
@@ -77,37 +119,16 @@ export function StartConfirm({ c, onConfirm, onCancel }: { c: StartConfirmation;
   }, []);
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <div
-        className="panel start-confirm"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="start-confirm-title"
-        aria-describedby="start-confirm-body"
-        // Keys stay in the dialog: board shortcuts must not fire behind it.
-        onKeyDown={(e) => {
-          e.stopPropagation();
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            onCancel();
-          }
-        }}
-      >
+      <div className="panel start-confirm" role="alertdialog" aria-modal="true" aria-labelledby="start-confirm-title" aria-describedby="start-confirm-body" onKeyDown={keys(onCancel)}>
         <div className="panel-bar">
-          <span className="panel-title" id="start-confirm-title">
-            <Icon name="play" size={15} /> {c.title}
-          </span>
+          <span className="panel-title" id="start-confirm-title"><Icon name="play" size={15} /> {c.title}</span>
         </div>
-        <p className="pad" id="start-confirm-body">
-          {c.body}
-        </p>
+        <p className="pad" id="start-confirm-body">{c.body}</p>
+        <FreshOrResume agents={agents} resume={resume} setResume={setResume} />
         <CostNotes notes={c.efficiency} />
         <div className="start-confirm-actions">
-          <Btn ref={cancel} onClick={onCancel}>
-            Cancel
-          </Btn>
-          <Btn variant="primary" icon="play" onClick={onConfirm}>
-            Start team
-          </Btn>
+          <Btn ref={cancel} onClick={onCancel}>Cancel</Btn>
+          <Btn variant="primary" icon="play" onClick={() => onConfirm({ resume: resume && agents.length > 0 })}>Start team</Btn>
         </div>
       </div>
     </div>
@@ -116,16 +137,16 @@ export function StartConfirm({ c, onConfirm, onCancel }: { c: StartConfirmation;
 
 /** `ask(c, go)`: runs `go` at once when `c` is null, else after the operator confirms. */
 export function useStartConfirm() {
-  const [pending, setPending] = useState<{ c: StartConfirmation; go: () => void } | null>(null);
-  const ask = (c: StartConfirmation | null, go: () => void) => (c ? setPending({ c, go }) : go());
+  const [pending, setPending] = useState<{ c: StartConfirmation; go: (choice: StartChoice) => void } | null>(null);
+  const ask = (c: StartConfirmation | null, go: (choice: StartChoice) => void) => (c ? setPending({ c, go }) : go({ resume: false }));
   const dialog = pending && (
     <StartConfirm
       c={pending.c}
       onCancel={() => setPending(null)}
-      onConfirm={() => {
+      onConfirm={(choice) => {
         const go = pending.go;
         setPending(null);
-        go();
+        go(choice);
       }}
     />
   );
