@@ -29,7 +29,7 @@ pub struct RunReport {
     /// When it was made.
     #[ts(type = "number")]
     pub at_ms: i64,
-    /// The run had not ended then.
+    /// An agent of the run was still alive then.
     pub running: bool,
     /// `mais.report/v1`.
     #[ts(type = "import('../tokensReport').TokensReport")]
@@ -78,13 +78,15 @@ pub async fn report(st: &AppState, team: &str, start: Option<i64>) -> Result<Run
         Some(s) => s,
         None => st.store.lock().unwrap().latest_run_start(team)?.ok_or_else(|| ApiError::not_found("This team has not run yet."))?,
     };
-    let (kept, ended) = {
+    let (kept, ended, going) = {
         let store = st.store.lock().unwrap();
-        (store.run_report(team, seq)?, ended_ms(&store, team, seq)?)
+        (store.run_report(team, seq)?, ended_ms(&store, team, seq)?, live(&store)?.contains(team))
     };
     let current = kept.as_ref().is_some_and(|k| match ended {
         Some(e) => k.at_ms >= e,
-        None => model::now_ms() - k.at_ms < FRESH_MS,
+        None if going => model::now_ms() - k.at_ms < FRESH_MS,
+        // Every agent ended without a Stop of the team (a budget's hard stop): made after that, it holds.
+        None => !k.running,
     });
     if current {
         return Ok(kept.expect("current"));
@@ -125,7 +127,8 @@ pub async fn refresh(st: &AppState, team: &str, seq: i64) -> Result<RunReport, A
     }
     let op = localops::LocalOp::AnalyzeRun { sessions, export };
     let report = crate::ops::run(st, crate::ops::Target::Team(team), op).await.map_err(older_runner)?;
-    let r = RunReport { start_seq: seq, at_ms: model::now_ms(), running: ended.is_none(), report, stale: None };
+    let going = ended.is_none() && live(&st.store.lock().unwrap())?.contains(team);
+    let r = RunReport { start_seq: seq, at_ms: model::now_ms(), running: going, report, stale: None };
     st.store.lock().unwrap().put_run_report(team, &r)?;
     Ok(r)
 }

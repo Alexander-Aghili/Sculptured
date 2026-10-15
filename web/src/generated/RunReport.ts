@@ -9,7 +9,7 @@ export type RunReport = { start_seq: number,
  */
 at_ms: number, 
 /**
- * The run had not ended then.
+ * An agent of the run was still alive then.
  */
 running: boolean, 
 /**

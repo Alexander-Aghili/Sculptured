@@ -52,5 +52,12 @@ async fn a_runs_report_names_its_agents_and_counts_every_call() {
     assert_eq!(body["start_seq"].as_i64(), s.st.store.lock().unwrap().latest_run_start(&id).unwrap());
     let kept: i64 = s.st.store.lock().unwrap().connection().query_row("SELECT COUNT(*) FROM run_reports WHERE rig=?1", [&id], |r| r.get(0)).unwrap();
     assert_eq!(kept, 1, "the report is kept for the run");
+    assert_eq!(body["running"], true);
+    // A budget's hard stop ends every agent without a Stop of the team (its desired state stays running).
+    s.st.store.lock().unwrap().connection().execute("UPDATE seats SET lifecycle='stopped' WHERE rig=?1", [&id]).unwrap();
+    let (_, done) = get(&s.router, &format!("/api/teams/{id}/report")).await;
+    assert_eq!(done["running"], false, "no agent is left, though nobody pressed Stop: {done}");
+    let (_, again) = get(&s.router, &format!("/api/teams/{id}/report")).await;
+    assert_eq!(again["at_ms"], done["at_ms"], "a finished run's report is kept, not made again");
 }
 
