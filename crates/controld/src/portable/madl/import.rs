@@ -21,7 +21,7 @@ pub struct Imported {
 pub fn from_madl(doc: &m::Document) -> Imported {
     let resolved = madl::resolve(doc);
     let mut cx = Cx { doc, ext: ext_of(&doc.extensions), dropped: Vec::new() };
-    let mut team = TeamDraft {
+    let mut team = TeamDraft { budget: Default::default(),
         workflow: cx.get("workflow"),
         input: None,
         folder: cx.get("folder"),

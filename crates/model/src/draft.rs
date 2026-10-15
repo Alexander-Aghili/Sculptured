@@ -48,6 +48,14 @@ pub struct AgentAdvanced {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub token_limit: Option<TokenLimit>,
+    /// Turns this agent may take in one run (its children's included).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub turn_limit: Option<crate::SoftHard<u32>>,
+    /// Minutes this agent may spend working in one run (its children's included).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub minute_limit: Option<crate::SoftHard<u32>>,
     /// A shell command Sculptured runs in the agent's folder after each turn it finishes (exit 0 =
     /// passed). None = no check.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -79,13 +87,24 @@ impl TeamLimits {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
 #[ts(export)]
 pub struct TokenLimit {
+    /// The hard value: reaching it stops the agent at once.
     #[ts(type = "number")]
     pub tokens: u64,
+    /// The soft value: reaching it asks the agent to wrap up. Absent = 85% of `tokens`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub soft: Option<u64>,
     #[serde(default)]
     pub counts: TokenCount,
     /// Count the agents it spawns (and theirs) toward this agent's limit.
     #[serde(default = "yes")]
     pub include_subagents: bool,
+}
+
+impl TokenLimit {
+    pub fn soft_value(&self) -> u64 {
+        crate::SoftHard { soft: self.soft, hard: self.tokens }.soft_value()
+    }
 }
 
 fn yes() -> bool {
@@ -248,6 +267,10 @@ pub struct TeamDraft {
     #[serde(default, skip_serializing_if = "TeamLimits::is_empty")]
     #[ts(as = "Option<TeamLimits>", optional)]
     pub limits: TeamLimits,
+    /// What one run may use (Advanced). Absent = no budget.
+    #[serde(default, skip_serializing_if = "crate::RunBudget::is_empty")]
+    #[ts(as = "Option<crate::RunBudget>", optional)]
+    pub budget: crate::RunBudget,
     /// People keep a decision log that agents read with read_decisions (Advanced).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]

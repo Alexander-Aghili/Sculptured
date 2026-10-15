@@ -133,7 +133,7 @@ fn draft_agent(id: String, pod: &PodSpec, m: &MemberSpec, seat: &CompiledSeat, k
         folder: (seat.cwd.starts_with('/') && !am.is_some_and(|a| a.inherits_folder)).then(|| seat.cwd.clone()),
         x: am.map_or(0, |a| a.x),
         y: am.map_or(0, |a| a.y),
-        advanced: AgentAdvanced {
+        advanced: AgentAdvanced { turn_limit: None, minute_limit: None,
             model: seat.model.clone(),
             permission: if restricted { PermissionPosture::Restricted } else { PermissionPosture::Unrestricted },
             resume: resume_of(seat.restore_policy),
@@ -298,7 +298,7 @@ impl Importer<'_> {
         let agents = std::mem::take(&mut self.agents);
         let folder = self.meta.as_ref().and_then(|m| m.folder.clone());
         let workflow = self.meta.as_ref().and_then(|m| m.workflow.clone());
-        let mut draft = TeamDraft { input: None, schedules: vec![], decision_log: false, limits: Default::default(), workflow, folder, id, name, groups, agents, connections, models: ModelDefaults::default(), revision: 0 };
+        let mut draft = TeamDraft { budget: Default::default(), input: None, schedules: vec![], decision_log: false, limits: Default::default(), workflow, folder, id, name, groups, agents, connections, models: ModelDefaults::default(), revision: 0 };
         if !positioned {
             let seat_ids: HashMap<String, String> = self.agent_of.iter().map(|(seat, agent)| (agent.clone(), seat.clone())).collect();
             auto_layout(&mut draft, self.rig, &seat_ids);

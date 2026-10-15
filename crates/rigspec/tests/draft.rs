@@ -21,7 +21,7 @@ fn link(id: &str, from: &str, to: &str) -> DraftConnection {
 }
 
 fn team(agents: Vec<DraftAgent>, connections: Vec<DraftConnection>) -> TeamDraft {
-    TeamDraft { input: None, schedules: vec![], decision_log: false, limits: Default::default(), workflow: None, folder: None, id: "my-team".into(), name: "My team".into(), groups: vec![], agents, connections, models: ModelDefaults::default(), revision: 1 }
+    TeamDraft { budget: Default::default(), input: None, schedules: vec![], decision_log: false, limits: Default::default(), workflow: None, folder: None, id: "my-team".into(), name: "My team".into(), groups: vec![], agents, connections, models: ModelDefaults::default(), revision: 1 }
 }
 
 fn pair() -> TeamDraft {
@@ -421,4 +421,16 @@ fn an_input_that_points_to_no_agent_is_a_warning() {
     assert_eq!(i.message, "The Input isn't connected to an agent, so no agent gets it; drag from the Input to an agent");
     d.input.as_mut().unwrap().to = vec!["builder".into()];
     assert!(validate_draft(&d).iter().all(|i| i.code != "input-unconnected"));
+}
+
+#[test]
+fn a_budget_with_soft_above_hard_is_an_error_on_the_team_or_the_agent() {
+    let mut d = pair();
+    assert!(validate_draft(&d).iter().all(|i| i.code != "budget-invalid"));
+    d.budget.minutes = Some(SoftHard { soft: Some(90), hard: 60 });
+    d.agents[0].advanced.turn_limit = Some(SoftHard { soft: None, hard: 0 });
+    let issues = validate_draft(&d);
+    let bad: Vec<_> = issues.iter().filter(|i| i.code == "budget-invalid").map(|i| (i.element.kind, i.message.as_str())).collect();
+    assert_eq!(bad, [(ElementKind::Team, "Time budget: the soft value is above the hard value"), (ElementKind::Agent, "Turn limit: the hard value must be above 0")]);
+    assert!(from_draft(&d).is_err(), "it blocks Start");
 }

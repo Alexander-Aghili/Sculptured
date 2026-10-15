@@ -2,6 +2,7 @@
 //! Every diagnostic maps back to the draft element it concerns, in plain words.
 mod build;
 mod check;
+mod budget;
 mod locate;
 mod names;
 mod workflow;

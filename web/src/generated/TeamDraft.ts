@@ -3,6 +3,7 @@ import type { DraftAgent } from "./DraftAgent";
 import type { DraftConnection } from "./DraftConnection";
 import type { DraftGroup } from "./DraftGroup";
 import type { ModelDefaults } from "./ModelDefaults";
+import type { RunBudget } from "./RunBudget";
 import type { Schedule } from "./Schedule";
 import type { TeamInput } from "./TeamInput";
 import type { TeamLimits } from "./TeamLimits";
@@ -29,6 +30,10 @@ schedules?: Array<Schedule>,
  * Limits on the agents this team's agents spawn (Advanced). Absent = no limits.
  */
 limits?: TeamLimits, 
+/**
+ * What one run may use (Advanced). Absent = no budget.
+ */
+budget?: RunBudget, 
 /**
  * People keep a decision log that agents read with read_decisions (Advanced).
  */

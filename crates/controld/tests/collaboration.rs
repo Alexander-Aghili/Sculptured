@@ -322,7 +322,7 @@ async fn a_token_limit_including_subagents_soft_stops_the_agent_with_its_childre
     {
         let mut store = s.st.store.lock().unwrap();
         let mut d = store.draft(&id).unwrap().unwrap();
-        let limit = model::TokenLimit { tokens: 1_000_000, counts: model::TokenCount::All, include_subagents: true };
+        let limit = model::TokenLimit { soft: None, tokens: 1_000_000, counts: model::TokenCount::All, include_subagents: true };
         d.agents[0].advanced.token_limit = Some(limit);
         let rev = d.revision;
         store.save_draft(&d, rev).unwrap();

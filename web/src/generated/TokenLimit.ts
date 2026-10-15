@@ -4,7 +4,15 @@ import type { TokenCount } from "./TokenCount";
 /**
  * A per-agent token limit for one run (since the team started).
  */
-export type TokenLimit = { tokens: number, counts: TokenCount, 
+export type TokenLimit = { 
+/**
+ * The hard value: reaching it stops the agent at once.
+ */
+tokens: number, 
+/**
+ * The soft value: reaching it asks the agent to wrap up. Absent = 85% of `tokens`.
+ */
+soft?: number, counts: TokenCount, 
 /**
  * Count the agents it spawns (and theirs) toward this agent's limit.
  */

@@ -186,7 +186,7 @@ pub fn import_run(st: &AppState, text: &str) -> Result<(model::TeamDraft, histor
     let file = team.unwrap_or_else(|| super::team::TeamFile {
             schema: None,
             format: super::team::TEAM_FORMAT.into(),
-            team: model::TeamDraft { input: None, schedules: vec![], decision_log: false, limits: Default::default(),
+            team: model::TeamDraft { budget: Default::default(), input: None, schedules: vec![], decision_log: false, limits: Default::default(),
                 workflow: None,
                 folder: None,
                 id: String::new(),

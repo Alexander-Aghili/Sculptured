@@ -33,7 +33,7 @@ fn an_example_team_round_trips_through_madl() {
 #[test]
 fn a_workflow_team_round_trips_and_its_stages_are_drawn_in_madl() {
     let mut team = rigspec::textbook::template("book", "Book", true);
-    team.agents[0].advanced.token_limit = Some(model::TokenLimit { tokens: 50_000, counts: model::TokenCount::Output, include_subagents: false });
+    team.agents[0].advanced.token_limit = Some(model::TokenLimit { soft: None, tokens: 50_000, counts: model::TokenCount::Output, include_subagents: false });
     team.agents[1].advanced.model = Some("claude-opus-5-5".into());
     let w = team.workflow.as_mut().unwrap();
     let first = w.stages[0].id.clone();

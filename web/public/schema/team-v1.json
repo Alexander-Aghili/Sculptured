@@ -41,6 +41,17 @@
             "null"
           ]
         },
+        "minute_limit": {
+          "description": "Minutes this agent may spend working in one run (its children's included).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoftHard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "model": {
           "description": "This agent's own model, overriding its group's and team's default for its kind. None = inherit.",
           "type": [
@@ -61,6 +72,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/TokenLimit"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turn_limit": {
+          "description": "Turns this agent may take in one run (its children's included).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoftHard"
             },
             {
               "type": "null"
@@ -330,6 +352,36 @@
         "restricted"
       ]
     },
+    "PlanBudget": {
+      "description": "A share of one plan window that a run may add, in percent of the window.",
+      "type": "object",
+      "properties": {
+        "hard": {
+          "type": "number",
+          "format": "double"
+        },
+        "provider": {
+          "description": "`claude` or `codex`.",
+          "type": "string"
+        },
+        "soft": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "window": {
+          "description": "`five_hour` or `seven_day`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "window",
+        "hard"
+      ]
+    },
     "PortableSettings": {
       "description": "The team settings that are part of its structure (not which computer runs it).",
       "type": "object",
@@ -369,6 +421,49 @@
         "checkpoint-only"
       ]
     },
+    "RunBudget": {
+      "description": "What one run of a team may use, all agents and their children together.",
+      "type": "object",
+      "properties": {
+        "max_working": {
+          "description": "Most agents working at the same time; the rest wait for a free slot.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "minutes": {
+          "description": "Wall-clock minutes from Start.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoftHard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plan": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanBudget"
+          }
+        },
+        "tokens": {
+          "description": "Tokens of every kind (input, output, cache reads and writes).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoftHard2"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
     "Schedule": {
       "description": "A message sent to `agent` every `every_minutes` while the team runs; skipped when the agent is busy.",
       "type": "object",
@@ -395,6 +490,50 @@
         "message"
       ]
     },
+    "SoftHard": {
+      "description": "A limit with a soft and a hard value. `soft` absent = 85% of `hard`.",
+      "type": "object",
+      "properties": {
+        "hard": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "soft": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "hard"
+      ]
+    },
+    "SoftHard2": {
+      "description": "A limit with a soft and a hard value. `soft` absent = 85% of `hard`.",
+      "type": "object",
+      "properties": {
+        "hard": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "soft": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "hard"
+      ]
+    },
     "StageKind": {
       "description": "Who runs a stage: an agent (default), Sculptured running a command, or a person.",
       "type": "string",
@@ -414,6 +553,10 @@
           "items": {
             "$ref": "#/$defs/DraftAgent"
           }
+        },
+        "budget": {
+          "description": "What one run may use (Advanced). Absent = no budget.",
+          "$ref": "#/$defs/RunBudget"
         },
         "connections": {
           "type": "array",
@@ -583,7 +726,17 @@
           "type": "boolean",
           "default": true
         },
+        "soft": {
+          "description": "The soft value: reaching it asks the agent to wrap up. Absent = 85% of `tokens`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
         "tokens": {
+          "description": "The hard value: reaching it stops the agent at once.",
           "type": "integer",
           "format": "uint64",
           "minimum": 0

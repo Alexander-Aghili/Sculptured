@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use ElementKind::{Agent, Connection, Group, Team};
 use IssueSeverity::Error;
 
-fn issue(kind: ElementKind, id: &str, severity: IssueSeverity, code: &str, message: impl Into<String>) -> DraftIssue {
+pub(super) fn issue(kind: ElementKind, id: &str, severity: IssueSeverity, code: &str, message: impl Into<String>) -> DraftIssue {
     DraftIssue {
         element: ElementRef { kind, id: id.to_string() },
         severity,
@@ -33,6 +33,7 @@ pub fn check_draft(d: &TeamDraft) -> Vec<DraftIssue> {
     check_agents(d, &mut out);
     check_connections(d, &mut out);
     out.extend(loop_issues(d));
+    out.extend(super::budget::budget_issues(d));
     out
 }
 

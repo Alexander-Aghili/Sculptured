@@ -25,12 +25,12 @@ fn reviewer() -> DraftAgent {
         folder: Some("/home/u/repo".into()),
         x: 300,
         y: 40,
-        advanced: AgentAdvanced { model: Some("opus".into()), permission: PermissionPosture::Restricted, resume: ResumeBehaviour::RelaunchFresh, token_limit: None, check: None },
+        advanced: AgentAdvanced { turn_limit: None, minute_limit: None, model: Some("opus".into()), permission: PermissionPosture::Restricted, resume: ResumeBehaviour::RelaunchFresh, token_limit: None, check: None },
     }
 }
 
 fn draft() -> TeamDraft {
-    TeamDraft { input: None, schedules: vec![], decision_log: false, limits: Default::default(),
+    TeamDraft { budget: Default::default(), input: None, schedules: vec![], decision_log: false, limits: Default::default(),
         workflow: None,
         folder: None,
         id: "my-team".into(),
