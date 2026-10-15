@@ -28,8 +28,8 @@ pub struct Capabilities {
     pub plan_usage: bool,
     /// One tool-less Claude Code / Codex call that drafts a team (no files, no tools).
     pub generate: bool,
-    /// Reports of where a team run's tokens went, from the CLIs' session files (sizes, causes, commands
-    /// and file names; never file contents).
+    /// Reports of where a team run's tokens went, from the CLIs' session files: sizes, causes, command
+    /// lines (common secrets masked) and file names; not file contents or agents' messages.
     pub usage_reports: bool,
 }
 

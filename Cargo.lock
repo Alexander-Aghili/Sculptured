@@ -1450,6 +1450,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "madl",
+ "regex",
  "schemars",
  "serde",
  "serde_json",

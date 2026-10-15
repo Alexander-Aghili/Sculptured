@@ -121,7 +121,7 @@ Timeouts are set in `ops::timeout_for`. A runner from before `analyze-run` answe
 | `cli_sign_in` | on | on |
 | `plan_usage` | on | on |
 | `generate` | on | on (no tools run) |
-| `usage_reports` | on | on (reads the CLIs' own session files; answers sizes, causes, commands and file names, never contents) |
+| `usage_reports` | on | on (reads the CLIs' own session files; answers sizes, causes, command lines with common secrets masked, and file names; not contents) |
 
 The runner reports its folders, access, capabilities and platform in `Hello.policy` (`HostPolicyInfo`). `GET /api/hosts` returns it, and the Computers page shows it for each connected computer. This report is for display only; the runner enforces its own copy of the rules on every op.
 

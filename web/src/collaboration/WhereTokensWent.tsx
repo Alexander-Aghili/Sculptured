@@ -26,7 +26,9 @@ export function agentLinker(rig: string, seats: string[], report: TokensReport |
 export function WhereTokensWent({ rig, start, seats, onClose }: { rig: string; start?: number; seats: string[]; onClose?: () => void }) {
   const { data, error } = usePolled(() => api.teamReport(rig, start), 60000, [rig, start]);
   const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { if (onClose) heading.current?.focus(); }, [onClose]);
+  // Focus moves to the heading once, when the panel opens over the board; never on a later render.
+  const overBoard = useRef(onClose !== undefined);
+  useEffect(() => { if (overBoard.current) heading.current?.focus(); }, []);
   const r = data?.report;
   const agent = agentLinker(rig, seats, r);
   const name = (id: string) => r?.agents.find((a) => a.id === id)?.name ?? id;

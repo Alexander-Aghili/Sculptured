@@ -52,3 +52,14 @@ it('says plainly when the runner cannot make a report, and when it shows an olde
   show();
   expect(await screen.findByText(/a newer one could not be made: The computer is not connected/)).toBeInTheDocument();
 });
+
+it('keeps keyboard focus where the person put it when the board re-renders', async () => {
+  vi.spyOn(api, 'teamReport').mockResolvedValue({ start_seq: 7, at_ms: Date.now(), running: true, report: report(), stale: null });
+  const view = (onClose: () => void) => <MemoryRouter><WhereTokensWent rig="c172" seats={['fuel.dev8@c172']} onClose={onClose} /></MemoryRouter>;
+  const { rerender } = render(view(() => {}));
+  expect(screen.getByRole('heading', { name: 'Where tokens went' })).toHaveFocus();
+  const link = (await screen.findAllByRole('link', { name: 'Developer 8' }))[0];
+  link.focus();
+  rerender(view(() => {}));
+  expect(link).toHaveFocus();
+});

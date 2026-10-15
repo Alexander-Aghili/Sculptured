@@ -49,6 +49,6 @@ A CLI reports what each model call read in total, not what was in it. The report
 
 ## Privacy
 
-MAIS reads the session files on the computer that ran the team. The report carries sizes, causes, command lines and file names, never the files' contents or the agents' messages. On a computer you connected, turn reports off with `sculptured connect --disable usage-reports`.
+MAIS reads the session files on the computer that ran the team. The report carries sizes, causes, the command lines agents ran and the names of the files they read or changed. It does not carry the files' contents or the agents' messages. Passwords, tokens and keys that appear in command lines are masked, and a patch is named by its files, never its text; masking catches common forms only, so a command that printed a secret in an unusual form can still show it in the **Costliest in context** table. On a computer you connected, turn reports off with `sculptured connect --disable usage-reports`.
 
 A computer whose runner was installed before reports existed says so; reinstall the runner from **Computers** to see them.
