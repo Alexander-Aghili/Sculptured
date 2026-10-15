@@ -49,7 +49,7 @@ fn m2_commands_and_frames_round_trip() {
     let restart = HostCommand::Restart {
         seat: "dev.a@r".into(),
         driver: "stub".into(),
-        params: LaunchParams { cwd: "/tmp".into(), seat_tools: Some(SeatToolsParams { approve: true }), ..Default::default() },
+        params: LaunchParams { cwd: "/tmp".into(), seat_tools: Some(SeatToolsParams { approve: true, workflow: true }), ..Default::default() },
         mode: LaunchMode::Resume { native_session_id: "n1".into() },
         cause: TenureCause::Resume,
     };
@@ -127,7 +127,7 @@ fn commands_name_the_host_features_they_need() {
     assert_eq!(launch(restricted).required_features(), vec![features::POSTURE]);
     let full = LaunchParams {
         posture: PermissionPosture::Restricted,
-        seat_tools: Some(SeatToolsParams { approve: false }),
+        seat_tools: Some(SeatToolsParams { approve: false, workflow: true }),
         usage_baseline: Some([1, 2, 3, 4]),
         ..plain.clone()
     };

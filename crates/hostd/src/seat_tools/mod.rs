@@ -22,10 +22,24 @@ pub const SOCKET_FILE: &str = "seat-tools.sock";
 /// Used when the client does not say which MCP protocol version it speaks.
 const DEFAULT_PROTOCOL: &str = "2025-06-18";
 
+/// Which optional tools an agent is offered: `approve` for a restricted Claude agent, the workflow tools
+/// for a team with a dynamic workflow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Offer {
+    pub approve: bool,
+    pub workflow: bool,
+}
+
 /// The tools an agent sees; `approve` only when launched with it (a restricted Claude agent).
 pub fn tool_list(approve: bool) -> Value {
+    tool_list_for(Offer { approve, workflow: true })
+}
+
+pub fn tool_list_for(offer: Offer) -> Value {
+    let approve = offer.approve;
     let mut tools = vec![request_input_tool(), record_decision_tool(), report_tool()];
-    tools.extend(workflow::tools());
+    let workflow_only = |t: &Value| matches!(t["name"].as_str(), Some("dispatch_work" | "complete_work" | "workflow_status"));
+    tools.extend(workflow::tools().into_iter().filter(|t| offer.workflow || !workflow_only(t)));
     tools.extend(collaboration::tools());
     tools.push(pdf::tool());
     if approve {
@@ -86,8 +100,11 @@ fn approve_tool() -> Value {
     })
 }
 
-fn known(tool: &str, approve: bool) -> bool {
-    matches!(tool, "request_input" | "record_decision" | "report" | "dispatch_work" | "complete_work" | "workflow_status" | "spawn_agent" | "send_agent_message" | "team_status" | "read_decisions" | "read_pdf") || (approve && tool == "approve")
+fn known(tool: &str, offer: Offer) -> bool {
+    let workflow = matches!(tool, "dispatch_work" | "complete_work" | "workflow_status");
+    matches!(tool, "request_input" | "record_decision" | "report" | "spawn_agent" | "send_agent_message" | "team_status" | "read_decisions" | "read_pdf")
+        || (offer.workflow && workflow)
+        || (offer.approve && tool == "approve")
 }
 
 fn reply(id: Value, result: Value) -> String {
@@ -104,6 +121,10 @@ fn tool_result(text: String, is_error: bool) -> Value {
 
 /// One JSON-RPC line in, at most one line out (notifications get none). `call` makes a tool call.
 pub fn handle_rpc(line: &str, approve: bool, call: &dyn Fn(&str, Value) -> Result<Value, String>) -> Option<String> {
+    handle_rpc_with(line, Offer { approve, workflow: true }, call)
+}
+
+pub fn handle_rpc_with(line: &str, offer: Offer, call: &dyn Fn(&str, Value) -> Result<Value, String>) -> Option<String> {
     let msg: Value = match serde_json::from_str(line) {
         Ok(v) => v,
         Err(e) => return Some(error(Value::Null, -32700, &format!("parse error: {e}"))),
@@ -115,16 +136,16 @@ pub fn handle_rpc(line: &str, approve: bool, call: &dyn Fn(&str, Value) -> Resul
             reply(id, json!({ "protocolVersion": version, "capabilities": { "tools": {} }, "serverInfo": { "name": "rig", "version": env!("CARGO_PKG_VERSION") } }))
         }
         "ping" => reply(id, json!({})),
-        "tools/list" => reply(id, json!({ "tools": tool_list(approve) })),
-        "tools/call" => reply(id, tool_call(&msg["params"], approve, call)),
+        "tools/list" => reply(id, json!({ "tools": tool_list_for(offer) })),
+        "tools/call" => reply(id, tool_call(&msg["params"], offer, call)),
         other => error(id, -32601, &format!("method not found: {other}")),
     })
 }
 
 /// A `tools/call`'s result: the reply's `text` as the content the agent reads.
-fn tool_call(params: &Value, approve: bool, call: &dyn Fn(&str, Value) -> Result<Value, String>) -> Value {
+fn tool_call(params: &Value, offer: Offer, call: &dyn Fn(&str, Value) -> Result<Value, String>) -> Value {
     let name = params["name"].as_str().unwrap_or_default();
-    if !known(name, approve) {
+    if !known(name, offer) {
         return tool_result(format!("the tool {name:?} is not available to this agent"), true);
     }
     let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
@@ -142,6 +163,8 @@ pub fn run_shim() -> Result<(), String> {
     let socket = std::env::var_os(SOCKET_ENV).map(PathBuf::from).ok_or(format!("{SOCKET_ENV} is not set"))?;
     let token = std::env::var(TOKEN_ENV).map_err(|_| format!("{TOKEN_ENV} is not set"))?;
     let approve = std::env::var(APPROVE_ENV).is_ok_and(|v| v == "1");
+    // Teams without a workflow are told so by the launch; when it says nothing, the tools are offered.
+    let offer = Offer { approve, workflow: std::env::var(host_proto::seat_tools::WORKFLOW_ENV).map_or(true, |v| v != "0") };
     let out = Arc::new(Mutex::new(std::io::stdout()));
     for line in std::io::stdin().lock().lines() {
         let line = line.map_err(|e| format!("cannot read from the agent: {e}"))?;
@@ -150,7 +173,7 @@ pub fn run_shim() -> Result<(), String> {
         }
         let (socket, token, out) = (socket.clone(), token.clone(), out.clone());
         std::thread::spawn(move || {
-            if let Some(r) = handle_rpc(&line, approve, &|tool, args| call(&socket, &token, tool, args)) {
+            if let Some(r) = handle_rpc_with(&line, offer, &|tool, args| call(&socket, &token, tool, args)) {
                 let mut o = out.lock().unwrap();
                 let _ = writeln!(o, "{r}");
                 let _ = o.flush();

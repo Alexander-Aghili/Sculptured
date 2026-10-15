@@ -7,6 +7,12 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 15 October 2026
 
+### Smaller messages to agents
+
+- **Each agent gets the team briefing once per conversation**, with its first message, instead of with every message. In a 26-agent run every message repeated about 7,000 tokens of briefing.
+- **The briefing covers the agent's own neighbours**: its group and the agents it is connected to, with their jobs. The rest of the team is listed by name; `team_status` gives more.
+- **Workflow tools are offered only to teams with a workflow.** Agents of other teams no longer see `complete_work` and its siblings, which could only be refused. A runner that has not been reinstalled still offers them.
+
 ### Where tokens went
 
 - **A report of what a run's tokens were spent on.** On the Run board, **More** → **Where tokens went**; for an earlier run, **History** → **Where tokens went**. It shows the plan window the run used against its budget, tokens and agents working over time, every token by cause (setup, files printed, tool results, messages, output), each agent's share, the costliest things in context, and what to change. It is refreshed every minute while the run goes. See [Where tokens went](/guides/where-tokens-went).

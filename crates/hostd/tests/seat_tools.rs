@@ -3,7 +3,7 @@ mod common;
 
 use common::*;
 use host_proto::*;
-use hostd::seat_tools::{handle_rpc, tool_list};
+use hostd::seat_tools::{handle_rpc, handle_rpc_with, tool_list, tool_list_for, Offer};
 use hostd::run_link;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -154,4 +154,15 @@ async fn a_link_that_lags_still_passes_every_call_on() {
     for c in calls {
         assert_eq!(ended(c).await.unwrap()["text"], "ok");
     }
+}
+
+#[test]
+fn a_team_without_a_workflow_is_not_offered_the_workflow_tools() {
+    let offer = Offer { approve: false, workflow: false };
+    let names: Vec<String> = tool_list_for(offer).as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
+    assert_eq!(names, ["request_input", "record_decision", "report", "read_decisions", "spawn_agent", "send_agent_message", "team_status", "read_pdf"]);
+    let call = json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": { "name": "complete_work", "arguments": {} } });
+    let r: Value = serde_json::from_str(&handle_rpc_with(&call.to_string(), offer, &no_call).unwrap()).unwrap();
+    assert_eq!(r["result"]["isError"], true);
+    assert!(r["result"]["content"][0]["text"].as_str().unwrap().contains("not available"));
 }

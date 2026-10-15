@@ -187,7 +187,7 @@ fn rigged_sup(rig: &Rigged, dir: Option<&Path>) -> Supervisor {
 
 fn tools_params(cwd: &Path) -> LaunchParams {
     let mut p = params(cwd);
-    p.seat_tools = Some(SeatToolsParams { approve: true });
+    p.seat_tools = Some(SeatToolsParams { approve: true, workflow: true });
     p.posture = PermissionPosture::Restricted;
     p.usage_baseline = Some([10, 20, 30, 40]);
     p

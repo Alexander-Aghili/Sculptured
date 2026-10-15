@@ -33,9 +33,12 @@ impl SeatWait {
 
 /// Claude, Codex and Practice agents get the tools; `approve` is Claude's permission-prompt tool, so
 /// only a restricted Claude agent gets it (Codex asks natively, Task 13; Practice uses `perm:`).
-pub fn launch_params(_st: &AppState, seat: &CompiledSeat, posture: PermissionPosture) -> Option<SeatToolsParams> {
+pub fn launch_params(st: &AppState, seat: &CompiledSeat, posture: PermissionPosture) -> Option<SeatToolsParams> {
+    let workflow = crate::seat_ids::rig_of(&seat.id)
+        .and_then(|rig| st.store.lock().unwrap().draft(rig).ok().flatten())
+        .is_none_or(|d| d.workflow.is_some());
     matches!(seat.runtime, Runtime::ClaudeCode | Runtime::Codex | Runtime::Stub)
-        .then(|| SeatToolsParams { approve: posture == PermissionPosture::Restricted && seat.runtime == Runtime::ClaudeCode })
+        .then(|| SeatToolsParams { approve: posture == PermissionPosture::Restricted && seat.runtime == Runtime::ClaudeCode, workflow })
 }
 
 /// Defence in depth behind hostd's own check: `approve` only for an agent that would be launched with it.

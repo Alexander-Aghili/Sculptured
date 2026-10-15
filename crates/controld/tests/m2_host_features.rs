@@ -200,7 +200,7 @@ async fn an_older_runner_gets_an_unrestricted_agent_without_the_optional_feature
     wait_for("host connected", || s.st.hosts.is_connected("local")).await;
     let mut params = LaunchParams {
         cwd: "/tmp".into(),
-        seat_tools: Some(host_proto::SeatToolsParams { approve: false }),
+        seat_tools: Some(host_proto::SeatToolsParams { approve: false, workflow: true }),
         usage_baseline: Some([1, 2, 3, 4]),
         ..Default::default()
     };
@@ -309,7 +309,7 @@ async fn launch_params_drop_seat_tools_on_an_older_runner_and_keep_them_on_a_cur
     let _ws = host(&s, hello(&[], &[], &[features::SEAT_TOOLS])).await;
     wait_for("host connected", || s.st.hosts.is_connected("local")).await;
     let params = controld::launch::launch_params(&s.st, "local", "r", seat, s.home.path()).unwrap();
-    assert_eq!(params.seat_tools, Some(host_proto::SeatToolsParams { approve: false }));
+    assert_eq!(params.seat_tools, Some(host_proto::SeatToolsParams { approve: false, workflow: true }));
     let drops = events_of(&s, "dev.a@r").into_iter().filter(|b| matches!(b, EventBody::FeaturesDropped { .. })).count();
     assert_eq!(drops, 1, "nothing more is dropped on a current runner");
 }

@@ -180,7 +180,8 @@ fn assign(store: &mut Store, d: &TeamDraft, run: &mut WorkflowRun, index: usize,
     let escalated = review.is_none() && super::engine::escalation_due(&run.config, task_at(run, index)).is_some_and(|e| e.agent == agent);
     let text = super::assignment::text(d, run, task_at(run, index), &id, agent);
     let text = match crate::team_context::decision_log_note(store, &run.rig, d.decision_log) { Some(note) => format!("{note}\n\n{text}"), None => text };
-    let text = match crate::team_context::briefing(d, &seat) { Some(brief) => format!("{brief}\n\n--- Current message ---\n{text}"), None => text };
+    let fresh = !crate::team_context::briefed(store, &seat).unwrap_or(false);
+    let text = match crate::team_context::briefing(d, &seat).filter(|_| fresh) { Some(brief) => format!("{brief}\n\n--- Current message ---\n{text}"), None => text };
     let t = task_at_mut(run, index);
     match review {
         Some(r) => t.reviews[r].assignment = Some(id.clone()),

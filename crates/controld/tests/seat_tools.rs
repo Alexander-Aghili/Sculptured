@@ -119,17 +119,17 @@ pods:
     )
     .unwrap();
     let st = controld::AppState::new(controld::store::Store::open_in_memory().unwrap(), "t".into(), vec![]);
-    assert_eq!(launch_params(&st, &rig.seats[0], PermissionPosture::Unrestricted), Some(SeatToolsParams { approve: false }));
-    assert_eq!(launch_params(&st, &rig.seats[0], PermissionPosture::Restricted), Some(SeatToolsParams { approve: true }));
+    assert_eq!(launch_params(&st, &rig.seats[0], PermissionPosture::Unrestricted), Some(SeatToolsParams { approve: false, workflow: true }));
+    assert_eq!(launch_params(&st, &rig.seats[0], PermissionPosture::Restricted), Some(SeatToolsParams { approve: true, workflow: true }));
     assert_eq!(launch_params(&st, &rig.seats[1], PermissionPosture::Restricted), None, "a terminal has no MCP client");
     assert_eq!(
         launch_params(&st, &rig.seats[2], PermissionPosture::Restricted),
-        Some(SeatToolsParams { approve: false }),
+        Some(SeatToolsParams { approve: false, workflow: true }),
         "a restricted Codex agent asks through its own approvals, not the approve tool"
     );
     assert_eq!(
         launch_params(&st, &rig.seats[3], PermissionPosture::Restricted),
-        Some(SeatToolsParams { approve: false }),
+        Some(SeatToolsParams { approve: false, workflow: true }),
         "a Practice agent asks through perm:"
     );
 }

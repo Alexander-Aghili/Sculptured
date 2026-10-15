@@ -5,6 +5,7 @@ All notable changes to Sculptured are listed here. The format follows [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- The team briefing goes with an agent's first message per conversation only, and covers its group and connected agents in full and the rest by name. The workflow tools are offered only to teams with a workflow (`SeatToolsParams.workflow`, `SCULPTURED_SEAT_WORKFLOW`).
 - Where tokens went: a report per run made on the runner by MAIS from the CLIs' session files (`analyze-run`, `usage-reports` capability), kept by controld and refreshed every minute while a run goes (`GET /api/teams/{id}/report`), shown on the Run board and in History. `budget-state-changed` events.
 - Import a Claude Code session (with its subagent files) or Codex rollouts as a read-only past run and a runnable team (`POST /api/runs/convert`, then the existing `/api/runs/import`), under Advanced. "Improve this team with AI" (`POST /api/teams/{id}/improve-from-run`) proposes a reusable version as a labelled diff.
 - Team limits on spawned agents (`limits.max_agents`, `limits.max_child_levels`), set under Advanced; none by default. The fixed caps of 10 children per agent, 64 agents and 4 levels are removed. The Run board folds many children into "+N more" and deep ones into "+N deeper".

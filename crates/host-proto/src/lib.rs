@@ -28,6 +28,14 @@ pub struct DriverInfo {
 pub struct SeatToolsParams {
     /// Expose the `approve` permission-prompt tool (restricted posture).
     pub approve: bool,
+    /// Offer the dynamic-workflow tools (`dispatch_work`, `complete_work`, `workflow_status`): the team
+    /// has a workflow. Missing (an older server) means offered, as before.
+    #[serde(default = "offered")]
+    pub workflow: bool,
+}
+
+fn offered() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -251,6 +259,8 @@ pub mod seat_tools {
     pub const SOCKET_ENV: &str = "SCULPTURED_SEAT_SOCKET";
     pub const TOKEN_ENV: &str = "SCULPTURED_SEAT_TOKEN";
     pub const APPROVE_ENV: &str = "SCULPTURED_SEAT_APPROVE";
+    /// "0": the team has no dynamic workflow, so its tools are not offered.
+    pub const WORKFLOW_ENV: &str = "SCULPTURED_SEAT_WORKFLOW";
 
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     pub struct ToolRequest {

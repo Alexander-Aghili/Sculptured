@@ -117,7 +117,13 @@ impl Supervisor {
         let launch = SeatToolsLaunch {
             program: host.shim.clone(),
             args: vec!["seat-tools".into()],
-            env: shim_env(&host.socket, t, p.approve),
+            env: {
+                let mut env = shim_env(&host.socket, t, p.approve);
+                if !p.workflow {
+                    env.push((host_proto::seat_tools::WORKFLOW_ENV.to_string(), "0".to_string()));
+                }
+                env
+            },
             approve: p.approve,
             config_file: config_file.clone(),
         };

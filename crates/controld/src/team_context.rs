@@ -2,6 +2,8 @@
 use crate::state::AppState;
 use model::{ConnectionKind, DraftAgent, TeamDraft};
 
+/// `text` with what the agent needs around it; the team briefing goes with a conversation's first
+/// message only, since the agent keeps it for the whole conversation.
 pub(crate) fn with_context(st: &AppState, seat: &str, text: String) -> String {
     let Some(id) = crate::seat_ids::rig_of(seat) else { return text };
     let text = {
@@ -14,25 +16,30 @@ pub(crate) fn with_context(st: &AppState, seat: &str, text: String) -> String {
     let text = if crate::copies::enabled(st, id) {
         format!("You work in your own git copy of the project, on branch {}. Commit your work there. Teammates cannot see your files until the operator merges your branch, so send them what they need (file contents, paths and commits) in messages.\n\n{text}", crate::copies::branch_of(id, seat))
     } else { text };
-    let draft = st.store.lock().unwrap().draft(id).ok().flatten();
+    let briefed = briefed(&st.store.lock().unwrap(), seat).unwrap_or(false);
+    let draft = st.store.lock().unwrap().draft(id).ok().flatten().filter(|_| !briefed);
     let log = draft.as_ref().and_then(|d| decision_log_note(&st.store.lock().unwrap(), id, d.decision_log));
     let text = match log { Some(note) => format!("{note}\n\n{text}"), None => text };
     match draft.and_then(|d| briefing(&d, seat)) {
         Some(context) => format!("{context}\n\n--- Current message ---\n{text}"),
-        None => {
-            let store=st.store.lock().unwrap();
-            let draft=store.draft(id).ok().flatten();
-            let mut ancestor=seat.to_string();
-            for _ in 0..4 {
-                let Some(parent)=store.parent(&ancestor).ok().flatten() else{break};
-                if let Some(context)=draft.as_ref().and_then(|d|briefing(d,&parent)) {
-                    return format!("{context}\n\nYour active role is managed child agent {seat}; the ancestor role above is architecture context only. Use team_status for current teammates.\n\n--- Current message ---\n{text}");
-                }
-                ancestor=parent;
-            }
-            text
-        },
+        None if briefed => text,
+        None => ancestor_briefing(st, id, seat, text),
     }
+}
+
+/// A managed child's first message: its nearest configured ancestor's briefing, marked as context only.
+fn ancestor_briefing(st: &AppState, id: &str, seat: &str, text: String) -> String {
+    let store = st.store.lock().unwrap();
+    let draft = store.draft(id).ok().flatten();
+    let mut ancestor = seat.to_string();
+    for _ in 0..4 {
+        let Some(parent) = store.parent(&ancestor).ok().flatten() else { break };
+        if let Some(context) = draft.as_ref().and_then(|d| briefing(d, &parent)) {
+            return format!("{context}\n\nYour active role is managed child agent {seat}; the ancestor role above is architecture context only. Use team_status for current teammates.\n\n--- Current message ---\n{text}");
+        }
+        ancestor = parent;
+    }
+    text
 }
 
 /// One line telling agents the team keeps a decision log, when it is on and has entries.
@@ -56,16 +63,44 @@ pub(crate) fn briefing(d: &TeamDraft, seat: &str) -> Option<String> {
     lines.push("Work only on your assigned job. A leader plans and coordinates the configured team; it does not replace the other agents or implement their jobs unless explicitly assigned. Sculptured automatically delivers completed replies along 'hands work to' connections. Use spawn_agent to create helpers; all child agents must be managed through this tool so their lifecycle and communication appear on the board. Do not create untracked agents through native CLI delegation, shell processes or external tools. Do not replace configured teammates. Use team_status and send_agent_message to ask teammates for help, request features, report results and coordinate shared interfaces. Include exact artifact revisions and task context. 'Reports to' and 'watches' are descriptive only, not automatic routing. Report missing instructions or blocked dependencies rather than guessing. A reported result is not independently verified.".into());
     lines.push(EFFICIENCY.into());
     lines.push("Use downstream jobs to decide your handoff: when another agent owns implementation, provide its plan and inputs instead of doing that agent's work. Respect project-wide constraints stated in the jobs (such as output folders or no publishing) throughout the team. Ask the operator about conflicting instructions.".into());
-    for a in &d.agents {
+    lines.extend(team_lines(d, me));
+    Some(lines.join("\n\n"))
+}
+
+/// Whether the seat's current conversation already holds the briefing: a message went to it since the
+/// conversation began. A resumed conversation is the earlier one continued.
+pub(crate) fn briefed(store: &crate::store::Store, seat: &str) -> rusqlite::Result<bool> {
+    let subject = model::Subject::Seat(seat.to_string());
+    let starts = store.latest_of_types(&subject, &["tenure-started"], 50)?;
+    let fresh = |e: &&model::EventRecord| !matches!(e.body, model::EventBody::TenureStarted { cause: model::TenureCause::Resume, .. });
+    let Some(begin) = starts.iter().find(fresh).map(|e| e.seq) else { return Ok(false) };
+    Ok(store.latest_of_types(&subject, &["message-queued"], 1)?.first().is_some_and(|m| m.seq > begin))
+}
+
+/// Agents `me` works with: its group and every agent it is connected to, either way.
+fn neighbours<'a>(d: &'a TeamDraft, me: &DraftAgent) -> Vec<&'a DraftAgent> {
+    let linked = |a: &DraftAgent| d.connections.iter().any(|c| (c.from == me.id && c.to == a.id) || (c.to == me.id && c.from == a.id));
+    let grouped = |a: &DraftAgent| me.group_id.is_some() && a.group_id == me.group_id;
+    d.agents.iter().filter(|a| a.id == me.id || linked(a) || grouped(a)).collect()
+}
+
+/// `me`'s neighbours with their jobs and connections; the rest of the team by name (team_status has more).
+fn team_lines(d: &TeamDraft, me: &DraftAgent) -> Vec<String> {
+    let near = neighbours(d, me);
+    let mut lines: Vec<String> = near.iter().map(|a| {
         let group = group_label(d, a).map(|l| format!(" · Group: {l}")).unwrap_or_default();
-        lines.push(format!("Agent: {} [{}]{group} · Folder: {}\nAssigned job: {}", a.name, a.id, d.effective_folder(a).unwrap_or("not configured"), a.job.trim()));
+        format!("Agent: {} [{}]{group} · Folder: {}\nAssigned job: {}", a.name, a.id, d.effective_folder(a).unwrap_or("not configured"), a.job.trim())
+    }).collect();
+    let rest: Vec<String> = d.agents.iter().filter(|a| !near.iter().any(|n| n.id == a.id)).map(|a| format!("{} [{}]{}", a.name, a.id, in_group(d, a))).collect();
+    if !rest.is_empty() {
+        lines.push(format!("The rest of the team (team_status gives their jobs and status): {}", rest.join(", ")));
     }
-    for c in &d.connections {
+    for c in d.connections.iter().filter(|c| c.from == me.id || c.to == me.id) {
         let (Some(from), Some(to)) = (d.agent(&c.from), d.agent(&c.to)) else { continue };
         let kind = match c.kind { ConnectionKind::HandsWorkTo => "hands work to", ConnectionKind::ReportsTo => "reports to (descriptive)", ConnectionKind::Watches => "watches (descriptive)" };
         lines.push(format!("{} [{}]{} {kind} {} [{}]{}", from.name, from.id, in_group(d, from), to.name, to.id, in_group(d, to)));
     }
-    Some(lines.join("\n\n"))
+    lines
 }
 
 /// The name of the group an agent is in, if it is in a named group.
