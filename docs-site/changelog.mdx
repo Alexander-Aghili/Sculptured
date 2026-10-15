@@ -7,6 +7,22 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 14 October 2026
 
+### Efficiency
+
+- **Agents read PDFs as text first.** Every agent has a `read_pdf` tool that gives a PDF's text page by page and names the pages with no text (scans, drawings), so only those are looked at as images. Text costs a small fraction of what page images do.
+- **Agents are told what is expensive**: everything they read is re-read at every later step, and each helper they start is a full agent with usage of its own.
+- **Before a big team starts**, the Start confirmation says how many agents can work at the same time, and whether any limits are set on helpers and tokens.
+- **The Run board shows the run's tokens so far**, next to how many agents are running.
+
+### Busy boards
+
+- **Faster while big teams run.** Live updates are drawn in batches, and arrows are routed only when the layout changes, in a fraction of the time.
+- **Quiet arrows.** On a board with more than 12 arrows, arrows are faint until you point at or select a card or group; then its arrows come forward with their labels. **All arrows** in Edit tools draws every arrow at full strength.
+
+### Invites
+
+- **Group links.** One join link for a whole class or event, such as `/join/cs2680`, with an optional limit. Admins see how many people joined through each link, and which link each person came from.
+
 ### Design assistant
 
 - **Ask your own Claude Code or Codex to change the design.** Choose **Design assistant** on the Design board and describe the change. The proposal appears on the board, with new, changed and removed parts marked, before anything is saved. **Approve** saves it, **Reject** leaves the design as it was, and you can keep refining it in between. See [Design assistant](/guides/design-assistant).
