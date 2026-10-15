@@ -983,6 +983,7 @@ select.fld-input { appearance: none; background-image: linear-gradient(45deg, tr
 /* Start confirmation for teams with real agents */
 .start-confirm { width: min(520px, calc(100vw - 32px)); }
 .start-confirm p { margin: 0; line-height: 1.55; }
+.start-cost { margin: 0; padding: 0 16px 0 34px; display: grid; gap: 4px; font-size: 13px; line-height: 1.45; }
 .start-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 0 16px 16px; }
 
 /* Narrow form editor */

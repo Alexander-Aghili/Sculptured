@@ -47,6 +47,7 @@ describe('startConfirmation', () => {
       title: 'Start 2 Claude agents?',
       // The Practice helper has no upstream either, so it starts first too.
       body: 'They run in ~/projects/web-shop and use your Claude account. First to start: Lead and Helper.',
+      efficiency: [],
     });
   });
 
@@ -56,6 +57,7 @@ describe('startConfirmation', () => {
     expect(startConfirmation(d, '/home/me')).toEqual({
       title: 'Start 3 Claude agents and 1 Codex agent?',
       body: 'They run in 2 folders (~/projects/web-shop and ~/notes) and use your Claude and Codex accounts. First to start: Lead.',
+      efficiency: [],
     });
     // Without a known home folder the full path is shown.
     expect(startConfirmation(teamDraft({ agents: [claude('solo')], connections: [] }), null)?.body).toBe(
@@ -132,5 +134,30 @@ describe('Start team asks first when the team has real agents', () => {
     expect(api.startTeam).not.toHaveBeenCalled();
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Start team' }));
     await waitFor(() => expect(api.startTeam).toHaveBeenCalledWith('t', 1, expect.any(String)));
+  });
+});
+
+describe('what a Start may cost', () => {
+  const wide = () => teamDraft({
+    agents: [draftAgent('lead', { kind: 'codex', name: 'Lead' }), ...Array.from({ length: 8 }, (_, i) => draftAgent(`w${i}`, { kind: 'codex', name: `Worker ${i}` }))],
+    connections: Array.from({ length: 8 }, (_, i) => ({ id: `c${i}`, from: 'lead', to: `w${i}`, kind: 'hands-work-to' as const })),
+  });
+
+  it('says how many agents can work at once, and that nothing limits them', () => {
+    const c = startConfirmation(wide(), '/home/me')!;
+    expect(c.efficiency).toEqual([
+      'Up to 8 agents can work at the same time: Lead hands work to 8 at once. Each uses your plan.',
+      'Agents can start helpers without limit. Set Most agents and Levels of children in Advanced.',
+      'No agent has a token limit.',
+    ]);
+  });
+
+  it('says nothing more for a small team with limits', () => {
+    const d = teamDraft({
+      agents: [draftAgent('a', { kind: 'claude', advanced: { model: null, permission: 'unrestricted', resume: 'resume-if-possible', token_limit: { tokens: 1000, counts: 'all', include_subagents: true } } }), draftAgent('b', { kind: 'claude' })],
+      connections: [{ id: 'c', from: 'a', to: 'b', kind: 'hands-work-to' }],
+      limits: { max_agents: 6, max_child_levels: 1 },
+    });
+    expect(startConfirmation(d, '/home/me')!.efficiency).toEqual([]);
   });
 });

@@ -7,9 +7,10 @@ import { nameForId, type NameMap } from '../vocab';
 import { Btn, Icon } from '../shell/ui';
 import { shortPath } from './FolderPicker';
 import { plural } from '../format';
+import { efficiencyNotes } from './startCost';
 
 /** What starting a team with real agents does, said before it happens. */
-export type StartConfirmation = { title: string; body: string };
+export type StartConfirmation = { title: string; body: string; efficiency: string[] };
 
 const list = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
 
@@ -29,6 +30,7 @@ function describe(agents: Starter[], handsTo: { from: string; to: string }[], ho
   return {
     title: `Start ${list(who)}?`,
     body: `They run in ${where} and use your ${list(accounts)} account${accounts.length > 1 ? 's' : ''}. First to start: ${heads.length ? list(heads.map((a) => a.name)) : 'unknown'}.`,
+    efficiency: [],
   };
 }
 
@@ -38,11 +40,13 @@ function describe(agents: Starter[], handsTo: { from: string; to: string }[], ho
  */
 export function startConfirmation(d: TeamDraft | undefined, home: string | null): StartConfirmation | null {
   if (!d) return null;
-  return describe(
+  const handsTo = d.workflow ? d.agents.filter(a => a.id !== d.workflow!.dispatcher).map(a => ({ from: d.workflow!.dispatcher, to: a.id })) : d.connections.filter((c) => c.kind === 'hands-work-to');
+  const c = describe(
     d.agents.map((a) => ({ id: a.id, name: a.name.trim() || 'Unnamed agent', kind: a.kind === 'practice' ? 'other' : a.kind, folder: effectiveFolder(d, a) })),
-    d.workflow ? d.agents.filter(a => a.id !== d.workflow!.dispatcher).map(a => ({ from: d.workflow!.dispatcher, to: a.id })) : d.connections.filter((c) => c.kind === 'hands-work-to'),
+    handsTo,
     home,
   );
+  return c && { ...c, efficiency: efficiencyNotes(d, handsTo) };
 }
 
 /** The same from a started team's compiled spec, for when its design has not loaded yet. */
@@ -53,6 +57,12 @@ export function specStartConfirmation(rig: CompiledRig, names: NameMap, home: st
     rig.edges.filter((e) => e.kind === 'delegates_to'),
     home,
   );
+}
+
+/** What a busy team may cost, under the confirmation. */
+function CostNotes({ notes }: { notes: string[] }) {
+  if (notes.length === 0) return null;
+  return <ul className="pad start-cost tone-amber" aria-label="What this may cost">{notes.map((n) => <li key={n}>{n}</li>)}</ul>;
 }
 
 /** A modal asking before a costly Start. Cancel has focus, so Enter alone never starts. */
@@ -90,6 +100,7 @@ export function StartConfirm({ c, onConfirm, onCancel }: { c: StartConfirmation;
         <p className="pad" id="start-confirm-body">
           {c.body}
         </p>
+        <CostNotes notes={c.efficiency} />
         <div className="start-confirm-actions">
           <Btn ref={cancel} onClick={onCancel}>
             Cancel
