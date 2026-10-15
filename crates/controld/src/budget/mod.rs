@@ -1,6 +1,7 @@
 //! Run budgets: what one run of a team may use (plan share, tokens, time), each with a soft value
 //! (no new work; every agent wraps up) and a hard value (every agent is stopped at once). Checked
 //! every second and after every usage or plan report. See docs/internals/limits-and-usage.md.
+pub mod gate;
 pub mod measure;
 pub mod record;
 
@@ -197,8 +198,9 @@ pub fn status(st: &AppState, rig: &str) -> rusqlite::Result<Option<RunStatus>> {
     Ok(Some(RunStatus { state: r.state, meters, wrap_up_ms: r.wrap_up_ms }))
 }
 
+/// Usage, a plan reading, or a turn ending (which may free a slot).
 fn is_spend(item: &crate::views::StreamItem) -> bool {
-    matches!(item.event.body, model::EventBody::UsageReported { .. } | model::EventBody::PlanUsageReported { .. })
+    matches!(item.event.body, model::EventBody::UsageReported { .. } | model::EventBody::PlanUsageReported { .. } | model::EventBody::TurnEnded { .. })
 }
 
 /// Checks every second, and as soon as usage or a plan reading arrives.
@@ -217,6 +219,12 @@ pub async fn run(st: AppState) {
         }
         if let Err(e) = check(&st).await {
             tracing::warn!(error = %e, "run budget check failed");
+        }
+        let waiting = gate::rigs_waiting(&st.store.lock().unwrap()).unwrap_or_default();
+        for rig in waiting {
+            if let Err(e) = gate::deliver(&st, &rig).await {
+                tracing::warn!(%rig, error = %e, "waiting messages not sent");
+            }
         }
     }
 }

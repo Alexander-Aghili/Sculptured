@@ -48,9 +48,12 @@ pub struct AppState {
 impl AppState {
     pub fn new(store: Store, host_token: String, allowed_hosts: Vec<String>) -> Self {
         let (hub, _) = broadcast::channel(1024);
+        let store = Arc::new(Mutex::new(store));
+        let hosts = HostRegistry::default();
+        hosts.set_gate(crate::budget::gate::hook(store.clone()));
         Self {
-            store: Arc::new(Mutex::new(store)),
-            hosts: HostRegistry::default(),
+            store,
+            hosts,
             hub,
             host_token: Arc::new(host_token),
             allowed_hosts: Arc::new(allowed_hosts),

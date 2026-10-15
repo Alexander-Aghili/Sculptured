@@ -33,8 +33,13 @@ pub enum OpFailure {
 
 type OpWaiters = Arc<Mutex<HashMap<String, (String, oneshot::Sender<Result<serde_json::Value, host_proto::OpError>>)>>>;
 
+/// Decides, for each command on its way to a runner, whether it goes now, waits or is refused
+/// (`budget::gate`). Installed once by the state.
+pub type GateFn = Arc<dyn Fn(&HostCommand) -> crate::budget::gate::Gate + Send + Sync>;
+
 #[derive(Clone, Default)]
 pub struct HostRegistry {
+    gate: Arc<std::sync::OnceLock<GateFn>>,
     inner: Arc<Mutex<HashMap<String, HostConn>>>,
     /// Ops sent and not answered yet: op id → (host, waiter). Dropped when the host disconnects.
     ops: OpWaiters,
@@ -258,8 +263,23 @@ impl HostRegistry {
         self.command_now(host, command).await
     }
 
-    /// `command_checked` without waiting for a host that is away.
+    /// Installs the budget gate every later command passes (the first one installed stays).
+    pub fn set_gate(&self, gate: GateFn) {
+        let _ = self.gate.set(gate);
+    }
+
+    /// `command_checked` without waiting for a host that is away. The budget gate decides first: a
+    /// refused command is never sent, and a held one counts as sent (it goes when a slot frees).
     pub async fn command_now(&self, host: &str, command: HostCommand) -> Result<(), CommandFailure> {
+        match self.gate.get().map_or(crate::budget::gate::Gate::Pass, |g| g(&command)) {
+            crate::budget::gate::Gate::Pass => self.command_ungated(host, command).await,
+            crate::budget::gate::Gate::Refuse(reason) => Err(CommandFailure::Refused(reason)),
+            crate::budget::gate::Gate::Queued => Ok(()),
+        }
+    }
+
+    /// Sends without the budget gate: only for a message the gate held and now lets go.
+    pub async fn command_ungated(&self, host: &str, command: HostCommand) -> Result<(), CommandFailure> {
         let (tx, pending) = {
             let hosts = self.inner.lock().unwrap();
             let conn = hosts.get(host).ok_or_else(|| CommandFailure::NotConnected(not_connected(host)))?;

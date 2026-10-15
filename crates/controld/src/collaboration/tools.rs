@@ -168,6 +168,9 @@ async fn spawn(st: &AppState, parent: &str, args: &Value, key: &str) -> Result<V
     let runtime = st.store.lock().unwrap().rig_snapshot(&rig_name).ok().flatten()
         .and_then(|s| s.rig.seats.iter().find(|s| s.id == parent).map(|s| s.runtime));
     let held = runtime.and_then(crate::plan_usage::provider_of).and_then(|p| crate::plan_usage::held(st, p));
+    if let Some(why) = crate::budget::gate::refusal(&st.store.lock().unwrap(), &rig_name).map_err(err)? {
+        return Err(format!("{why}. Finish with the agents you have."));
+    }
     let _claim = st
         .try_begin_boot(&rig_name)
         .ok_or("Project is changing; retry with the same request_id")?;
