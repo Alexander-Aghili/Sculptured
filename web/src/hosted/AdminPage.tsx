@@ -5,14 +5,18 @@ import { AdminAnalytics } from './AdminAnalytics';
 import { AdminAudit } from './AdminAudit';
 import { AdminRunning } from './AdminRunning';
 import { AdminUsers, type User } from './AdminUsers';
+import { AdminGroupLinks } from './AdminGroupLinks';
 import './hosted.css';
 
-type Invite = { id: string; kind: string; role: string; name: string; email: string | null; note: string | null; created_at: string; expires_at: string; used_at: string | null; revoked_at: string | null };
+type Invite = { id: string; kind: string; role: string; name: string; email: string | null; note: string | null; created_at: string; expires_at: string; used_at: string | null; revoked_at: string | null; slug?: string | null; max_uses?: number | null; uses?: number };
 
 type View = 'people' | 'running' | 'audit' | 'analytics';
 const VIEWS: [View, string][] = [['people', 'People & invites'], ['running', 'Running now'], ['audit', 'Audit log'], ['analytics', 'Analytics']];
 
-const state = (i: Invite) => i.revoked_at ? 'revoked' : i.used_at ? `used ${new Date(i.used_at).toLocaleDateString()}` : new Date(i.expires_at) < new Date() ? 'expired' : `open until ${new Date(i.expires_at).toLocaleDateString()}`;
+const open = (i: Invite) => new Date(i.expires_at) < new Date() ? 'expired' : `open until ${new Date(i.expires_at).toLocaleDateString()}`;
+/** A group link counts who joined; a personal invite is used once. */
+const groupState = (i: Invite) => `${i.uses ?? 0} joined${i.max_uses ? ` of ${i.max_uses}` : ''} · ${i.revoked_at ? 'revoked' : open(i)}`;
+const state = (i: Invite) => i.slug ? groupState(i) : i.revoked_at ? 'revoked' : i.used_at ? `used ${new Date(i.used_at).toLocaleDateString()}` : new Date(i.expires_at) < new Date() ? 'expired' : `open until ${new Date(i.expires_at).toLocaleDateString()}`;
 
 export function AdminPage(_: { csrf?: string }) {
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -59,11 +63,12 @@ export function AdminPage(_: { csrf?: string }) {
         </form>
         {made && <p className="hosted-link"><code>{made}</code> <button className="btn" onClick={() => void navigator.clipboard?.writeText(made)}>Copy</button> <span className="muted">This link is shown only now; send it to the person.</span></p>}
       </section>
+      <AdminGroupLinks onMade={load} />
       <section aria-label="Invites">
         <h2>Invites</h2>
         <table><thead><tr><th>For</th><th>Kind</th><th>Status</th><th>Note</th><th /></tr></thead><tbody>
-          {invites.map((i) => <tr key={i.id}><td>{i.name}{i.email ? ` · ${i.email}` : ''}{i.role === 'admin' ? ' · admin' : ''}</td><td>{i.kind}</td><td>{state(i)}</td><td>{i.note}</td>
-            <td>{!i.used_at && !i.revoked_at && <button className="btn" onClick={act(() => gw('POST', `/admin/invites/${i.id}/revoke`))}>Revoke</button>}</td></tr>)}
+          {invites.map((i) => <tr key={i.id}><td>{i.name}{i.slug ? ` · /join/${i.slug}` : ''}{i.email ? ` · ${i.email}` : ''}{i.role === 'admin' ? ' · admin' : ''}</td><td>{i.slug ? 'group link' : i.kind}</td><td>{state(i)}</td><td>{i.note}</td>
+            <td>{(!i.used_at || i.slug) && !i.revoked_at && <button className="btn" onClick={act(() => gw('POST', `/admin/invites/${i.id}/revoke`))}>Revoke</button>}</td></tr>)}
         </tbody></table>
       </section>
       <AdminUsers users={users} act={act} onLink={setMade} />

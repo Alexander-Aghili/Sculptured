@@ -71,3 +71,20 @@ it('links to the ops tools through a one-time sign-in', async () => {
   const link = await screen.findByRole('link', { name: /Ops tools/ });
   expect(link).toHaveAttribute('href', '/gw/api/admin/ops-ticket?next=%2F');
 });
+
+it('makes a group link and shows how many joined through it, and where each person came from', async () => {
+  const cs = { id: 'g1', kind: 'join', role: 'member', name: 'CS 2680', email: null, note: null, created_at: '2026-10-01T00:00:00Z', expires_at: '2099-01-01T00:00:00Z', used_at: null, revoked_at: null, slug: 'cs2680', max_uses: 50, uses: 12 };
+  const bo = { ...ana, id: 'u-bo', name: 'Bo', email: 'bo@x.com', joined_via: { kind: 'group', slug: 'cs2680', label: 'CS 2680' } };
+  const writes = gateway({ '/admin/invites': [cs], '/admin/users': [{ ...ana, joined_via: { kind: 'personal', slug: null, label: 'Ana' } }, bo] });
+  const links = await screen.findByRole('region', { name: 'Group links' });
+  await userEvent.type(within(links).getByLabelText('Link name'), 'SundaiHackathon');
+  await userEvent.type(within(links).getByLabelText('Group'), 'Sundai hackathon');
+  await userEvent.click(within(links).getByRole('button', { name: 'Create group link' }));
+  expect(writes.at(-1)).toBe('/admin/group-links {"slug":"sundaihackathon","label":"Sundai hackathon","max_uses":null,"days":90}');
+  const row = within(screen.getByRole('region', { name: 'Invites' })).getByText(/CS 2680/).closest('tr')!;
+  expect(row).toHaveTextContent('/join/cs2680');
+  expect(row).toHaveTextContent('12 joined of 50');
+  const users = screen.getByRole('region', { name: 'Users' });
+  expect(within(users).getByText('bo@x.com').closest('tr')).toHaveTextContent('CS 2680 (/join/cs2680)');
+  expect(within(users).getByText('ana@x.com').closest('tr')).toHaveTextContent('Personal invite');
+});

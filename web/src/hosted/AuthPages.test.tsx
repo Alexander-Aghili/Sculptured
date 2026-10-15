@@ -39,6 +39,15 @@ it('the logo goes to the app, not to a site that does not exist', async () => {
   expect(screen.getByRole('link', { name: 'Sculptured' })).toHaveAttribute('href', '/');
 });
 
+it('a group link names the group and leaves the name for the person to fill in', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url) => String(url).includes('/invite/')
+    ? reply(200, { group: 'CS 2680', name: null, email: null, expires_at: '2099-01-01T00:00:00Z' })
+    : reply(200, { password: true, google: false, github: false }));
+  render(<MemoryRouter initialEntries={['/join/cs2680']}><Routes><Route path="/join/:token" element={<JoinPage />} /></Routes></MemoryRouter>);
+  expect(await screen.findByText(/Joining through the CS 2680 link/)).toBeInTheDocument();
+  expect(screen.getByLabelText('Your name')).toHaveValue('');
+});
+
 it('a used invite says so and links to sign in', async () => {
   vi.spyOn(globalThis, 'fetch').mockImplementation((url) => String(url).includes('/invite/')
     ? reply(410, { error: { code: 'invite_used', message: 'This invite has already been used. Sign in instead.' } })

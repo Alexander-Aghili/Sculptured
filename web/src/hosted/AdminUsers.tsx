@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { gw } from './session';
 
-export type User = { id: string; name: string; email: string; role: string; created_at: string; disabled_at: string | null; last_seen: string | null; providers: string[] };
+export type JoinedVia = { kind: 'group' | 'personal'; slug: string | null; label: string };
+export type User = { id: string; name: string; email: string; role: string; created_at: string; disabled_at: string | null; last_seen: string | null; providers: string[]; joined_via?: JoinedVia | null };
+
+/** Which link someone joined through: a group link by its name and address, else a personal invite. */
+const via = (v?: JoinedVia | null) => !v ? '—' : v.kind === 'group' ? `${v.label} (/join/${v.slug})` : 'Personal invite';
 type Computer = { id: string; name: string; platform: string; created_at: string; last_seen: string | null; connected: boolean };
 
 /** The people table: roles, sign-out, reset links, disabling, and each person's connected computers. */
@@ -10,7 +14,7 @@ export function AdminUsers({ users, act, onLink }: { users: User[]; act: (fn: ()
   return (
     <section aria-label="Users">
       <h2>Users</h2>
-      <table><thead><tr><th>Name</th><th>Email</th><th>Signs in with</th><th>Joined</th><th>Last seen</th><th /></tr></thead><tbody>
+      <table><thead><tr><th>Name</th><th>Email</th><th>Signs in with</th><th>Joined via</th><th>Joined</th><th>Last seen</th><th /></tr></thead><tbody>
         {users.map((u) => <UserRow key={u.id} u={u} act={act} onLink={onLink} open={open === u.id} onToggle={() => setOpen(open === u.id ? null : u.id)} />)}
       </tbody></table>
     </section>
@@ -22,7 +26,7 @@ function UserRow({ u, act, onLink, open, onToggle }: { u: User; act: (fn: () => 
   return (
     <>
       <tr>
-        <td>{u.name}{admin ? ' · admin' : ''}{u.disabled_at ? ' · disabled' : ''}</td><td>{u.email}</td><td>{u.providers.join(', ')}</td>
+        <td>{u.name}{admin ? ' · admin' : ''}{u.disabled_at ? ' · disabled' : ''}</td><td>{u.email}</td><td>{u.providers.join(', ')}</td><td>{via(u.joined_via)}</td>
         <td>{new Date(u.created_at).toLocaleDateString()}</td><td>{u.last_seen ? new Date(u.last_seen).toLocaleString() : '—'}</td>
         <td className="admin-actions">
           <button className="btn" aria-expanded={open} onClick={onToggle}>Computers</button>

@@ -4,8 +4,15 @@ import { gw, GwError, RECORDED } from './session';
 import { AuthCard, ProviderButtons, type Providers } from './AuthLayout';
 import './hosted.css';
 
-type Invite = { name: string; email: string | null; expires_at: string };
+type Invite = { name: string | null; email: string | null; expires_at: string; group?: string | null };
 type Form = { name: string; email: string; password: string };
+
+/** A group link names its group; a personal invite, the person it was made for. */
+function lead(i: Invite): string {
+  const until = new Date(i.expires_at).toLocaleDateString();
+  if (i.group) return `Joining through the ${i.group} link · open until ${until}.`;
+  return `Invite for ${i.name}${i.email ? ` (${i.email})` : ''} · valid until ${until}.`;
+}
 
 export function JoinPage({ onSignedIn = () => window.location.assign('/') }: { onSignedIn?: () => void }) {
   const { token = '' } = useParams();
@@ -14,13 +21,13 @@ export function JoinPage({ onSignedIn = () => window.location.assign('/') }: { o
   const [error, setError] = useState('');
   const [form, setForm] = useState<Form>({ name: '', email: '', password: '' });
   useEffect(() => {
-    gw<Invite>('GET', `/invite/${token}`).then((i) => { setInvite(i); setForm((f) => ({ ...f, name: i.name, email: i.email ?? '' })); }, (e: GwError) => setError(e.message));
+    gw<Invite>('GET', `/invite/${token}`).then((i) => { setInvite(i); setForm((f) => ({ ...f, name: i.name ?? '', email: i.email ?? '' })); }, (e: GwError) => setError(e.message));
     gw<Providers>('GET', '/providers').then(setProviders, () => setProviders({ password: true, google: false, github: false }));
   }, [token]);
   const params = new URLSearchParams(window.location.search);
   const failed = error || (params.get('error') ? `Sign-in didn't finish (${params.get('error')}). Try again.` : '');
   return (
-    <AuthCard title="Join the Sculptured beta" lead={invite ? `Invite for ${invite.name}${invite.email ? ` (${invite.email})` : ''} · valid until ${new Date(invite.expires_at).toLocaleDateString()}.` : undefined}>
+    <AuthCard title="Join the Sculptured beta" lead={invite ? lead(invite) : undefined}>
       {failed && <p className="auth-error" role="alert">{failed}</p>}
       {failed && !invite && <p className="auth-note">Already have an account? <a href="/login">Sign in</a></p>}
       {invite && (
