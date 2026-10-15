@@ -78,7 +78,7 @@ pub(crate) async fn stop_on_host_as(st: &AppState, host: &str, seat: &str, hard:
     }
 }
 
-pub(super) fn stoppable(l: SeatLifecycle) -> bool {
+pub(crate) fn stoppable(l: SeatLifecycle) -> bool {
     is_live(l) || l == SeatLifecycle::Attention
 }
 

@@ -214,3 +214,25 @@ async fn a_turn_limit_wraps_up_then_stops_the_agent() {
     wait_long("the agent is stopped", || lifecycle(&s.st, &a) == Some(SeatLifecycle::Stopped)).await;
     assert!(turns(&s, &a).len() <= 2, "{:?}", turns(&s, &a));
 }
+
+#[tokio::test]
+async fn stop_everything_now_stops_every_agent_at_once_and_the_board_sees_the_meters() {
+    let s = serve().await;
+    let _runner = claude_runner(&s).await;
+    let dir = tempfile::tempdir_in(s.home.path()).unwrap();
+    let job = || "spend:400:1000:120".to_string();
+    let id = team(&s, dir.path(), &[("a", job()), ("b", job())], json!({ "tokens": { "hard": 10000000 }, "max_working": 5 })).await;
+    start_team(&s, &id).await;
+    let (a, b) = (seat(&id, "a"), seat(&id, "b"));
+    wait_for("both are spending", || tokens_of(&s, &a) > 0 && tokens_of(&s, &b) > 0).await;
+    let (status, body) = get(&s.router, &format!("/api/teams/{id}/budget")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["run"]["meters"][0]["what"], "Tokens", "{body}");
+    assert_eq!(body["run"]["state"]["state"], "normal");
+    assert_eq!(body["waiting"], json!([]));
+    let t = std::time::Instant::now();
+    let (status, body) = call(&s.router, "POST", &format!("/api/teams/{id}/stop-now"), json!({ "request_id": rid() })).await;
+    assert_eq!((status, body["stopped"].as_u64()), (StatusCode::OK, Some(2)), "{body}");
+    wait_for("both stopped", || [&a, &b].iter().all(|x| lifecycle(&s.st, x) == Some(SeatLifecycle::Stopped))).await;
+    assert!(t.elapsed() < Duration::from_secs(3), "{:?}", t.elapsed());
+}

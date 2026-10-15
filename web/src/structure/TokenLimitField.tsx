@@ -1,7 +1,9 @@
 import { useId } from 'react';
 import type { AgentAdvanced } from '../generated/AgentAdvanced';
+import type { SoftHard } from '../generated/SoftHard';
 import type { TokenCount } from '../generated/TokenCount';
 import type { TokenLimit } from '../generated/TokenLimit';
+import { softHard, softOf } from './budgetDraft';
 
 const COUNT_WORDS: Record<TokenCount, string> = {
   all: 'all tokens',
@@ -9,42 +11,71 @@ const COUNT_WORDS: Record<TokenCount, string> = {
   output: 'output only',
 };
 
-/** An agent's token limit for one run. Reaching it soft-stops the agent (wrap-up summary, then stop). */
-export function TokenLimitField({ value, disabled, reason, onChange }: {
-  value: AgentAdvanced['token_limit'];
-  disabled: boolean;
-  reason: string | null;
-  onChange: (next: TokenLimit | undefined) => void;
+const whole = (text: string) => (text.trim() === '' ? null : Math.max(0, Math.floor(Number(text) || 0)));
+
+/** Soft and hard boxes for one limit; the soft box shows the 85% default until one is typed. */
+function SoftHardBoxes({ label, unit, value, disabled, onChange }: {
+  label: string; unit: string; value: SoftHard<number> | undefined; disabled: boolean; onChange: (v: SoftHard<number> | undefined) => void;
 }) {
-  const id = useId();
-  const limit: TokenLimit = value ?? { tokens: 0, counts: 'all', include_subagents: true };
-  const set = (patch: Partial<TokenLimit>) => {
-    const next = { ...limit, ...patch };
-    onChange(next.tokens > 0 ? next : undefined);
-  };
   return (
-    <div className="fld" role="group" aria-labelledby={`${id}-l`}>
-      <span id={`${id}-l`} className="fld-label">Token limit</span>
-      <input
-        aria-label="Tokens per run (empty = no limit)"
-        className="fld-input"
-        type="number"
-        min={0}
-        step={10000}
-        placeholder="no limit"
-        value={limit.tokens || ''}
-        disabled={disabled}
-        onChange={(e) => set({ tokens: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
-      />
-      <select aria-label="Which tokens count" className="fld-input" value={limit.counts} disabled={disabled || !value}
+    <span className="fld-pair">
+      <input aria-label={`${label}: soft (${unit})`} className="fld-input" type="number" min={0} disabled={disabled || !value}
+        placeholder={value ? `${softOf(value, true)} (85%)` : 'soft'} value={value?.soft ?? ''}
+        onChange={(e) => onChange(softHard(whole(e.target.value), value?.hard ?? null))} />
+      <input aria-label={`${label}: hard (${unit})`} className="fld-input" type="number" min={0} disabled={disabled}
+        placeholder="no limit" value={value?.hard ?? ''}
+        onChange={(e) => onChange(softHard(value?.soft ?? null, whole(e.target.value)))} />
+    </span>
+  );
+}
+
+/** Which tokens count toward the limit, and whether the agents it spawns count too. */
+function TokenCounting({ limit, disabled, set }: { limit: TokenLimit; disabled: boolean; set: (p: Partial<TokenLimit>) => void }) {
+  return (
+    <>
+      <select aria-label="Which tokens count" className="fld-input" value={limit.counts} disabled={disabled}
         onChange={(e) => set({ counts: e.target.value as TokenCount })}>
         {(Object.keys(COUNT_WORDS) as TokenCount[]).map((c) => <option key={c} value={c}>{COUNT_WORDS[c]}</option>)}
       </select>
       <label>
-        <input type="checkbox" checked={limit.include_subagents} disabled={disabled || !value}
+        <input type="checkbox" checked={limit.include_subagents} disabled={disabled}
           onChange={(e) => set({ include_subagents: e.target.checked })} /> include agents it spawns
       </label>
-      {reason ? <p className="reason fld-reason">{reason}</p> : <p className="fld-meta">Reported usage arrives after each turn, so an agent can go over by up to one turn. Reaching the limit asks it to wrap up with a summary, then stops it.</p>}
+    </>
+  );
+}
+
+const NOTE = 'Each box pair is soft, then hard. At the soft value the agent is asked to wrap up with a summary; at the hard value it and the agents it started are stopped at once, like Ctrl+C. '
+  + 'Empty soft = 85% of hard. Usage is counted as each model call reports it.';
+
+/** An agent's token, turn and time limits for one run: soft asks it to wrap up, hard stops it at once. */
+export function TokenLimitField({ value, turns, minutes, disabled, reason, onChange }: {
+  value: AgentAdvanced['token_limit'];
+  turns?: AgentAdvanced['turn_limit'];
+  minutes?: AgentAdvanced['minute_limit'];
+  disabled: boolean;
+  reason: string | null;
+  onChange: (patch: Partial<AgentAdvanced>) => void;
+}) {
+  const id = useId();
+  const limit: TokenLimit = value ?? { tokens: 0, counts: 'all', include_subagents: true };
+  const setTokens = (v: SoftHard<number> | undefined) =>
+    onChange({ token_limit: v ? { ...limit, tokens: v.hard, soft: v.soft } : undefined });
+  const set = (patch: Partial<TokenLimit>) => onChange({ token_limit: { ...limit, ...patch } });
+  return (
+    <div className="fld" role="group" aria-labelledby={`${id}-l`}>
+      <span id={`${id}-l`} className="fld-label">Limits for one run</span>
+      <span className="fld-row"><span>Tokens</span>
+        <SoftHardBoxes label="Tokens" unit="tokens" value={value ? { soft: value.soft, hard: value.tokens } : undefined} disabled={disabled} onChange={setTokens} />
+      </span>
+      <TokenCounting limit={limit} disabled={disabled || !value} set={set} />
+      <span className="fld-row"><span>Turns</span>
+        <SoftHardBoxes label="Turns" unit="turns" value={turns} disabled={disabled} onChange={(v) => onChange({ turn_limit: v })} />
+      </span>
+      <span className="fld-row"><span>Minutes working</span>
+        <SoftHardBoxes label="Minutes working" unit="minutes" value={minutes} disabled={disabled} onChange={(v) => onChange({ minute_limit: v })} />
+      </span>
+      {reason ? <p className="reason fld-reason">{reason}</p> : <p className="fld-meta">{NOTE}</p>}
     </div>
   );
 }

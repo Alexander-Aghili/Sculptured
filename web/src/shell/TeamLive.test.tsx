@@ -8,7 +8,7 @@ import { ev, FakeEventSource, openFake, seatView, snapshot } from '../test-fixtu
 
 vi.mock('../api', async (orig) => {
   const m = await orig<typeof import('../api')>();
-  return { ...m, api: { ...m.api, latestSeatEvents: vi.fn().mockResolvedValue([]), listRigs: vi.fn().mockResolvedValue([]), stopRig: vi.fn() } };
+  return { ...m, api: { ...m.api, latestSeatEvents: vi.fn().mockResolvedValue([]), listRigs: vi.fn().mockResolvedValue([]), stopRig: vi.fn(), stopTeamNow: vi.fn() } };
 });
 
 function Where() {
@@ -179,6 +179,17 @@ describe('RigView stop rig', () => {
     await act(async () => d.resolve());
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Confirm stop team' })).not.toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Stop team…' })).toHaveFocus();
+  });
+
+  it('offers Stop everything now beside the normal stop, and it stops the team at once', async () => {
+    vi.mocked(api.stopTeamNow).mockResolvedValue({ stopped: 2 });
+    open();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Stop team…' }));
+    await user.click(screen.getByRole('button', { name: 'Stop everything now' }));
+    expect(api.stopTeamNow).toHaveBeenCalledWith('r');
+    expect(api.stopRig).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Confirm stop team' })).not.toBeInTheDocument());
   });
 
   it('reuses the request id after a network failure', async () => {

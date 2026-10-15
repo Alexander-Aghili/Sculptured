@@ -249,8 +249,8 @@ export function AgentPanel({ draft, agentId, issues, edit, locked, onSelect, nam
           )}
         </div>
       </Field>
-      <TokenLimitField value={a.advanced.token_limit} disabled={locked} reason={locked ? LOCK_REASON : null}
-        onChange={(token_limit) => edit((d) => setAdvanced(d, a.id, { token_limit }))} />
+      <TokenLimitField value={a.advanced.token_limit} turns={a.advanced.turn_limit} minutes={a.advanced.minute_limit} disabled={locked} reason={locked ? LOCK_REASON : null}
+        onChange={(patch) => edit((d) => setAdvanced(d, a.id, patch))} />
       <Field label="Check" htmlFor={`${ids}-check`} reason={locked ? LOCK_REASON : null}>
         <input
           id={`${ids}-check`}

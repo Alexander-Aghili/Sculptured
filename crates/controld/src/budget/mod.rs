@@ -11,11 +11,11 @@ use measure::Meter;
 pub use record::{BudgetState, Record};
 use record::{PlanTrack, Reading};
 use rusqlite::{params, OptionalExtension};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// A run's budget as the board shows it.
-#[derive(Clone, Debug, Serialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct RunStatus {
     pub state: BudgetState,
@@ -231,15 +231,20 @@ pub async fn run(st: AppState) {
             }
         }
         (last, pending) = (tokio::time::Instant::now(), false);
-        if let Err(e) = check(&st).await {
-            tracing::warn!(error = %e, "run budget check failed");
-        }
-        crate::collaboration::check_agent_limits(&st).await;
-        let waiting = gate::rigs_waiting(&st.store.lock().unwrap()).unwrap_or_default();
-        for rig in waiting {
-            if let Err(e) = gate::deliver(&st, &rig).await {
-                tracing::warn!(%rig, error = %e, "waiting messages not sent");
-            }
+        pass(&st).await;
+    }
+}
+
+/// One round: run budgets, agents' own limits, then messages waiting for a slot.
+async fn pass(st: &AppState) {
+    if let Err(e) = check(st).await {
+        tracing::warn!(error = %e, "run budget check failed");
+    }
+    crate::collaboration::check_agent_limits(st).await;
+    let waiting = gate::rigs_waiting(&st.store.lock().unwrap()).unwrap_or_default();
+    for rig in waiting {
+        if let Err(e) = gate::deliver(st, &rig).await {
+            tracing::warn!(%rig, error = %e, "waiting messages not sent");
         }
     }
 }

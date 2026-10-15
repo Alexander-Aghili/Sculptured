@@ -148,7 +148,17 @@ describe('what a Start may cost', () => {
     expect(c.efficiency).toEqual([
       'Up to 8 agents can work at the same time: Lead hands work to 8 at once. Each uses your plan.',
       'Agents can start helpers without limit. Set Most agents and Levels of children in Advanced.',
-      'No agent has a token limit.',
+      'No run budget is set, so nothing stops this run before your plan runs out. Set one in Advanced → Run budget.',
+    ]);
+  });
+
+  it('states the run budget and the stop bound, and how many may work at once', () => {
+    const d = { ...wide(), budget: { plan: [{ provider: 'claude', window: 'five_hour', hard: 30 }], tokens: { soft: 1_000_000, hard: 2_000_000 }, max_working: 4 } };
+    expect(startConfirmation(d, '/home/me')!.efficiency).toEqual([
+      'Up to 8 agents could work at the same time (Lead hands work to 8 at once); the run budget lets 4 work at once and the rest wait.',
+      'Agents can start helpers without limit. Set Most agents and Levels of children in Advanced.',
+      'Run budget: Claude 5-hour: wrap up at 25.5%, stop at 30%; tokens: wrap up at 1.0M, stop at 2.0M.',
+      'Sculptured stops the run one model call early for each agent working, and a stop reaches each agent within a moment, so a run should end at or just under each hard value (up to 4 agents working at once).',
     ]);
   });
 

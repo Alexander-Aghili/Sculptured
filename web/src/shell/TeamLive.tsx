@@ -171,6 +171,20 @@ export function TeamLive(p: Props) {
     }
   };
 
+  /** Every agent at once, like Ctrl+C: interrupted now, forced after 2 seconds. */
+  const stopNow = async () => {
+    setError(null);
+    setStopping(true);
+    try {
+      await api.stopTeamNow(rig);
+      setConfirmStop(false);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setStopping(false);
+    }
+  };
+
   const setGraph = (h: GraphHandle | null) => {
     graph.current = h;
     if (typeof p.graphRef === 'function') p.graphRef(h);
@@ -345,6 +359,9 @@ export function TeamLive(p: Props) {
           <p>{WORDS.stopTeamConsequence(shown)}</p>
           <Btn danger onClick={stopRig} disabled={stopping} aria-describedby={stopping ? 'stop-rig-reason' : undefined}>
             {WORDS.confirmStopTeam}
+          </Btn>
+          <Btn danger onClick={stopNow} disabled={stopping} tip="Interrupts every agent and the commands it is running at once, like Ctrl+C in a terminal; anything still running after 2 seconds is ended.">
+            Stop everything now
           </Btn>
           {stopping && (
             <span id="stop-rig-reason" className="reason">

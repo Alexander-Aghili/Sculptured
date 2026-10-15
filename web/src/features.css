@@ -171,3 +171,16 @@ a.pg-line-link:hover .pg-text { color: var(--accent); }
 /* Team Advanced: the team's own limits on spawned agents. */
 .ta-limits { border:0; margin:0 0 10px; padding:0; display:grid; gap:6px; }
 .ta-limit { display:grid; grid-template-columns:1fr 7em; gap:8px; align-items:center; font-size:13px; }
+.ta-budget { border:0; margin:0 0 12px; padding:0; display:grid; gap:6px; min-width:0; }
+.ta-budget-table { border-collapse:collapse; font-size:13px; width:100%; }
+.ta-budget-table th, .ta-budget-table td { padding:2px 4px; text-align:left; font-weight:normal; }
+.ta-budget-table thead th { font-size:12px; color:var(--muted, #667); }
+.ta-budget-table th[scope=row] { white-space:nowrap; }
+.ta-budget-table .fld-input { width:100%; min-width:4.5em; }
+.run-meters { display:grid; gap:4px; margin:4px 0 8px; font-size:13px; }
+.run-meter { display:grid; grid-template-columns:minmax(8em, max-content) 1fr auto; gap:8px; align-items:center; }
+.run-meter meter { width:100%; height:8px; }
+.run-budget-state { margin:4px 0; }
+
+.fld-row { display:grid; grid-template-columns:minmax(7em, max-content) 1fr; gap:8px; align-items:center; font-size:13px; }
+.fld-pair { display:grid; grid-template-columns:1fr 1fr; gap:6px; }

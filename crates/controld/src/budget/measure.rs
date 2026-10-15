@@ -3,7 +3,7 @@
 use super::record::{PlanTrack, Reading, Record};
 use crate::store::Store;
 use rusqlite::params;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// A reading at Start older than this is not used as the baseline; the first one after Start is.
@@ -17,7 +17,7 @@ pub struct Spend {
 }
 
 /// One budget's standing, for the board and for the decisions.
-#[derive(Clone, Debug, PartialEq, Serialize, ts_rs::TS)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct Meter {
     /// e.g. `Claude 5-hour`, `Tokens`, `Time`.

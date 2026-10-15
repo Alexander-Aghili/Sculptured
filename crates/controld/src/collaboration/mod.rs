@@ -24,6 +24,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(history::routes())
         .route("/api/teams/{id}/budget", get(budget_status).post(set_budget))
+        .route("/api/teams/{id}/stop-now", post(stop_team_now))
         .route("/api/teams/{id}/archive", post(archive))
         .route("/api/teams/{id}/communications", get(events))
         .route("/api/teams/{id}/children",get(children))
@@ -109,6 +110,31 @@ async fn control_status(State(st): State<AppState>, Path(id): Path<String>) -> R
 pub struct ManagedChild {pub parent:String,pub child:String}
 async fn children(State(st):State<AppState>,Path(id):Path<String>)->Response {
  respond((||->Result<Vec<ManagedChild>,ApiError>{let store=st.store.lock().unwrap();let Some(snapshot)=store.rig_snapshot(&id)? else{return Ok(vec![])};let mut out=vec![];for seat in snapshot.rig.seats {if let Some(parent)=store.parent(&seat.id)? {out.push(ManagedChild{parent,child:seat.id});}}Ok(out)})())
+}
+
+#[derive(Serialize, Deserialize)]
+struct StopNowRequest {
+    request_id: String,
+}
+
+/// Stop everything now: every running agent of the team and everything it started, at once, like Ctrl+C.
+async fn stop_team_now(State(st): State<AppState>, Path(id): Path<String>, Json(req): Json<StopNowRequest>) -> Response {
+    let fp = fingerprint(&format!("stop-now:{id}"), &req);
+    let st2 = st.clone();
+    idempotent(&st, &req.request_id, fp, move || async move {
+        let roots: Vec<String> = {
+            let store = st2.store.lock().unwrap();
+            let Some(snap) = store.rig_snapshot(&id)? else { return Err(ApiError::conflict("team_not_started", "This team has not been started yet.")) };
+            let live: Vec<String> = snap.seats.into_iter().filter(|s| crate::reconciler::stoppable(s.lifecycle)).map(|s| s.id).collect();
+            live.iter().filter(|s| store.parent(s).ok().flatten().is_none_or(|p| !live.contains(&p))).cloned().collect()
+        };
+        if !roots.is_empty() {
+            controls::stop_now(&st2, &id, &roots).await?;
+        }
+        crate::analytics::emit(&st2, "team.stopped_now", json!({}));
+        Ok(json!({ "stopped": roots.len() }))
+    })
+    .await
 }
 
 async fn budget_status(State(st): State<AppState>, Path(id): Path<String>) -> Response {

@@ -194,6 +194,9 @@ export const api = {
     post<StartResult>(`${teamUrl(id)}/start`, requestId, overPlanLimit ? { revision, over_plan_limit: true } : { revision }),
   stopTeam: (id: string, requestId = newRequestId()) =>
     post<StopRigOutcome>(`${teamUrl(id)}/stop`, requestId),
+  /** Stops every agent now, like Ctrl+C: interrupted at once, forced after 2 seconds. */
+  stopTeamNow: (id: string, requestId = newRequestId()) =>
+    post<{ stopped: number }>(`${teamUrl(id)}/stop-now`, requestId),
   importTeam: (yaml: string, requestId = newRequestId()) =>
     post<TeamImport>('/api/teams/import', requestId, { yaml }),
   /** A `sculptured.team/v1` file; `folders` keeps this computer's folder paths. */

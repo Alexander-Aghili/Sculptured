@@ -20,6 +20,12 @@ pub struct AgentBudget {
 pub struct TeamBudget {
     pub output_limit: Option<u32>,
     pub agents: Vec<AgentBudget>,
+    /// The latest run's budget and where it stands; absent when that run had none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub run: Option<crate::budget::RunStatus>,
+    /// Agents with a message waiting for a free slot ("most agents working at once").
+    pub waiting: Vec<String>,
 }
 impl Store {
     pub fn output_limit(&self, rig: &str) -> rusqlite::Result<Option<u32>> {
@@ -35,7 +41,9 @@ impl Store {
     }
 }
 pub fn status(st: &AppState, rig: &str) -> Result<TeamBudget, ApiError> {
+    let run = crate::budget::status(st, rig)?;
     let store = st.store.lock().unwrap();
+    let waiting = crate::budget::gate::seats_waiting(&store, rig)?;
     let output_limit = store.output_limit(rig)?;
     let mut agents = Vec::new();
     if let Some(snap) = store.rig_snapshot(rig)? {
@@ -48,7 +56,7 @@ pub fn status(st: &AppState, rig: &str) -> Result<TeamBudget, ApiError> {
             agents.push(AgentBudget { seat: seat.id, output_used: used, exhausted, token_limit, token_used });
         }
     }
-    Ok(TeamBudget { output_limit, agents })
+    Ok(TeamBudget { output_limit, agents, run, waiting })
 }
 pub async fn check(st: &AppState) -> Result<(), ApiError> {
     let due = {
