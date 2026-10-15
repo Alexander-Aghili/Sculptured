@@ -20,8 +20,7 @@ controld = { path = "crates/controld" }
 signing = { path = "crates/signing" }
 localops = { path = "crates/localops" }
 interpreter = { path = "crates/interpreter" }
-# MAIS (where a run's tokens went): pinned by git revision once its repository is published.
-mais = { path = "../../MAIS/crates/mais" }
+mais = { git = "https://github.com/Alexander-Aghili/Multi-Agent-Investigative-Systems", rev = "5b268b0666eaa7c8310dc0a3c4a8f57ce8c97452" }
 madl = { git = "https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language", rev = "ea9c2dd849ab41367b0cccbba86d613dadcf276d" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
