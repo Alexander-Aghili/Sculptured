@@ -72,7 +72,14 @@ pub enum HostCommand {
     Restart { seat: String, driver: String, params: LaunchParams, mode: LaunchMode, cause: TenureCause },
     Send { seat: String, message_id: String, intent: MessageIntent, text: String },
     Interrupt { seat: String },
-    Stop { seat: String, grace_ms: u64 },
+    /// `hard`: stop now, like Ctrl+C (interrupt the agent and what it started, force after 2 s);
+    /// otherwise wait up to `grace_ms` for it to finish. Runners without `hard` ignore it.
+    Stop {
+        seat: String,
+        grace_ms: u64,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        hard: bool,
+    },
     /// Answers a question the seat's session raised (`DriverEvent::QuestionRaised`).
     Answer { seat: String, question_id: String, answer: Answer },
     /// Runs the seat's check command in `cwd` on this computer; the result arrives as `CheckStarted` /

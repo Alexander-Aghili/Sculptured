@@ -144,3 +144,14 @@ fn commands_name_the_host_features_they_need() {
     assert_eq!(answer.required_features(), vec![features::ANSWER]);
     assert!(HostCommand::Interrupt { seat: "dev.a@r".into() }.required_features().is_empty());
 }
+
+#[test]
+fn a_stop_without_hard_keeps_the_grace_path_and_old_runners_read_a_hard_one() {
+    let old: host_proto::HostCommand = serde_json::from_value(serde_json::json!({ "cmd": "stop", "seat": "a@r", "grace_ms": 5000 })).unwrap();
+    assert_eq!(old, host_proto::HostCommand::Stop { seat: "a@r".into(), grace_ms: 5000, hard: false });
+    let soft = serde_json::to_value(&old).unwrap();
+    assert!(soft.get("hard").is_none(), "a grace stop is sent exactly as before: {soft}");
+    let hard = serde_json::to_value(host_proto::HostCommand::Stop { seat: "a@r".into(), grace_ms: 5000, hard: true }).unwrap();
+    assert_eq!(hard["hard"], true);
+    assert_eq!(hard["grace_ms"], 5000, "an older runner, which ignores `hard`, still stops within the grace");
+}

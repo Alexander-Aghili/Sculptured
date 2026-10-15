@@ -89,6 +89,7 @@ impl ClaudeStreamDriver {
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         let mut child = self.start_child(&spec, resume, &session_id)?;
         let stdin = child.stdin.take();
+        let pid = child.id();
         let parser = Arc::new(Mutex::new(spec.usage_baseline.map(ClaudeParser::with_usage_baseline).unwrap_or_default()));
         let (tx, rx) = mpsc::unbounded_channel();
         let (kill_tx, kill_rx) = oneshot::channel::<()>();
@@ -102,6 +103,7 @@ impl ClaudeStreamDriver {
             kill: Some(kill_tx),
             exited: exited_rx,
             interrupt_seq: 0,
+            pid,
         }))
     }
 
@@ -181,6 +183,8 @@ struct ClaudeSession {
     kill: Option<oneshot::Sender<()>>,
     exited: watch::Receiver<bool>,
     interrupt_seq: u32,
+    /// The child's pid, which leads the process group the driver made for it.
+    pid: Option<u32>,
 }
 
 impl ClaudeSession {
@@ -216,6 +220,12 @@ impl Session for ClaudeSession {
     async fn stop(&mut self, grace: Duration) -> Result<(), DriverError> {
         self.stdin.take(); // EOF: `claude -p` finishes and exits
         process::stop_within(grace, &self.exited, &mut self.kill).await;
+        Ok(())
+    }
+
+    async fn hard_stop(&mut self) -> Result<(), DriverError> {
+        process::hard_stop(self.pid, &self.exited, &mut self.kill).await;
+        self.stdin.take();
         Ok(())
     }
 

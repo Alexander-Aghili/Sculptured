@@ -396,3 +396,52 @@ async fn an_existing_config_file_is_narrowed_to_owner_only_and_replaced() {
     assert!(std::fs::read_to_string(&file).unwrap().contains("secret-token-2"));
     s.stop(Duration::from_secs(5)).await.unwrap();
 }
+
+/// Alive and not a zombie (Linux `/proc`).
+#[cfg(target_os = "linux")]
+fn alive(pid: u32) -> bool {
+    std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|s| s.rsplit(')').next().is_some_and(|rest| !rest.trim_start().starts_with('Z')))
+}
+
+#[cfg(target_os = "linux")]
+async fn gone_within(pid: u32, d: Duration) -> bool {
+    let t = std::time::Instant::now();
+    while t.elapsed() < d {
+        if !alive(pid) {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    false
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_hard_stop_ends_a_stubborn_agent_and_its_commands_within_2_5_s() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = driver().launch(spec(dir.path(), vec![])).await.unwrap();
+    let mut ev = s.take_events().unwrap();
+    s.send(msg("m1", "stubborn")).await.unwrap();
+    let got = until(&mut ev, |e| matches!(e, DriverEvent::Text { text, .. } if text.starts_with("child "))).await;
+    let DriverEvent::Text { text, .. } = got.last().unwrap() else { unreachable!() };
+    let sleep_pid: u32 = text.trim_start_matches("child ").parse().unwrap();
+    assert!(alive(sleep_pid));
+    let t = std::time::Instant::now();
+    s.hard_stop().await.unwrap();
+    assert!(t.elapsed() < Duration::from_millis(2500), "took {:?}", t.elapsed());
+    assert!(t.elapsed() >= Duration::from_millis(1900), "it ignored the interrupt, so the force came after 2 s: {:?}", t.elapsed());
+    assert!(gone_within(sleep_pid, Duration::from_millis(500)).await, "the command it started is gone too");
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_well_behaved_agent_exits_on_the_interrupt_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = driver().launch(spec(dir.path(), vec![])).await.unwrap();
+    let mut ev = s.take_events().unwrap();
+    s.send(msg("m1", "hang")).await.unwrap();
+    until(&mut ev, |e| matches!(e, DriverEvent::ToolCall { call_id, .. } if call_id == "toolu_hang")).await;
+    let t = std::time::Instant::now();
+    s.hard_stop().await.unwrap();
+    assert!(t.elapsed() < Duration::from_millis(1000), "Ctrl+C alone ended it: {:?}", t.elapsed());
+}

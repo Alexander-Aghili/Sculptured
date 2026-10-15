@@ -139,7 +139,7 @@ async fn stop_then_relaunch_starts_tenure_2() {
     let mut rx = s.subscribe();
     s.handle(launch_in(dir.path(), "stub")).await.unwrap();
     until(&mut rx, is_idle).await;
-    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 1000 }).await.unwrap();
+    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 1000, hard: false }).await.unwrap();
     let got = until(&mut rx, |b| is_lifecycle(b, SeatLifecycle::Stopped)).await;
     assert!(got.iter().any(|b| is_lifecycle(b, SeatLifecycle::Stopping)));
     assert!(s.live_seats().await.is_empty());
@@ -157,7 +157,7 @@ async fn commands_to_a_seat_that_is_not_running_fail() {
         "seat dev.a@r is not running"
     );
     assert_eq!(
-        s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 10 }).await.unwrap_err(),
+        s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 10, hard: false }).await.unwrap_err(),
         "seat dev.a@r is not running"
     );
 }
@@ -255,9 +255,9 @@ async fn a_wedged_send_does_not_freeze_other_seats_or_its_own_stop() {
     .await
     .unwrap();
     within("live_seats", s.live_seats()).await;
-    within("stop y", s.handle(HostCommand::Stop { seat: y.into(), grace_ms: 500 })).await.unwrap();
+    within("stop y", s.handle(HostCommand::Stop { seat: y.into(), grace_ms: 500, hard: false })).await.unwrap();
 
-    within("stop x", s.handle(HostCommand::Stop { seat: x.into(), grace_ms: 500 })).await.unwrap();
+    within("stop x", s.handle(HostCommand::Stop { seat: x.into(), grace_ms: 500, hard: false })).await.unwrap();
     let evs = s.unacked_after(0).unwrap();
     assert!(evs.iter().any(|e| e.subject == Subject::Seat(x.into()) && is_lifecycle(&e.body, SeatLifecycle::Stopped)));
     assert_eq!(hung.await.unwrap().unwrap_err(), format!("seat {x} is stopping"));
@@ -271,7 +271,7 @@ async fn stop_journals_terminal_events_before_returning_and_before_a_relaunch() 
     let mut rx = s.subscribe();
     s.handle(launch_in(dir.path(), "stub")).await.unwrap();
     until(&mut rx, is_idle).await;
-    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 1000 }).await.unwrap();
+    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 1000, hard: false }).await.unwrap();
     // No await since Stop returned: the old tenure's terminal events must already be journaled.
     let evs = s.unacked_after(0).unwrap();
     assert!(evs.iter().any(|e| matches!(e.body, EventBody::TenureEnded { tenure: 1, .. })), "{evs:?}");
@@ -304,7 +304,7 @@ async fn live_seats_lists_only_live_slots() {
     assert_eq!(s.live_seats().await, vec![SEAT.to_string()]);
     let stopper = {
         let s = s.clone();
-        tokio::spawn(async move { s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 500 }).await })
+        tokio::spawn(async move { s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 500, hard: false }).await })
     };
     until(&mut rx, |b| is_lifecycle(b, SeatLifecycle::Stopping)).await;
     assert!(s.live_seats().await.is_empty(), "a Stopping seat is not live");
@@ -322,7 +322,7 @@ async fn launch_is_refused_while_the_old_tenure_drains() {
     until(&mut rx, |b| is_lifecycle(b, SeatLifecycle::Running)).await;
     let stopper = {
         let s = s.clone();
-        tokio::spawn(async move { s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 500 }).await })
+        tokio::spawn(async move { s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 500, hard: false }).await })
     };
     until(&mut rx, |b| is_lifecycle(b, SeatLifecycle::Stopping)).await;
     let err = within("relaunch", s.handle(cmd_for(SEAT, "blocking", dir.path()))).await.unwrap_err();

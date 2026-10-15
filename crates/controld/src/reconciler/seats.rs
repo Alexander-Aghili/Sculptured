@@ -47,7 +47,12 @@ pub async fn restart_seat(st: &AppState, seat_id: &str) -> Result<(), ApiError> 
 /// cannot stop it now: the seat is recorded as stopping, and the stop is sent when the computer
 /// reconnects (`restore::on_hello`). Its process is unknown until then, so it is not called stopped.
 pub(crate) async fn stop_on_host(st: &AppState, host: &str, seat: &str) -> Result<(), String> {
-    match st.hosts.command_now(host, HostCommand::Stop { seat: seat.to_string(), grace_ms: STOP_GRACE_MS }).await {
+    stop_on_host_as(st, host, seat, false).await
+}
+
+/// `stop_on_host`, or with `hard` a stop like Ctrl+C: interrupt now, force after 2 s.
+pub(crate) async fn stop_on_host_as(st: &AppState, host: &str, seat: &str, hard: bool) -> Result<(), String> {
+    match st.hosts.command_now(host, HostCommand::Stop { seat: seat.to_string(), grace_ms: STOP_GRACE_MS, hard }).await {
         Err(CommandFailure::NotConnected(_)) => {
             let reason = "Stops as soon as its computer reconnects".to_string();
             crate::hosts::record_lifecycle(st, seat.to_string(), Provenance::Operator, SeatLifecycle::Stopping, reason);
@@ -167,4 +172,11 @@ pub async fn interrupt_seat(st: &AppState, seat: &str) -> Result<(), ApiError> {
 pub async fn stop_seat(st: &AppState, seat: &str) -> Result<(), ApiError> {
     let host = seat_host(st, seat)?;
     stop_on_host(st, &host, seat).await.map_err(|e| ApiError::bad_gateway("host_unreachable", e))
+}
+
+/// Stops a seat now, like Ctrl+C: its program and everything it started are interrupted, and
+/// forced after 2 seconds.
+pub async fn stop_seat_now(st: &AppState, seat: &str) -> Result<(), ApiError> {
+    let host = seat_host(st, seat)?;
+    stop_on_host_as(st, &host, seat, true).await.map_err(|e| ApiError::bad_gateway("host_unreachable", e))
 }

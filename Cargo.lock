@@ -664,6 +664,7 @@ dependencies = [
  "drivers",
  "futures",
  "host-proto",
+ "libc",
  "model",
  "serde_json",
  "tempfile",

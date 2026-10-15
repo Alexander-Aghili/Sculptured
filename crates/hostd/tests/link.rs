@@ -217,7 +217,7 @@ async fn a_wedged_send_does_not_stop_the_link_from_reading_stop() {
     let wedged = HostCommand::Send { seat: seat.into(), message_id: "m".into(), intent: MessageIntent::Inform, text: "x".into() };
     command(&mut ws, "w", wedged).await;
     tokio::time::sleep(Duration::from_millis(200)).await;
-    command(&mut ws, "s", HostCommand::Stop { seat: seat.into(), grace_ms: 500 }).await;
+    command(&mut ws, "s", HostCommand::Stop { seat: seat.into(), grace_ms: 500, hard: false }).await;
     let mut results = Vec::new();
     while !results.iter().any(|(id, _): &(String, bool)| id == "s") {
         if let FromHost::CommandResult { command_id, ok, .. } = recv(&mut ws).await {

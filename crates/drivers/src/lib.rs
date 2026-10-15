@@ -174,6 +174,11 @@ pub trait Session: Send {
     async fn send(&mut self, msg: OutboundMessage) -> Result<(), DriverError>;
     async fn interrupt(&mut self) -> Result<(), DriverError>;
     async fn stop(&mut self, grace: Duration) -> Result<(), DriverError>;
+    /// Stops now, like Ctrl+C in a terminal: interrupts the program and everything it started,
+    /// then forces whatever is left after `HARD_STOP_FORCE_AFTER`. Default: stop with no grace.
+    async fn hard_stop(&mut self) -> Result<(), DriverError> {
+        self.stop(Duration::ZERO).await
+    }
     /// Answers a question this session raised with `DriverEvent::QuestionRaised`.
     async fn answer(&mut self, _question_id: &str, _answer: Answer) -> Result<(), DriverError> {
         Err(DriverError::Unsupported("answer"))
@@ -181,6 +186,9 @@ pub trait Session: Send {
     /// Returns the event stream exactly once; it ends after `DriverEvent::Exited`.
     fn take_events(&mut self) -> Option<BoxStream<'static, DriverEvent>>;
 }
+
+/// How long a hard stop waits after its interrupt before it forces the stop.
+pub const HARD_STOP_FORCE_AFTER: Duration = Duration::from_secs(2);
 
 pub(crate) fn check_cwd(spec: &LaunchSpec) -> Result<(), DriverError> {
     if spec.cwd.is_dir() { Ok(()) } else { Err(DriverError::Cwd(spec.cwd.display().to_string())) }

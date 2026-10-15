@@ -187,7 +187,7 @@ impl Supervisor {
         let mut stops = tokio::task::JoinSet::new();
         for seat in running {
             let sup = self.clone();
-            stops.spawn(async move { sup.stop(seat, grace_ms).await.is_ok() });
+            stops.spawn(async move { sup.stop(seat, grace_ms, false).await.is_ok() });
         }
         stops.join_all().await.into_iter().filter(|ok| *ok).count()
     }
@@ -276,7 +276,7 @@ impl Supervisor {
                 Ok(())
             }
             HostCommand::Interrupt { seat } => self.on_session(&seat, |s| async move { s.lock().await.interrupt().await }).await,
-            HostCommand::Stop { seat, grace_ms } => self.stop(seat, grace_ms).await,
+            HostCommand::Stop { seat, grace_ms, hard } => self.stop(seat, grace_ms, hard).await,
             HostCommand::Answer { seat, question_id, answer } => {
                 self.on_session(&seat, |s| async move { s.lock().await.answer(&question_id, answer).await }).await
             }

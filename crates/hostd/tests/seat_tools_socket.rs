@@ -30,7 +30,7 @@ async fn a_stopped_agents_token_is_refused() {
     let dir = tempfile::tempdir().unwrap();
     let (sup, mut ws, socket, token) = tools_host(dir.path()).await;
     assert_eq!(sup.seat_for_token(&token).as_deref(), Some("dev.a@r"));
-    sup.handle(HostCommand::Stop { seat: "dev.a@r".into(), grace_ms: 100 }).await.unwrap();
+    sup.handle(HostCommand::Stop { seat: "dev.a@r".into(), grace_ms: 100, hard: false }).await.unwrap();
     assert_eq!(sup.seat_for_token(&token), None);
     let err = ended(blocking_call(&socket, &token, "report", json!({ "summary": "late" }))).await.unwrap_err();
     assert!(err.contains("not valid"), "{err}");

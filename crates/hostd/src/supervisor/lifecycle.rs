@@ -218,13 +218,17 @@ impl Supervisor {
     /// Stop never waits on a wedged send: it cancels in-flight commands (dropping their
     /// futures frees the session mutex), stops the process, then awaits the pump so the
     /// tenure's terminal events are journaled before returning.
-    pub(super) async fn stop(&self, seat: String, grace_ms: u64) -> Result<(), String> {
+    pub(super) async fn stop(&self, seat: String, grace_ms: u64, hard: bool) -> Result<(), String> {
         let LiveSeat { session, gate, cancel, mut pump, token, .. } = self.take_for_stop(&seat).await?;
         self.mark_stopping(&seat, &gate);
         let _ = cancel.send(true);
-        let grace = Duration::from_millis(grace_ms);
+        let grace = if hard { drivers::HARD_STOP_FORCE_AFTER } else { Duration::from_millis(grace_ms) };
         let bound = grace + Duration::from_secs(5);
-        let Ok(stopped) = tokio::time::timeout(bound, async { session.lock().await.stop(grace).await }).await else {
+        let stop = async {
+            let mut s = session.lock().await;
+            if hard { s.hard_stop().await } else { s.stop(grace).await }
+        };
+        let Ok(stopped) = tokio::time::timeout(bound, stop).await else {
             pump.abort();
             self.attention(&seat, "stop timed out".to_string());
             self.release(&seat, &token).await;

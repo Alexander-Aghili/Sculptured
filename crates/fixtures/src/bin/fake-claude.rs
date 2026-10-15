@@ -221,6 +221,19 @@ impl Fake {
                 std::process::exit(3);
             }
             "hang" => self.hang(stdin),
+            // Hard-stop tests: ignores Ctrl+C's SIGINT, starts a `sleep` in its own process group
+            // (which inherits the ignored SIGINT), says the sleep's pid, then never ends the turn.
+            #[cfg(unix)]
+            "stubborn" => {
+                // SAFETY: setting a signal disposition before any other thread could rely on it.
+                unsafe { libc::signal(libc::SIGINT, libc::SIG_IGN) };
+                let child = std::process::Command::new("sleep").arg("600").stdout(std::process::Stdio::null()).spawn().unwrap();
+                let m = self.message_id();
+                self.assistant(&m, json!({ "type": "text", "text": format!("child {}", child.id()) }), None, "fake", MAIN);
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(3600));
+                }
+            }
             "subagent" => self.subagent(),
             "unknown" => {
                 self.emit_raw(&json!({ "type": "mystery", "detail": 1 }));

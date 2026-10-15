@@ -302,4 +302,4 @@ pub(crate) async fn launch_one(st: &AppState, seat: &rigspec::CompiledSeat, spec
 }
 
 pub use jobs::{deliver_jobs, HANDOFF_ACTOR, STARTED_AGAIN, TEAM_START_ACTOR};
-pub use seats::{interrupt_seat, restart_seat, send_message, send_message_as, stop_rig, stop_seat};
+pub use seats::{interrupt_seat, restart_seat, send_message, send_message_as, stop_rig, stop_seat, stop_seat_now};

@@ -100,7 +100,7 @@ async fn stop_cancels_a_pending_answer() {
         s2.handle(HostCommand::Answer { seat: SEAT.into(), question_id: "q1".into(), answer: Answer::Allow }).await
     });
     wait_until("the answer reached the session", || !rig.answers.lock().unwrap().is_empty()).await;
-    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 100 }).await.unwrap();
+    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 100, hard: false }).await.unwrap();
     let err = tokio::time::timeout(Duration::from_secs(3), pending).await.expect("cancelled in time").unwrap().unwrap_err();
     assert!(err.contains("is stopping"), "{err}");
 }
@@ -248,7 +248,7 @@ async fn the_token_is_forgotten_when_a_stop_times_out() {
     until(&mut rx, idle).await;
     let token = token_of(&rig);
     // The session never stops, so its events never end: only Stop's own cleanup can forget the token.
-    let err = s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 0 }).await.unwrap_err();
+    let err = s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 0, hard: false }).await.unwrap_err();
     assert_eq!(err, "stop timed out");
     assert_eq!(s.seat_for_token(&token), None);
     assert!(!config_of(&rig).exists(), "the config file goes with the token");
@@ -301,7 +301,7 @@ async fn seat_tools_token_lives_as_long_as_the_process() {
     assert_eq!(tools.args, vec!["seat-tools".to_string()]);
     let token = tools.env.iter().find(|(k, _)| k == TOKEN_ENV).unwrap().1.clone();
     assert_eq!(s.seat_for_token(&token).as_deref(), Some(SEAT));
-    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 100 }).await.unwrap();
+    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 100, hard: false }).await.unwrap();
     assert_eq!(s.seat_for_token(&token), None, "the token dies with the process");
 }
 
@@ -342,7 +342,7 @@ async fn the_config_file_lives_in_a_private_folder_until_stop() {
     assert!(file.file_name().unwrap().to_str().unwrap().starts_with("dev.a@r."), "{file:?}");
     assert_eq!(std::fs::metadata(&folder).unwrap().permissions().mode() & 0o777, 0o700);
     assert!(file.exists());
-    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 100 }).await.unwrap();
+    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 100, hard: false }).await.unwrap();
     assert!(!file.exists(), "removed on stop");
 }
 
@@ -387,6 +387,6 @@ async fn a_driver_that_takes_no_config_file_gets_none() {
     assert!(!dir.path().join("seat-tools").exists(), "no folder for a file nobody writes");
     let token = tools.env.iter().find(|(k, _)| k == TOKEN_ENV).unwrap().1.clone();
     assert_eq!(s.seat_for_token(&token).as_deref(), Some(SEAT));
-    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 100 }).await.unwrap();
+    s.handle(HostCommand::Stop { seat: SEAT.into(), grace_ms: 100, hard: false }).await.unwrap();
     assert_eq!(s.seat_for_token(&token), None, "forgotten on stop");
 }

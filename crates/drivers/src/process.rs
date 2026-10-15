@@ -69,6 +69,28 @@ pub(crate) fn kill_group(child: &Child) {
     }
 }
 
+/// Sends SIGINT, what Ctrl+C in a terminal sends, to the process group this driver created for
+/// `pid` (its leader), unless the child has exited. Windows: agents have no console, so nothing
+/// can be sent; the force that follows ends them.
+pub(crate) fn interrupt_group(pid: Option<u32>, exited: &watch::Receiver<bool>) {
+    #[cfg(unix)]
+    if let Some(pid) = pid.filter(|_| !*exited.borrow()) {
+        // SAFETY: signalling the group this driver created for its child, which has not exited
+        // (`exited` is set once it is reaped), so the group id is still that child's.
+        unsafe {
+            libc::killpg(pid as i32, libc::SIGINT);
+        }
+    }
+    #[cfg(windows)]
+    let _ = (pid, exited);
+}
+
+/// A hard stop: interrupt at once, force after `HARD_STOP_FORCE_AFTER`.
+pub(crate) async fn hard_stop(pid: Option<u32>, exited: &watch::Receiver<bool>, kill: &mut Option<oneshot::Sender<()>>) {
+    interrupt_group(pid, exited);
+    stop_within(crate::HARD_STOP_FORCE_AFTER, exited, kill).await;
+}
+
 /// Signals the process group this driver created (the child is its leader).
 #[cfg(unix)]
 pub(crate) fn kill_group(child: &Child) {

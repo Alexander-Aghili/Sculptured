@@ -209,6 +209,8 @@ struct CodexSession {
     exited: watch::Receiver<bool>,
     /// The event channel, for the driver's own notes; weak, so the stream still ends after `Exited`.
     notes: mpsc::WeakUnboundedSender<DriverEvent>,
+    /// The app-server's pid, which leads the process group the driver made for it.
+    pid: Option<u32>,
 }
 
 impl CodexSession {
@@ -222,10 +224,11 @@ impl CodexSession {
         let (kill_tx, kill_rx) = oneshot::channel::<()>();
         let (exited_tx, exited_rx) = watch::channel(false);
         let notes = tx.downgrade();
+        let pid = p.child.id();
         let reader = Reader { core: core.clone(), write: write.clone(), tx };
         tokio::spawn(reader.run(p, kill_rx, exited_tx));
         let events = Some(UnboundedReceiverStream::new(rx).boxed());
-        Self { core, write, events, kill: Some(kill_tx), exited: exited_rx, notes }
+        Self { core, write, events, kill: Some(kill_tx), exited: exited_rx, notes, pid }
     }
 
     fn write(&self, line: String) -> Result<(), DriverError> {
@@ -281,6 +284,12 @@ impl Session for CodexSession {
     async fn stop(&mut self, grace: Duration) -> Result<(), DriverError> {
         let _ = self.write.send(None);
         process::stop_within(grace, &self.exited, &mut self.kill).await;
+        Ok(())
+    }
+
+    async fn hard_stop(&mut self) -> Result<(), DriverError> {
+        process::hard_stop(self.pid, &self.exited, &mut self.kill).await;
+        let _ = self.write.send(None);
         Ok(())
     }
 

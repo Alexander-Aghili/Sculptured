@@ -70,13 +70,11 @@ pub async fn control_agent(st: &AppState, seat: &str, control: Control) -> Resul
         {
             record(st, id, ControlMode::Hard)?;
         }
-        for id in children
-            .iter()
-            .rev()
-            .map(String::as_str)
-            .chain(std::iter::once(seat))
-        {
-            if let Err(e) = reconciler::stop_seat(st, id).await {
+        // All at once: each stop interrupts at once and forces after 2 s, whatever the others do.
+        let ids: Vec<&str> = children.iter().rev().map(String::as_str).chain(std::iter::once(seat)).collect();
+        let stops = ids.iter().map(|id| reconciler::stop_seat_now(st, id));
+        for (id, r) in ids.iter().zip(futures::future::join_all(stops).await) {
+            if let Err(e) = r {
                 failures.push(format!("{id}: {}", e.message));
             }
         }
