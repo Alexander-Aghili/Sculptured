@@ -1,4 +1,5 @@
 import { track } from '../hosted/analytics';
+import { TrashItem } from './TrashItem';
 import { CliAccounts } from './CliAccounts';
 import {DismissibleError} from './DismissibleError';
 import { useEffect, useRef, useState } from 'react';
@@ -128,7 +129,13 @@ export function Sidebar({ teams, selected, currentAgent, currentRig, project, no
     try {await api.setProjectVisibility(id,status);setVisibility(old=>({...old,[id]:status}));window.dispatchEvent(new Event('project-visibility-changed'));if(status==='trashed'&&(id===currentRig||id===project))navigate('/?all');}
     catch(e){setVisibilityError(errorText(e));}finally{setBusy(null);}
   };
-  const visibleTeams=teams.filter(t=>!visibility[t.rig]||visibility[t.rig]==='visible');
+  const [deleted,setDeleted]=useState<Set<string>>(new Set());
+  const deleteForever=async(id:string)=>{
+    setBusy(id);setVisibilityError('');
+    try {await api.deleteProjectForever(id);setDeleted(old=>new Set(old).add(id));window.dispatchEvent(new Event('project-visibility-changed'));}
+    catch(e){setVisibilityError(errorText(e));}finally{setBusy(null);}
+  };
+  const visibleTeams=teams.filter(t=>!deleted.has(t.rig)&&(!visibility[t.rig]||visibility[t.rig]==='visible'));
   const listRef = useRef<HTMLDivElement>(null);
   const [expanded,setExpanded]=useState<Record<string,boolean>>(()=>{try{return JSON.parse(localStorage.getItem("sculptured.sidebar.expanded") ?? "{}")}catch{return {}}});
   const toggle=(id:string,open:boolean)=>setExpanded(old=>{const next={...old,[id]:!open};try{localStorage.setItem("sculptured.sidebar.expanded",JSON.stringify(next))}catch{/* Session only */}return next});
@@ -188,10 +195,12 @@ export function Sidebar({ teams, selected, currentAgent, currentRig, project, no
           );
         })}
         {(['hidden','trashed'] as const).map(status=>{
-          const items=teams.filter(t=>visibility[t.rig]===status);
+          const items=teams.filter(t=>visibility[t.rig]===status&&!deleted.has(t.rig));
           return items.length>0&&<details className="project-storage" key={status}><summary>{status==='hidden'?'Hidden projects':'Trash'} ({items.length})</summary>
             {status==='trashed'&&<p className="muted">Drafts, files and history are retained.</p>}
-            {items.map(t=><div key={t.rig}><span>{t.title}</span><button className="btn btn-sm" disabled={busy===t.rig} onClick={()=>void changeVisibility(t.rig,'visible')}>{status==='hidden'?'Show':'Restore'}</button></div>)}
+            {items.map(t=>status==='trashed'
+              ?<TrashItem key={t.rig} title={t.title} busy={busy===t.rig} onRestore={()=>void changeVisibility(t.rig,'visible')} onDelete={()=>void deleteForever(t.rig)}/>
+              :<div key={t.rig}><span>{t.title}</span><button className="btn btn-sm" disabled={busy===t.rig} onClick={()=>void changeVisibility(t.rig,'visible')}>Show</button></div>)}
           </details>;
         })}
       </div>

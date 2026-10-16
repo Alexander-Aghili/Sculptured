@@ -197,3 +197,7 @@ button, input, textarea, select { font-family:var(--font-ui); }
 .hidden-more .hidden-agents-toggle { width:100%; min-height:56px; font-size:15px; }
 .hidden-agents-list { list-style:none; margin:0; padding:6px; display:grid; gap:4px; max-height:240px; overflow:auto; border:1px solid var(--line, #d6e0de); border-radius:8px; background:var(--surface, #fff); box-shadow:0 2px 8px rgb(0 0 0 / .12); }
 .hidden-agents-list .btn { width:100%; justify-content:flex-start; text-align:left; }
+.project-storage>.trash-item { flex-wrap:wrap; justify-content:flex-start; }
+.project-storage>.trash-item>span { flex:1; }
+.trash-confirm { flex-basis:100%; display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); }
+.trash-confirm p { flex-basis:100%; margin:0; }

@@ -56,7 +56,7 @@ let csrfToken: string | null = null;
 /** Hosted beta: the gateway's per-session CSRF token, sent with every write. */
 export function setCsrf(token: string | null) { csrfToken = token; }
 
-async function request<T>(method: 'GET' | 'POST' | 'PUT', url: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+async function request<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.text) headers['content-type'] = opts.text.type;
   else if (body !== undefined) headers['content-type'] = 'application/json';
@@ -180,6 +180,8 @@ export const api = {
     post<{ resent: number }>(`${seatUrl(id)}/resend`, requestId),
 
   projectVisibility: () => get<import('./generated/ProjectVisibility').ProjectVisibility[]>('/api/project-visibility'),
+  /** Deletes a project in the Trash forever (its design, runs and history; not its folder). */
+  deleteProjectForever: (id: string) => request<{ deleted: string }>('DELETE', `/api/project-visibility/${encodeURIComponent(id)}`),
   setProjectVisibility: (id:string,status:import('./generated/ProjectVisibilityStatus').ProjectVisibilityStatus) => request<import('./generated/ProjectVisibility').ProjectVisibility>('PUT', `/api/project-visibility/${encodeURIComponent(id)}`, {status}),
   listTeams: () => get<TeamSummary[]>('/api/teams'),
   prepareTextbook: (id: string, revision: number) => request<{folder:string;files:number;commands:string[]}>('POST', `${teamUrl(id)}/textbook/prepare`, {revision}),
