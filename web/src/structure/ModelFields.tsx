@@ -1,9 +1,10 @@
+import { Btn } from '../shell/ui';
 import './agent-details.css';
 import type { DraftAgent } from '../generated/DraftAgent';
 import type { ModelDefaults } from '../generated/ModelDefaults';
 import type { TeamDraft } from '../generated/TeamDraft';
 import { setAdvanced } from '../draft/edits';
-import { groupDefault, isModelKind, setGroupModel, setKind, setKindAll, setTeamModel, type ModelKind } from '../draft/models';
+import { groupDefault, isModelKind, notOnTeamModel, setGroupModel, setKind, setKindAll, setTeamModel, toTeamModels, type ModelKind } from '../draft/models';
 import { KIND_LABEL } from '../vocab';
 import { KindSwitch, modelLabel, ModelSelect } from './ModelControls';
 import { LOCK_REASON, type Edit } from './Panels';
@@ -69,6 +70,7 @@ export function TeamModelFields({ draft, edit, locked }: Common) {
       <p className="muted fld-hint">Switches every agent. Ctrl+Z undoes it.</p>
       <span className="fld-label">Team models</span>
       <DefaultsPair models={draft.models} label="Team" locked={locked} inherited={(k) => modelLabel(k, null)} onChange={(k, m) => edit((d) => setTeamModel(d, k, m), `team-model:${k}`)} />
+      <OwnModels draft={draft} edit={edit} locked={locked} />
       <LockNote locked={locked} />
     </div>
   );
@@ -86,6 +88,21 @@ export function GroupModelFields({ draft, edit, locked, groupId }: Common & { gr
       <span className="fld-label">Group models</span>
       <DefaultsPair models={g.models} label={g.label || 'Group'} locked={locked} inherited={(k) => (teamModel(k) ? `${modelLabel(k, teamModel(k))}, from the team` : modelLabel(k, null))} onChange={(k, m) => edit((d) => setGroupModel(d, groupId, k, m), `group-model:${groupId}:${k}`)} />
       <LockNote locked={locked} />
+    </div>
+  );
+}
+
+/** Agents the team's model does not reach (their own or their group's model wins), and a way back. */
+function OwnModels({ draft, edit, locked }: Common) {
+  const own = notOnTeamModel(draft);
+  if (own.length === 0) return null;
+  return (
+    <div className="fld-hint own-models" role="status">
+      <p>
+        {own.length === 1 ? '1 agent uses' : `${own.length} agents use`} its own model, which the team model does not change:{' '}
+        {own.map((a) => `${a.name} (${a.model})`).join(', ')}.
+      </p>
+      <Btn disabled={locked} onClick={() => edit(toTeamModels)}>Use the team models for every agent</Btn>
     </div>
   );
 }

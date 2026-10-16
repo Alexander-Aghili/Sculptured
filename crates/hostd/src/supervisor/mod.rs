@@ -127,12 +127,12 @@ impl Supervisor {
         match op {
             localops::LocalOp::Describe => Ok(serde_json::to_value(pol.info()).expect("serializes")),
             // The top of a connected computer is its allowed folders.
-            localops::LocalOp::ListFolder { path: None } => Ok(serde_json::json!({
+            localops::LocalOp::ListFolder { path: None, .. } => Ok(serde_json::json!({
                 "path": "", "parent": null, "home": "", "truncated": false,
                 "entries": pol.allowed_folders.iter().map(|f| serde_json::json!({"name": f.display().to_string(), "path": f.display().to_string()})).collect::<Vec<_>>(),
             })),
             // Browse within the allowed folder that holds the path: it acts as home, so nothing above it shows.
-            localops::LocalOp::ListFolder { path: Some(ref p) } | localops::LocalOp::CreateFolder { parent: ref p, .. } => {
+            localops::LocalOp::ListFolder { path: Some(ref p), .. } | localops::LocalOp::CreateFolder { parent: ref p, .. } => {
                 let mut cx = ops.context.clone();
                 cx.home = pol.root_of(std::path::Path::new(p)).map(std::path::Path::to_path_buf).unwrap_or(cx.home);
                 localops::execute(&cx, op).await

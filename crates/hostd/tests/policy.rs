@@ -85,7 +85,7 @@ fn ops_stay_inside_allowed_folders_and_respect_capabilities() {
         let mut pol = RunnerPolicy::default(); pol.allow(&proj).unwrap();
     let p = |s: &std::path::Path| s.display().to_string();
     assert!(pol.check_op(&LocalOp::GitStatus { repo: p(&proj) }).is_ok());
-    for bad in [LocalOp::GitStatus { repo: p(&outside) }, LocalOp::GitStatus { repo: p(&proj.join("escape")) }, LocalOp::ListFolder { path: Some(p(&outside)) },
+    for bad in [LocalOp::GitStatus { repo: p(&outside) }, LocalOp::GitStatus { repo: p(&proj.join("escape")) }, LocalOp::ListFolder { path: Some(p(&outside)), files: false },
                 LocalOp::CreateFolder { parent: p(&outside), name: "x".into() }, LocalOp::CopiesRead { project: Some(p(&outside)), team: "t".into(), seats: vec![], enabled: true }] {
         let e = pol.check_op(&bad).unwrap_err();
         assert_eq!(e.code, "not_allowed_here", "{bad:?}");

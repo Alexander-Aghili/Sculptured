@@ -120,7 +120,7 @@ export function TeamLive(p: Props) {
     return next;
   });
   const snap = state.snapshot!;
-  const links = usePolled(() => Promise.all([api.communications(rig), api.managedChildren(rig)]), 5000, [rig, state.epoch]);
+  const links = usePolled(() => Promise.all([api.runCommunications(rig), api.managedChildren(rig)]), 5000, [rig, state.epoch]);
   const [observed, children] = links.data ?? NO_LINKS;
   const observedError = links.error && 'Communication history unavailable; showing captured live events.';
   // Live events arrive many times a second; the arrows change only with a message, a handoff or a

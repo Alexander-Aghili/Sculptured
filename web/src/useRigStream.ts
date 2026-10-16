@@ -4,6 +4,7 @@ import type { SeatView } from './generated/SeatView';
 import type { StreamItem } from './generated/StreamItem';
 import type { EventRecord } from './generated/EventRecord';
 import type { TaggedStreamItem } from './generated/TaggedStreamItem';
+import { shortenForFeed } from './liveText';
 
 export type RigState = {
   snapshot: RigSnapshot | null;
@@ -51,7 +52,8 @@ export function reduce(state: RigState, msg: StreamMsg): RigState {
   // an older seat view, so it must not replace the one already shown.
   if (prev.length > 0 && prev[prev.length - 1].seq >= event.seq) return state;
   const seats = seat ? { ...state.seats, [seat.id]: seat } : state.seats;
-  const next = [...prev, event].slice(-FEED_LIMIT);
+  // Long tool output and briefings are cut in this list; the open agent loads its events in full.
+  const next = [...prev, shortenForFeed(event)].slice(-FEED_LIMIT);
   return { ...state, seats, feed: { ...state.feed, [id]: next } };
 }
 

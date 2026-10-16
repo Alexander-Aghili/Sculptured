@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, HISTORY_LIMIT } from './api';
 import type { EventRecord } from './generated/EventRecord';
 import { FEED_LIMIT } from './useRigStream';
+import { isShortened } from './liveText';
 
 export const GAP_NOTICE = 'Some events between history and live updates were not loaded.';
 
@@ -35,10 +36,9 @@ export function useSeatEvents(seatId: string, feed: EventRecord[], epoch: number
     }
   }, [gap, loaded]);
 
-  const events = useMemo(() => {
-    const base = history ?? [];
-    return [...base, ...feed.filter((e) => e.seq > last)];
-  }, [history, feed, last]);
+  const live = useMemo(() => feed.filter((e) => e.seq > last), [feed, last]);
+  const full = useFullCopies(seatId, live);
+  const events = useMemo(() => [...(history ?? []), ...live.map((e) => full.get(e.seq) ?? e)], [history, live, full]);
 
   return {
     events,
@@ -66,4 +66,46 @@ function useHistory(seatId: string, epoch: number, reloads: number) {
     };
   }, [seatId, epoch, reloads]);
   return { loaded, failed };
+}
+
+const NO_COPIES = new Map<number, EventRecord>();
+/** Full copies kept for one agent at most (the newest win). */
+const MAX_COPIES = 500;
+
+/**
+ * Full copies of the open agent's live events whose long text the live list cut (`liveText`),
+ * fetched from the server at most once a second.
+ */
+function useFullCopies(seatId: string, live: EventRecord[]): Map<number, EventRecord> {
+  const [full, setFull] = useState<{ seatId: string; bySeq: Map<number, EventRecord> }>({ seatId, bySeq: NO_COPIES });
+  const [retries, setRetries] = useState(0);
+  const lastFetch = useRef(0);
+  const have = full.seatId === seatId ? full.bySeq : NO_COPIES;
+  const from = live.find((e) => isShortened(e) && !have.has(e.seq))?.seq;
+  useEffect(() => {
+    if (from === undefined) return;
+    let current = true;
+    const t = setTimeout(() => {
+      lastFetch.current = Date.now();
+      api
+        .seatEventsAfter(seatId, from - 1, 200)
+        .then((list) => current && setFull((prev) => ({ seatId, bySeq: withCopies(prev.seatId === seatId ? prev.bySeq : NO_COPIES, list) })))
+        .catch(() => current && setTimeout(() => setRetries((n) => n + 1), 3000));
+    }, Math.max(0, lastFetch.current + 1000 - Date.now()));
+    return () => {
+      current = false;
+      clearTimeout(t);
+    };
+  }, [seatId, from, retries]);
+  return have;
+}
+
+function withCopies(prev: Map<number, EventRecord>, list: EventRecord[]): Map<number, EventRecord> {
+  const next = new Map(prev);
+  for (const e of list) next.set(e.seq, e);
+  for (const k of next.keys()) {
+    if (next.size <= MAX_COPIES) break;
+    next.delete(k);
+  }
+  return next;
 }

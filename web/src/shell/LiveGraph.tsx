@@ -12,6 +12,7 @@ import { EDGE_WORDS, nameForId, NOT_ENFORCED, WORDS, type NameMap } from '../voc
 import type { AgentRow } from './model';
 import { Btn, Icon, StateMark, StuckMark, VendorMark, WaitingMark } from './ui';
 import { usePanZoom } from './viewport';
+import { boxInView, useElementSize, visibleWorld } from './culling';
 import { placeLabels } from './labels';
 import type { TeamDraft } from '../generated/TeamDraft';
 import { seatIdFor } from '../draft/ids';
@@ -280,6 +281,20 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
 
   useImperativeHandle(ref, () => ({ fit, zoomBy: (f: number) => zoomAt(f) }), [fit, zoomAt]);
 
+  // Only what is on screen (and a margin) is drawn in full: a big run's off-screen cards, groups and
+  // arrows cost nothing. Off-screen agents keep a bare focusable stub, so Tab still reaches them.
+  const size = useElementSize(viewportEl);
+  const seen = visibleWorld(vp, size.w, size.h);
+  const viewKey = seen ? `${seen.x0},${seen.y0},${seen.x1},${seen.y1}` : '';
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the rounded view changes only now and then
+  const view = useMemo(() => seen, [viewKey]);
+  const edgeInView = (e: { from: string; to: string }) => {
+    const a = projection.boxes[e.from] ?? layout.seats[e.from], b = projection.boxes[e.to] ?? layout.seats[e.to];
+    if (!a || !b) return true;
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return boxInView(view, { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y });
+  };
+
   // Returning from an agent pane: focus the box that was selected.
   useEffect(() => {
     if (!selected) return;
@@ -324,6 +339,7 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
             if (!original) return null;
             const hidden = collapsed.has(p.id);
             const b = hidden ? closedGroupBox(original) : original;
+            if (!boxInView(view, b)) return null;
             return (
               <div key={p.id} className={`group-box${hidden ? ' group-collapsed' : ''}`} style={{ left: b.x, top: b.y, width: b.w, height: b.h }}>
                 <span className="group-title">
@@ -346,7 +362,7 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
             </defs>
             {drawnEdges.map((e) => {
               const g = routes.get(e);
-              if (!g) return null;
+              if (!g || !edgeInView(e)) return null;
               const flowing = !liveOnly && agents[e.from]?.state.key === 'working';
               const pulsing = e.enforced && (e.kind === 'delegates_to' || liveOnly) && !!pulses?.has(pulseKey(e.from, e.to));
               return (
@@ -367,7 +383,7 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
           {workflowDraft && onWorkflow && <WorkflowGraph collapsed={collapsed} draft={workflowDraft} onOpen={onWorkflow} onReveal={reveal} readOnly />}
           {drawnEdges.map((e, i) => {
             const g = spots.get(String(i));
-            if (!g) return null;
+            if (!g || !edgeInView(e)) return null;
             return (
               <span
                 key={`l-${e.kind}-${e.from}-${e.to}`}
@@ -384,6 +400,18 @@ export function LiveGraph({ viewportKey, rig, compiled, agents, layout: given, n
             const b = layout.seats[s.id];
             const a = agents[s.id];
             if (!b || !a || projection.hidden.has(s.id) || fold.hidden.has(s.id)) return null;
+            if (!boxInView(view, b)) {
+              const focusCard = () => {
+                reveal(b);
+                onSelect?.(s.id);
+                requestAnimationFrame(() => viewportEl.current?.querySelector<HTMLElement>(`[data-agent="${CSS.escape(s.id)}"]`)?.focus({ preventScroll: true }));
+              };
+              return (
+                <div key={s.id} className="card-slot card-stub" style={{ left: b.x, top: b.y, width: b.w, height: b.h }}>
+                  <button type="button" aria-label={`${a.name} — ${a.state.word}`} onFocus={focusCard} onClick={() => onOpen(s.id)} />
+                </div>
+              );
+            }
             return (
               <div key={s.id} className="card-slot" style={{ left: b.x, top: b.y, width: b.w, height: b.h }} onPointerEnter={() => setHover(s.id)} onPointerLeave={() => setHover((h) => (h === s.id ? null : h))}>
                 <AgentBox

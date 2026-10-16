@@ -656,6 +656,19 @@ describe('Structure board: the Input box', () => {
     await waitFor(() => expect(lastSaved().input).toBeUndefined());
   });
 
+  it('Upload picks files on the computer and adds their paths to the Input for the agents to open', async () => {
+    await board();
+    vi.mocked(api.listFolders).mockResolvedValue({ path: '/home/me', parent: null, home: '/home/me', entries: [], truncated: false, files: [{ name: 'document_example.pdf', path: '/home/me/document_example.pdf' }] });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Add the Input' }));
+    const editor = screen.getByRole('dialog', { name: 'Input' });
+    await user.type(within(editor).getByRole('textbox', { name: 'Input text' }), 'Read the manual');
+    await user.click(within(editor).getByRole('button', { name: 'Upload' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'document_example.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Add 1 file' }));
+    await waitFor(() => expect(lastSaved().input?.text).toBe('Read the manual\n/home/me/document_example.pdf'));
+  });
+
   it('drags in from the bar to where it is dropped, moves by keys, and Delete removes it', async () => {
     await board();
     sizeViewport();

@@ -13,4 +13,9 @@ entries: Array<FolderEntry>,
 /**
  * More than MAX_ENTRIES sub-folders: the rest are not shown.
  */
-truncated: boolean, };
+truncated: boolean, 
+/**
+ * The folder's files (names and paths, never contents, no dot-files), only when asked for.
+ * Absent from an older runner, which cannot list files.
+ */
+files?: Array<FolderEntry>, };

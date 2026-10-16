@@ -2,6 +2,7 @@ import { errorText } from './errors';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import type { EventRecord } from './generated/EventRecord';
+import { isShortened } from './liveText';
 
 /**
  * Recent history for each of a team's agents (`tail` events each), merged with the live
@@ -32,7 +33,7 @@ export function useTeamEvents(seatIds: string[], feed: Record<string, EventRecor
   const events = useMemo(() => {
     const bySeq = new Map<number, EventRecord>();
     for (const list of Object.values(history)) for (const e of list) bySeq.set(e.seq, e);
-    for (const list of Object.values(feed)) for (const e of list) bySeq.set(e.seq, e);
+    for (const list of Object.values(feed)) for (const e of list) if (!(isShortened(e) && bySeq.has(e.seq))) bySeq.set(e.seq, e);
     return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
   }, [history, feed]);
   return { events, error };

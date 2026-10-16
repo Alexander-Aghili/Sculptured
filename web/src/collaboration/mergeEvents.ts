@@ -1,8 +1,14 @@
 import type { EventRecord } from '../generated/EventRecord';
+import { isShortened } from '../liveText';
 
-/** Stored history and the live feed, once per event (by sequence number), oldest first. */
+/**
+ * Stored history and the live feed, once per event (by sequence number), oldest first. A live
+ * copy wins unless its long text was cut and the full copy is here.
+ */
 export function mergeEvents(history: EventRecord[], feed: Record<string, EventRecord[]>): EventRecord[] {
-  return [...new Map([...history, ...Object.values(feed).flat()].map((e) => [e.seq, e])).values()].sort((a, b) => a.seq - b.seq);
+  const bySeq = new Map<number, EventRecord>();
+  for (const e of [...history, ...Object.values(feed).flat()]) if (!(isShortened(e) && bySeq.has(e.seq))) bySeq.set(e.seq, e);
+  return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
 }
 
 /** The event types the Run board's arrows and the Communications view read (not tool calls or replies). */

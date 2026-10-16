@@ -22,7 +22,10 @@ export function MeterRow({ m, now }: { m: Meter; now: number }) {
     return <div className="run-meter"><span>{m.what}</span><span className="muted">waiting for the first plan reading</span><span /></div>;
   }
   const evidence = [m.estimated ? 'includes an estimate' : '', age(m.observed_ms, now)].filter(Boolean).join(' · ');
-  const words = `${m.what}: ${amount(m, m.used)} of ${amount(m, m.hard)} · wrap-up at ${amount(m, m.soft)}`;
+  // A plan budget is the run's own share of the window, not the window's level (which includes other use).
+  const words = m.unit === 'percent'
+    ? `${m.what}: this run used ${amount(m, m.used)} of the window · it may use ${amount(m, m.hard)}, wraps up at ${amount(m, m.soft)}`
+    : `${m.what}: ${amount(m, m.used)} of ${amount(m, m.hard)} · wrap-up at ${amount(m, m.soft)}`;
   return (
     <div className="run-meter">
       <span>{words}</span>

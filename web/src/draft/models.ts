@@ -55,3 +55,18 @@ export const setGroupModel = (d: TeamDraft, groupId: string, k: ModelKind, model
 /** The default for agents in a group, before any agent override: the group's, else the team's. */
 export const groupDefault = (d: TeamDraft, groupId: string | null, k: ModelKind): string | null =>
   pick(d.groups.find((g) => g.id === groupId)?.models, k) ?? pick(d.models, k);
+
+/** Agents whose model is set on the agent or its group, so changing the team's model does not change theirs. */
+export function notOnTeamModel(d: TeamDraft): { id: string; name: string; model: string }[] {
+  return d.agents.flatMap((a) => {
+    const { model, source } = effectiveModel(d, a);
+    return model && (source === 'agent' || source === 'group') ? [{ id: a.id, name: a.name.trim() || 'Unnamed agent', model }] : [];
+  });
+}
+
+/** Every agent and group back on the team's models: their own model settings are cleared. */
+export const toTeamModels = (d: TeamDraft): TeamDraft => ({
+  ...d,
+  groups: d.groups.map((g) => ({ ...g, models: { claude: null, codex: null } })),
+  agents: d.agents.map((a) => ({ ...a, advanced: { ...a.advanced, model: null } })),
+});

@@ -1,5 +1,6 @@
 //! Folder picker backend. Rooted at the home folder, with symlinks resolved before every
-//! check. It lists directories only: file names and file contents are never returned.
+//! check. It lists directories, and file names only when asked (to attach files to a team's
+//! Input); file contents are never returned.
 //!
 //! Paths are resolved one part at a time (`resolve_inside`), never looking up anything
 //! outside home or its ancestors. The checks are path-based, so they are not race-free: a process running as the same user that swaps a folder for a symlink between
@@ -37,6 +38,11 @@ pub struct FolderListing {
     pub entries: Vec<FolderEntry>,
     /// More than MAX_ENTRIES sub-folders: the rest are not shown.
     pub truncated: bool,
+    /// The folder's files (names and paths, never contents, no dot-files), only when asked for.
+    /// Absent from an older runner, which cannot list files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub files: Option<Vec<FolderEntry>>,
 }
 
 pub const MAX_ENTRIES: usize = 2000;
@@ -265,7 +271,23 @@ fn folder_entry(home: &Home, entry: &std::fs::DirEntry) -> Option<FolderEntry> {
     Some(FolderEntry { name, path })
 }
 
-pub fn listing(home: &Home, requested: Option<&str>) -> Result<FolderListing, LocalError> {
+/// The plain files in `dir` (a canonical folder inside home), not dot-files, sorted.
+fn file_entries(dir: &Path) -> Result<Vec<FolderEntry>, LocalError> {
+    let read = std::fs::read_dir(dir).map_err(|_| unreadable())?;
+    let mut files: Vec<FolderEntry> = read
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|k| k.is_file()))
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok().filter(|n| !n.starts_with('.'))?;
+            Some(FolderEntry { path: e.path().to_str()?.to_string(), name })
+        })
+        .collect();
+    files.sort_by(by_name);
+    files.truncate(MAX_ENTRIES);
+    Ok(files)
+}
+
+pub fn listing(home: &Home, requested: Option<&str>, with_files: bool) -> Result<FolderListing, LocalError> {
     // Only an empty or all-blank `path` means home; a real path is used exactly as sent.
     let dir = match requested.filter(|p| !p.trim().is_empty()) {
         Some(p) => resolve_inside(home, Path::new(p))?,
@@ -277,7 +299,8 @@ pub fn listing(home: &Home, requested: Option<&str>) -> Result<FolderListing, Lo
     let truncated = entries.len() > MAX_ENTRIES;
     entries.truncate(MAX_ENTRIES);
     let parent = if dir == home.real { None } else { dir.parent().map(text).transpose()? };
-    Ok(FolderListing { path: text(&dir)?, parent, home: text(&home.real)?, entries, truncated })
+    let files = if with_files { Some(file_entries(&dir)?) } else { None };
+    Ok(FolderListing { path: text(&dir)?, parent, home: text(&home.real)?, entries, truncated, files })
 }
 
 /// Unicode general category Cf (format characters, Unicode 16): invisible characters
@@ -343,6 +366,21 @@ mod tests {
     use super::*;
     use std::path::Path;
     #[test]
+    fn files_are_listed_only_when_asked_and_never_hidden_ones() {
+        let root = tempfile::tempdir().unwrap();
+        let home = Home::of(root.path()).unwrap();
+        std::fs::create_dir_all(root.path().join("docs")).unwrap();
+        std::fs::write(root.path().join("docs/spec.pdf"), "x").unwrap();
+        std::fs::write(root.path().join("docs/.env"), "secret").unwrap();
+        let docs = root.path().join("docs").display().to_string();
+        assert_eq!(listing(&home, Some(&docs), false).unwrap().files, None, "folders only unless files are asked for");
+        let files = listing(&home, Some(&docs), true).unwrap().files.unwrap();
+        let names: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, ["spec.pdf"]);
+        assert!(files[0].path.ends_with("/docs/spec.pdf"));
+    }
+
+    #[test]
     fn listing_shows_subfolders_inside_home_and_refuses_escapes() {
         let root = tempfile::tempdir().unwrap();
         let home = Home::of(root.path()).unwrap();
@@ -351,12 +389,12 @@ mod tests {
         std::fs::write(root.path().join("file.txt"), "").unwrap();
         let outside = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(outside.path(), root.path().join("escape")).unwrap();
-        let l = listing(&home, None).unwrap();
+        let l = listing(&home, None, false).unwrap();
         let names: Vec<&str> = l.entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["proj"], "no files, no dot folders, no links out");
         assert!(l.parent.is_none());
-        assert!(listing(&home, Some(outside.path().to_str().unwrap())).is_err());
-        assert!(listing(&home, Some(&format!("{}/proj/../..", root.path().display()))).is_err());
+        assert!(listing(&home, Some(outside.path().to_str().unwrap()), false).is_err());
+        assert!(listing(&home, Some(&format!("{}/proj/../..", root.path().display())), false).is_err());
         let made = create(&home, root.path().join("proj").to_str().unwrap(), "new").unwrap();
         assert!(Path::new(&made.path).is_dir());
         assert_eq!(create(&home, root.path().join("proj").to_str().unwrap(), "../x").unwrap_err().code, "bad_folder_name");

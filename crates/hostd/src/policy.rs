@@ -129,8 +129,8 @@ impl RunnerPolicy {
         let off = |what: &str, flag: &str| Err(localops::LocalError::forbidden("not_allowed_here", format!("{what} is turned off on this computer (sculptured connect … --enable {flag})")));
         let p = |s: &str| self.resolve(s).map(|p| p.display().to_string());
         Ok(match op.clone() {
-            Op::Describe | Op::ListFolder { path: None } | Op::Clis => op.clone(),
-            Op::ListFolder { path: Some(path) } => Op::ListFolder { path: Some(p(&path)?) },
+            Op::Describe | Op::ListFolder { path: None, .. } | Op::Clis => op.clone(),
+            Op::ListFolder { path: Some(path), files } => Op::ListFolder { path: Some(p(&path)?), files },
             Op::CreateFolder { parent, name } => Op::CreateFolder { parent: p(&parent)?, name },
             Op::GitStatus { .. } | Op::GitDiff { .. } | Op::GitAct { .. } if !caps.git => return off("Git", "git"),
             Op::GitStatus { repo } => Op::GitStatus { repo: p(&repo)? },

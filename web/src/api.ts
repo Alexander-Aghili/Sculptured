@@ -147,6 +147,8 @@ export const api = {
   managedChildren: (id:string) => get<import('./generated/ManagedChild').ManagedChild[]>(`${teamUrl(id)}/children`),
   /** The team's latest message, handoff and start events; `usage` adds its model-usage reports. */
   communications: (id: string, usage = false) => get<EventRecord[]>(`${teamUrl(id)}/communications${usage ? '?usage=true' : ''}`),
+  /** The latest run's message, handoff and start events with long text cut: what the Run board's arrows count. */
+  runCommunications: (id: string) => get<EventRecord[]>(`${teamUrl(id)}/communications?run=latest&brief=true`),
   agentControl: (id: string) => get<{mode: string | null}>(`${seatUrl(id)}/control`),
   controlAgent: (id: string, mode: "soft" | "hard" | "resume", requestId: string) => post(`${seatUrl(id)}/control`, requestId, {mode}),
   workflow: (id: string) => get<{ config: Workflow | null; run: WorkflowRun | null; active: boolean; usage?: Record<string, import('./generated/TurnTokens').TurnTokens> }>(`${teamUrl(id)}/workflow`),
@@ -164,6 +166,8 @@ export const api = {
     post<StopRigOutcome>(`${rigUrl(name)}/stop`, requestId),
   /** Each agent's newest `tail` events for a whole team, long text shortened (one request for the board). */
   teamRecent: (id: string, tail: number) => get<Record<string, EventRecord[]>>(`${teamUrl(id)}/recent?tail=${tail}`),
+  /** The agent's events after `after`, oldest first, in full. */
+  seatEventsAfter: (id: string, after: number, limit: number) => get<EventRecord[]>(`${seatUrl(id)}/events?after=${after}&limit=${limit}`),
   latestSeatEvents: (id: string, tail = HISTORY_LIMIT) =>
     get<EventRecord[]>(`${seatUrl(id)}/events?tail=${tail}`),
   send: (id: string, msg: SendBody, requestId = newRequestId()) =>
@@ -256,8 +260,9 @@ export const api = {
   generateTeams: (body: { options: GenerateOptions; prompt: string; answers: { question: string; answer: string }[]; count: 1 | 3 }, signal?: AbortSignal) =>
     request<{ alternatives: GeneratedTeam[]; cli: string; model: string | null }>('POST', '/api/generate/teams', body, { signal }),
   /** Hosted: `on.team` browses the computer that runs that team; `on.host` a given computer. */
-  listFolders: (path?: string, on: { team?: string; host?: string } = {}) => {
-    const qs = Object.entries({ path, team: on.team, host: on.host })
+  /** `files`: also the folder's file names (names and paths only). */
+  listFolders: (path?: string, on: { team?: string; host?: string } = {}, files = false) => {
+    const qs = Object.entries({ path, team: on.team, host: on.host, files: files ? 'true' : undefined })
       .filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v!)}`).join('&');
     return get<FolderListing>(qs ? `/api/folders?${qs}` : '/api/folders');
   },

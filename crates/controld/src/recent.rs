@@ -47,7 +47,7 @@ fn read(st: &AppState, team: &str, tail: usize) -> rusqlite::Result<BTreeMap<Str
 }
 
 /// Every string longer than `BRIEF` characters cut, keeping each event's shape.
-fn brief(v: Value) -> Value {
+pub(crate) fn brief(v: Value) -> Value {
     match v {
         Value::String(s) if s.chars().count() > BRIEF => Value::String(s.chars().take(BRIEF).chain(['…']).collect()),
         Value::Array(a) => Value::Array(a.into_iter().map(brief).collect()),

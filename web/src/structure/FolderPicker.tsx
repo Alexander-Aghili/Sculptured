@@ -4,6 +4,7 @@ import { api, newRequestId } from '../api';
 import { errorText } from '../errors';
 import type { FolderListing } from '../generated/FolderListing';
 import { Btn, Icon } from '../shell/ui';
+import { FileList } from './PickFiles';
 
 export { FOLDER_WORDS } from '../errors';
 
@@ -48,6 +49,8 @@ type Props = {
   team?: string;
   initialPath: string | null;
   onChoose: (path: string) => void;
+  /** Choosing files instead of a folder: ticks persist across folders; gets their full paths. */
+  pickFiles?: (paths: string[]) => void;
   onClose: () => void;
 };
 
@@ -55,7 +58,7 @@ type Props = {
  * Chooses a folder inside the home folder. Lists folders only (never files), can make a new
  * folder, and says what went wrong in plain words. Esc closes and focus returns to the opener.
  */
-export function FolderPicker({ team, initialPath, onChoose, onClose }: Props) {
+export function FolderPicker({ team, initialPath, onChoose, pickFiles, onClose }: Props) {
   const on = team ? { team } : undefined;
   const ids = useId();
   const [listing, setListing] = useState<FolderListing | null>(null);
@@ -69,12 +72,13 @@ export function FolderPicker({ team, initialPath, onChoose, onClose }: Props) {
   const dialog = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
   const nameInput = useRef<HTMLInputElement>(null);
+  const [chosen, setChosen] = useState<string[]>([]);
 
   const open = useCallback(async (path?: string) => {
     setBusy(true);
     setError(null);
     try {
-      const l = await (on ? api.listFolders(path, on) : api.listFolders(path));
+      const l = await (pickFiles ? api.listFolders(path, on ?? {}, true) : on ? api.listFolders(path, on) : api.listFolders(path));
       if (!on) homeCache = l.home;
       setListing(l);
       return true;
@@ -185,7 +189,7 @@ export function FolderPicker({ team, initialPath, onChoose, onClose }: Props) {
       >
         <div className="panel-bar">
           <span className="panel-title" id={`${ids}-title`}>
-            Choose a folder
+            {pickFiles ? 'Choose files' : 'Choose a folder'}
           </span>
           <span className="panel-rule" aria-hidden="true" />
           <Btn onClick={onClose} variant="ghost" icon="x" iconOnly aria-label="Close" className="panel-x" kbd="esc" />
@@ -227,6 +231,9 @@ export function FolderPicker({ team, initialPath, onChoose, onClose }: Props) {
           ))}
         </ul>
         {listing?.truncated && <p className="fp-note muted">Only the first folders are shown.</p>}
+        {pickFiles && listing && !top && !busy && (
+          <FileList files={listing.files} chosen={chosen} onToggle={(path, tick) => setChosen((c) => (tick ? [...c, path] : c.filter((x) => x !== path)))} />
+        )}
         {creating ? (
           <form className="fp-create" onSubmit={create} aria-label="New folder">
             <label htmlFor={`${ids}-name`} className="prompt">
@@ -253,16 +260,22 @@ export function FolderPicker({ team, initialPath, onChoose, onClose }: Props) {
           </form>
         ) : null}
         <div className="fp-foot">
-          {!creating && (
+          {!creating && !pickFiles && (
             <Btn icon="folder-plus" onClick={() => setCreating(true)} disabled={!listing || top}>
               New folder
             </Btn>
           )}
           <span className="pane-spacer" />
           <Btn onClick={onClose}>Cancel</Btn>
-          <Btn variant="primary" icon="check" onClick={() => listing && onChoose(listing.path)} disabled={!listing || busy || top} data-autofocus>
-            Use {here}
-          </Btn>
+          {pickFiles ? (
+            <Btn variant="primary" icon="check" onClick={() => pickFiles(chosen)} disabled={chosen.length === 0} data-autofocus>
+              Add {chosen.length} {chosen.length === 1 ? 'file' : 'files'}
+            </Btn>
+          ) : (
+            <Btn variant="primary" icon="check" onClick={() => listing && onChoose(listing.path)} disabled={!listing || busy || top} data-autofocus>
+              Use {here}
+            </Btn>
+          )}
         </div>
       </div>
     </div>

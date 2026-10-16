@@ -1,10 +1,12 @@
 import './input.css';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TeamDraft } from '../generated/TeamDraft';
 import { connectionPath, type Box } from '../draft/geometry';
 import { linkInput, removeInput, setInputText, teamInputBox } from '../draft/input';
 import { Btn } from '../shell/ui';
 import { TextArea } from '../shell/TextArea';
+import { FolderPicker } from './FolderPicker';
+import { withFiles } from './PickFiles';
 import { LOCK_REASON, nameOf, type Edit } from './Panels';
 
 /** The wire's start while dragging from the Input's ● (it is not an agent). */
@@ -48,6 +50,7 @@ export function InputEdges({ draft, boxes, marker }: { draft: TeamDraft; boxes: 
 /** Writing the Input, and choosing who gets it. */
 export function InputEditor({ draft, edit, locked, onClose }: { draft: TeamDraft; edit: Edit; locked: boolean; onClose: () => void }) {
   const box = useRef<HTMLElement>(null);
+  const [picking, setPicking] = useState(false);
   useEffect(() => box.current?.querySelector('textarea')?.focus(), []);
   const input = draft.input;
   if (!input) return null;
@@ -57,6 +60,11 @@ export function InputEditor({ draft, edit, locked, onClose }: { draft: TeamDraft
       <div className="workflow-inspector-body">
         <p className="muted">The goal, links and notes for this project. Each agent it goes to gets it after its Job when the team starts.</p>
         <TextArea aria-label="Input text" value={input.text} rows={10} maxLength={64000} onChange={(e) => edit((d) => setInputText(d, e.target.value), 'input-text')} />
+        <Btn icon="upload" onClick={() => setPicking(true)} tip="Choose files on the agents' computer: their paths are added here for the agents to open">Upload</Btn>
+        {picking && (
+          <FolderPicker initialPath={draft.folder ?? null} onChoose={() => undefined} onClose={() => setPicking(false)}
+            pickFiles={(paths) => { edit((d) => setInputText(d, withFiles(d.input?.text ?? '', paths))); setPicking(false); }} />
+        )}
         <fieldset disabled={locked} title={locked ? LOCK_REASON : undefined}>
           <legend>Goes to</legend>
           {draft.agents.length === 0 && <p className="muted">Add an agent first.</p>}

@@ -310,6 +310,21 @@ impl Fake {
                 self.assistant(&m, json!({ "type": "text", "text": "spent" }), None, "fake", [0, 5, tokens, 0]);
                 self.result(false, "spent");
             }
+            // Load tests: `chatty:<calls>:<bytes>[:<pause ms>]` makes `calls` tool calls whose output is
+            // `bytes` long, `pause` ms apart (default 50), like an agent reading files.
+            t if t.starts_with("chatty:") => {
+                let parts: Vec<u64> = t.trim_start_matches("chatty:").split(':').filter_map(|n| n.trim().parse().ok()).collect();
+                let (calls, bytes, pause) = (parts.first().copied().unwrap_or(10), parts.get(1).copied().unwrap_or(4000), parts.get(2).copied().unwrap_or(50));
+                for i in 0..calls {
+                    let (id, m) = (format!("toolu_chatty_{i}"), self.message_id());
+                    self.assistant(&m, tool_use(&id, "Read", json!({ "file_path": format!("/work/file{i}.txt") })), None, "fake", MAIN);
+                    std::thread::sleep(std::time::Duration::from_millis(pause));
+                    self.bash_result(&id, &"x".repeat(bytes as usize), None);
+                }
+                let m = self.message_id();
+                self.assistant(&m, json!({ "type": "text", "text": "chatty done" }), None, "fake", MAIN);
+                self.result(false, "chatty done");
+            }
             t if t.starts_with("tool:") => {
                 let cmd = t.trim_start_matches("tool:").trim();
                 let m = self.message_id();

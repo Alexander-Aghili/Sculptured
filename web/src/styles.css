@@ -1078,3 +1078,7 @@ select.fld-input { appearance: none; background-image: linear-gradient(45deg, tr
 .new-project { margin-left: 8px; }
 .gallery-kind { display: inline-flex; align-items: center; gap: 10px; }
 .gallery-kind .prompt { color: var(--muted); font-size: 0.92308rem; font-weight: 500; }
+/* An off-screen agent on a live board: an empty, focusable stand-in until it scrolls into view. */
+.card-stub button { width: 100%; height: 100%; padding: 0; border: 0; background: transparent; }
+/* Long agent lists: the browser skips laying out and painting rows that are off screen. */
+.team-rows .agent-row, .agent-list .list-row { content-visibility: auto; contain-intrinsic-size: auto 52px; }

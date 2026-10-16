@@ -70,19 +70,25 @@ async fn archive(
 struct CommunicationsQuery {
     #[serde(default)]
     usage: bool,
+    /// `latest`: only the team's latest run (the Run board's arrows need no more).
+    #[serde(default)]
+    run: Option<String>,
+    /// Long text (each handoff carries the team briefing) cut, for a view that only counts messages.
+    #[serde(default)]
+    brief: bool,
 }
 async fn events(
     State(st): State<AppState>,
     Path(id): Path<String>,
     axum::extract::Query(q): axum::extract::Query<CommunicationsQuery>,
 ) -> Response {
-    respond(
-        st.store
-            .lock()
-            .unwrap()
-            .communication_events(&id, 10000, q.usage)
-            .map_err(ApiError::from),
-    )
+    let read = || -> rusqlite::Result<Vec<serde_json::Value>> {
+        let store = st.store.lock().unwrap();
+        let after = if q.run.as_deref() == Some("latest") { store.latest_run_start(&id)?.map_or(0, |s| s - 1) } else { 0 };
+        let events = store.communication_events(&id, 10000, q.usage, after)?;
+        Ok(events.into_iter().map(|e| serde_json::to_value(e).expect("events serialize")).map(|v| if q.brief { crate::recent::brief(v) } else { v }).collect())
+    };
+    respond(read().map_err(ApiError::from))
 }
 #[derive(Serialize, Deserialize)]
 struct ControlBody {

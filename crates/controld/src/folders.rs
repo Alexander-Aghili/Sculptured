@@ -35,6 +35,9 @@ struct ListQuery {
     team: Option<String>,
     /// …or this computer (else the only connected one).
     host: Option<String>,
+    /// Also list the folder's file names (attaching files to the Input).
+    #[serde(default)]
+    files: bool,
 }
 
 fn target<'a>(team: &'a Option<String>, host: &'a Option<String>) -> crate::ops::Target<'a> {
@@ -47,7 +50,7 @@ fn target<'a>(team: &'a Option<String>, host: &'a Option<String>) -> crate::ops:
 
 async fn list_folders(State(st): State<AppState>, Query(q): Query<ListQuery>) -> Response {
     let path = q.path.clone().filter(|p| !p.trim().is_empty());
-    match crate::ops::run(&st, target(&q.team, &q.host), localops::LocalOp::ListFolder { path }).await {
+    match crate::ops::run(&st, target(&q.team, &q.host), localops::LocalOp::ListFolder { path, files: q.files }).await {
         Ok(l) => Json(l).into_response(),
         Err(e) => e.into_response(),
     }

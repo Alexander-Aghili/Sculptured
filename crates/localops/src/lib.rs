@@ -40,7 +40,12 @@ impl LocalError {
 pub enum LocalOp {
     /// What this computer allows (answered by a connected computer's runner; `{}` here).
     Describe,
-    ListFolder { path: Option<String> },
+    /// `files`: also the folder's file names (an older runner ignores it and lists folders only).
+    ListFolder {
+        path: Option<String>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        files: bool,
+    },
     CreateFolder { parent: String, name: String },
     GitStatus { repo: String },
     GitDiff { repo: String, path: String, staged: bool },
@@ -98,7 +103,7 @@ pub async fn execute(cx: &Context, op: LocalOp) -> Result<serde_json::Value, Loc
     let cx = cx.clone();
     match op {
         LocalOp::Describe => Ok(serde_json::json!({})),
-        LocalOp::ListFolder { path } => blocking(move || Ok(json(folders::listing(&folders::Home::of(&cx.home)?, path.as_deref())?))).await,
+        LocalOp::ListFolder { path, files } => blocking(move || Ok(json(folders::listing(&folders::Home::of(&cx.home)?, path.as_deref(), files)?))).await,
         LocalOp::CreateFolder { parent, name } => blocking(move || Ok(json(folders::create(&folders::Home::of(&cx.home)?, &parent, &name)?))).await,
         LocalOp::GitStatus { repo } => Ok(json(git::snapshot(Path::new(&repo)).await?)),
         LocalOp::GitDiff { repo, path, staged } => Ok(serde_json::json!({ "text": git::diff(Path::new(&repo), &path, staged).await? })),
@@ -164,7 +169,7 @@ mod tests {
             }
         }
         let cx = Context { home: home.path().into(), copies_root: home.path().join("copies"), claude: fake.clone(), codex: home.path().join("no-codex"), codex_home: home.path().join(".codex") };
-        let l = execute(&cx, LocalOp::ListFolder { path: None }).await.unwrap();
+        let l = execute(&cx, LocalOp::ListFolder { path: None, files: false }).await.unwrap();
         assert_eq!(l["entries"][0]["name"], "proj");
         let s = execute(&cx, LocalOp::GitStatus { repo: home.path().join("proj").display().to_string() }).await.unwrap();
         assert_eq!(s["repository"], false);
@@ -174,7 +179,7 @@ mod tests {
         assert!(execute(&cx, LocalOp::PlanUsage).await.unwrap().is_null(), "no codex session files: null");
         let wire: LocalOp = serde_json::from_str(r#"{"op":"git-status","repo":"/x"}"#).unwrap();
         assert_eq!(wire, LocalOp::GitStatus { repo: "/x".into() });
-        let e = execute(&cx, LocalOp::ListFolder { path: Some("/".into()) }).await.unwrap_err();
+        let e = execute(&cx, LocalOp::ListFolder { path: Some("/".into()), files: false }).await.unwrap_err();
         assert_eq!(e.status, 403);
     }
 }

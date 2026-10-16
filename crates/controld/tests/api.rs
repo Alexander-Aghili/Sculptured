@@ -812,3 +812,24 @@ async fn a_teams_communications_leave_out_tool_events_and_include_usage_only_whe
     let (_, body) = call(&router, "GET", "/api/teams/r/communications?usage=true", None).await;
     assert_eq!(types(&body), ["message-delivered", "usage-reported", "message-queued"]);
 }
+
+#[tokio::test]
+async fn the_run_boards_communications_are_the_latest_runs_with_long_text_cut() {
+    let (st, router) = setup();
+    let rig = rigspec::compile(GOOD).unwrap();
+    st.store.lock().unwrap().upsert_rig(&rig, &controld::store::RigSource::File { path: "/specs/r.yaml".into() }, model::Desired::Running).unwrap();
+    let say = |id: &str, text: String| {
+        st.local_event(Actor::System("test".into()), Subject::Seat("dev.a@r".into()), Provenance::AgentReported,
+            EventBody::MessageQueued { message_id: id.into(), intent: model::MessageIntent::Inform, text }).unwrap();
+    };
+    say("old", "before this run".into());
+    st.local_event(Actor::System("test".into()), Subject::Rig("r".into()), Provenance::Operator, EventBody::RigBooted { spec_hash: "h".into(), seat_count: 1 }).unwrap();
+    say("new", "b".repeat(20_000));
+    let (status, body) = call(&router, "GET", "/api/teams/r/communications?run=latest&brief=true", None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let list = body.as_array().unwrap();
+    assert_eq!(list.len(), 1, "only the latest run");
+    assert!(list[0]["body"]["text"].as_str().unwrap().chars().count() < 400, "the briefing is cut");
+    let (_, full) = call(&router, "GET", "/api/teams/r/communications", None).await;
+    assert_eq!(full.as_array().unwrap().len(), 2, "without the options, every run's messages in full");
+}

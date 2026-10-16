@@ -7,6 +7,20 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 16 October 2026
 
+### Big runs stay fast
+
+- **The Run board no longer slows down during big runs.** It downloaded every message the team had ever sent every five seconds (each handoff carries the team briefing), 47 MB on a 26-agent team. It now gets only the current run's messages, cut short: 49 KB. On that team the page uses 10 MB instead of 177 MB and no longer freezes.
+- **Only what is on screen is drawn.** Agents, groups and arrows off screen cost nothing until you pan to them; Tab still reaches every agent.
+
+### Upload files to the Input
+
+- **Upload** in the Input opens the picker on the agents' computer. Tick files in any folder; their full paths are added to the Input so the agents can open them. On a connected computer, reinstall the runner from **Computers** to use it.
+
+### Clearer models and budgets
+
+- **The team model shows who it does not reach.** Agents with their own model (set on the agent or its group) keep it when you change the team's model. The setting now lists them, with **Use the team models for every agent**.
+- **Plan meters say what they count:** the run's own share of the window, for example "this run used 26% of the window · it may use 30%".
+
 ### Waiting for a slot, not stuck
 
 - **Agents queued by "most agents working at once" say so.** Their cards and the sidebar said **stuck: the handoff … was not delivered**, and the agents after them **waiting on … (stuck)**, while their work was only waiting for a free slot. They now show **waiting for a slot to run**, and the agent's conversation shows the held message with the reason.

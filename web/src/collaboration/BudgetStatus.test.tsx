@@ -23,7 +23,7 @@ it('shows each run budget in words and as a bar, the wrap-up reason, and who wai
       ] } });
   render(<BudgetStatus rig="test" names={{ b: 'Builder' }} />);
   expect(await screen.findByRole('status')).toHaveTextContent('Wrapping up: Claude 5-hour: 26.0% used');
-  expect(screen.getByText('Claude 5-hour: 26% of 30% · wrap-up at 25.5%')).toBeVisible();
+  expect(screen.getByText('Claude 5-hour: this run used 26% of the window · it may use 30%, wraps up at 25.5%')).toBeVisible();
   expect(screen.getByText('includes an estimate')).toBeVisible();
   expect(screen.getByRole('meter', { name: 'Tokens: 1.2M of 2.0M · wrap-up at 1.7M' })).toHaveAttribute('value', '1200000');
   expect(screen.getByText('waiting for the first plan reading')).toBeVisible();

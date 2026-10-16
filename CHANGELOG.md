@@ -4,7 +4,14 @@ All notable changes to Sculptured are listed here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- Upload in the Input: the folder picker can choose files (`GET /api/folders?files=true`, `LocalOp::ListFolder.files`, `FolderListing.files`; names and paths only, no dot-files), and their full paths are added to the Input for the agents to open. An older runner lists folders only, and the picker says so.
+- The team's model setting lists the agents whose own or group model wins over it, with "Use the team models for every agent".
+
 ### Fixed
+- The Run board polled every message ever sent to the team (`/communications`; 47 MB every 5 s for a 26-agent team whose handoffs carry the briefing). It now asks for the latest run's events with long text cut (`?run=latest&brief=true`): 49 KB, and on that team no more 200 ms freezes and 10 MB instead of 177 MB of page memory.
+- The live graph draws only cards, groups and arrows near the screen (off-screen agents keep a focusable stand-in); long agent lists skip off-screen rows; the browser's live event list keeps long tool output and briefings cut, and the open agent loads its events in full.
+- Plan budget meters say they count the run's own share of the window ("this run used 26% of the window · it may use 30%").
 - An agent whose message waits for a free slot ("most agents working at once") was shown as stuck ("the handoff … was not delivered"), and agents after it as "waiting on … (stuck)". A held handoff now counts as on its way; `SeatView.slot_wait` and a `message-held` event say the agent waits for a slot, and the board shows "waiting for a slot to run".
 
 ### Changed

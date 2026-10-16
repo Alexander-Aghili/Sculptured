@@ -121,3 +121,25 @@ it('on a computer, Up from an allowed folder goes back to the list of allowed fo
   expect(await screen.findByText('Folders this computer allows', { selector: '.fp-here' })).toBeTruthy();
   expect(vi.mocked(api.listFolders).mock.calls.at(-1)).toEqual([undefined, { team: 't1' }]);
 });
+
+describe('choosing files', () => {
+  it('lists a folder\'s files, keeps ticks across folders, and gives back their full paths', async () => {
+    vi.mocked(api.listFolders).mockImplementation(async (p?: string) => {
+      if (!p || p === '/home/me') return { ...HOME, files: [{ name: 'brief.pdf', path: '/home/me/brief.pdf' }] };
+      return { ...PROJECTS, files: [{ name: 'spec.md', path: '/home/me/projects/spec.md' }] };
+    });
+    const chosen = vi.fn();
+    render(<FolderPicker initialPath={null} onChoose={vi.fn()} pickFiles={chosen} onClose={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'brief.pdf' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Open projects' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'spec.md' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add 2 files' }));
+    expect(chosen).toHaveBeenCalledWith(['/home/me/brief.pdf', '/home/me/projects/spec.md']);
+    expect(api.listFolders).toHaveBeenCalledWith('/home/me/projects', {}, true);
+  });
+
+  it('says when the computer\'s runner is too old to list files', async () => {
+    render(<FolderPicker initialPath={null} onChoose={vi.fn()} pickFiles={vi.fn()} onClose={vi.fn()} />);
+    expect(await screen.findByText(/cannot list files yet/)).toBeInTheDocument();
+  });
+});
