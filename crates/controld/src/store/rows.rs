@@ -7,7 +7,8 @@ use model::EventRecord;
 pub(super) const SEAT_COLS: &str = "id, rig, pod, member, runtime, label, host, lifecycle, lifecycle_reason, activity, \
     tenure, native_session_id, caps_json, current_turn, current_tool, last_event_ms, tokens_in, tokens_out, \
     lifecycle_provenance, waiting_for, handoff_stuck, open_questions, risk_count, restore_offer, cwd, limit_hit, \
-    model_requested, model_observed, stalled, last_check";
+    model_requested, model_observed, stalled, last_check, \
+    EXISTS (SELECT 1 FROM budget_queue q WHERE q.seat = seats.id)";
 
 pub(crate) fn enum_text<T: Serialize>(v: &T) -> String {
     serde_json::to_value(v).expect("enum serializes").as_str().expect("unit variant").to_string()
@@ -57,6 +58,7 @@ pub(super) fn seat_from_row(r: &Row) -> rusqlite::Result<SeatView> {
         model_observed: r.get(27)?,
         stalled: r.get::<_, Option<String>>(28)?.map(|s| json_parse(&s)).transpose()?,
         check: r.get::<_, Option<String>>(29)?.map(|s| json_parse(&s)).transpose()?,
+        slot_wait: r.get(30)?,
     })
 }
 

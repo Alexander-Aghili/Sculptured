@@ -7,6 +7,10 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 16 October 2026
 
+### Waiting for a slot, not stuck
+
+- **Agents queued by "most agents working at once" say so.** Their cards and the sidebar said **stuck: the handoff … was not delivered**, and the agents after them **waiting on … (stuck)**, while their work was only waiting for a free slot. They now show **waiting for a slot to run**, and the agent's conversation shows the held message with the reason.
+
 ### Faster while a team runs
 
 - **Pages stay quick during big runs.** The Run board now downloads only the messages and handoffs it draws, not every tool call: on a 21-agent test run, about 0.2 MB every five seconds instead of 3.3 MB. It loads each agent's latest activity in one request instead of one per agent, and redraws arrows only when a message or handoff arrives. Its CPU time while a run streams roughly halved.

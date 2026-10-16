@@ -42,6 +42,10 @@ pub struct SeatView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub handoff_stuck: Option<model::HandoffStuck>,
+    /// A message to it waits for a free slot (the run budget's "most agents working at once").
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub slot_wait: bool,
     /// Questions waiting for the operator (Needs you).
     #[serde(default)]
     pub open_questions: u32,

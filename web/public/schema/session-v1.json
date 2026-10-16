@@ -1122,6 +1122,27 @@
           ]
         },
         {
+          "description": "controld keeps the message until a slot frees (the run budget's \"most agents working at once\").",
+          "type": "object",
+          "properties": {
+            "message_id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "message-held"
+            }
+          },
+          "required": [
+            "type",
+            "message_id",
+            "reason"
+          ]
+        },
+        {
           "type": "object",
           "properties": {
             "count": {

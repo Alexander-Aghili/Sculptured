@@ -34,6 +34,10 @@ waiting_for?: Array<string>,
  */
 handoff_stuck?: HandoffStuck, 
 /**
+ * A message to it waits for a free slot (the run budget's "most agents working at once").
+ */
+slot_wait?: boolean, 
+/**
  * Questions waiting for the operator (Needs you).
  */
 open_questions: number, 

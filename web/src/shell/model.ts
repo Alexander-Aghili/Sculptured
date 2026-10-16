@@ -76,6 +76,7 @@ export type TeamRow = {
 
 export function summaryOf(seat: SeatView | undefined, state: AgentState): string {
   if (state.key === 'working') return seat?.current_tool ? toolLabel(seat.current_tool) : 'working';
+  if (state.key === 'slot') return 'waiting for a slot to run';
   return state.word;
 }
 

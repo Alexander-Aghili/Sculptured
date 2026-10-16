@@ -74,15 +74,41 @@ pub fn decide(store: &Store, cmd: &HostCommand) -> rusqlite::Result<Gate> {
     Ok(Gate::Pass)
 }
 
-/// The gate as the host registry calls it.
-pub fn hook(store: Arc<Mutex<Store>>) -> crate::hosts::GateFn {
-    Arc::new(move |cmd: &HostCommand| match decide(&store.lock().unwrap(), cmd) {
-        Ok(g) => g,
-        Err(e) => {
-            tracing::warn!(error = %e, "budget gate could not read the store; passing the command");
-            Gate::Pass
+/// The gate as the host registry calls it. A held message is recorded on its agent, so the board
+/// says the agent waits for a slot.
+pub fn hook(store: Arc<Mutex<Store>>, hub: Hub) -> crate::hosts::GateFn {
+    Arc::new(move |cmd: &HostCommand| {
+        let mut store = store.lock().unwrap();
+        match decide(&store, cmd) {
+            Ok(Gate::Queued) => {
+                held(&mut store, &hub, cmd);
+                Gate::Queued
+            }
+            Ok(g) => g,
+            Err(e) => {
+                tracing::warn!(error = %e, "budget gate could not read the store; passing the command");
+                Gate::Pass
+            }
         }
     })
+}
+
+type Hub = tokio::sync::broadcast::Sender<crate::views::StreamItem>;
+
+fn held(store: &mut Store, hub: &Hub, cmd: &HostCommand) {
+    let HostCommand::Send { seat, message_id, .. } = cmd else { return };
+    let max = store.seat(seat).ok().flatten().and_then(|v| store.run_budget(&v.rig).ok().flatten()).and_then(|r| r.budget.max_working);
+    let reason = match max {
+        Some(n) => format!("waiting for a slot: at most {n} agents of this run work at once"),
+        None => "waiting for a slot".to_string(),
+    };
+    let body = model::EventBody::MessageHeld { message_id: message_id.clone(), reason };
+    match store.append_local(crate::hosts::controld(), model::Subject::Seat(seat.clone()), model::Provenance::Operator, body) {
+        Ok(item) => {
+            let _ = hub.send(item);
+        }
+        Err(e) => tracing::warn!(%seat, error = %e, "budget gate could not record a held message"),
+    }
 }
 
 /// A waiting message: (seat, message id, the Send command).

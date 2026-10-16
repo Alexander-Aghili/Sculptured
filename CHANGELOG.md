@@ -4,6 +4,9 @@ All notable changes to Sculptured are listed here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- An agent whose message waits for a free slot ("most agents working at once") was shown as stuck ("the handoff … was not delivered"), and agents after it as "waiting on … (stuck)". A held handoff now counts as on its way; `SeatView.slot_wait` and a `message-held` event say the agent waits for a slot, and the board shows "waiting for a slot to run".
+
 ### Changed
 - Faster pages while a team runs: `GET /api/teams/{id}/communications` returns only message, handoff, start and capture-gap events (`?usage=true` adds model-usage reports), not tool calls; one `GET /api/teams/{id}/recent?tail=` replaces a request per agent; the Run board recomputes its arrows only when a message or handoff arrives; per-message sizes and downstream sets are cached. Smaller logo files and cache headers for built assets (`/assets/` immutable, `/brand/` one day).
 - Wording: Sculptured is for teams of agents, not only coding agents. The Design board's arrow key sits on the board's corner; the team folder button says "Choose folder" when none is set.

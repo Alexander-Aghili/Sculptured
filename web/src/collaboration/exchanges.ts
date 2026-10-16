@@ -20,6 +20,7 @@ export function teamExchanges(events: EventRecord[]): Exchange[] {
     if (b.type === 'message-queued') messages.add(b.message_id);
     if (b.type === 'message-delivered') status.set(b.message_id, 'Delivered');
     if (b.type === 'message-consumed') status.set(b.message_id, 'Read');
+    if (b.type === 'message-held' && !status.has(b.message_id)) status.set(b.message_id, 'Waiting for a slot');
     if (b.type === 'message-failed') status.set(b.message_id, `Delivery failed: ${b.reason}`);
   }
   const rows: Exchange[] = [];

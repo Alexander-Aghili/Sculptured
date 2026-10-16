@@ -113,7 +113,9 @@ pub(super) fn delivery(store: &Store, w: &SeatWork, copies: &[String], in_flight
             _ => {}
         }
     }
-    Ok(if queued.iter().any(|c| in_flight.contains(*c)) {
+    // A copy the run budget holds for a free slot is on its way: the gate sends it when one frees.
+    let held = |c: &str| store.connection().query_row("SELECT 1 FROM budget_queue WHERE message_id = ?1", [c], |_| Ok(())).is_ok();
+    Ok(if queued.iter().any(|c| in_flight.contains(*c) || held(c)) {
         Delivery::Pending
     } else if !queued.is_empty() {
         Delivery::NotDelivered

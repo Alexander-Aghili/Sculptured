@@ -916,6 +916,42 @@ async fn a_handoff_lost_between_recording_and_sending_can_be_resent_once() {
     assert_eq!(handoffs(&st, &b).len(), 2, "the lost original and exactly one re-send");
 }
 
+/// A handoff the run budget holds until a slot frees (most agents working at once) is on its way,
+/// not stuck: the agent's view says it waits for a slot.
+#[tokio::test]
+async fn a_handoff_waiting_for_a_slot_is_not_stuck() {
+    let (_home, st, router) = served(Arc::new(StubDriver)).await;
+    let id = team(&router, "Slots", &[("a", "Asker", ""), ("b", "Checker", "Check")], &[("a", "b", "hands-work-to")]).await;
+    let (a, b) = (seat(&id, "a"), seat(&id, "b"));
+    start(&router, &id, "s1").await;
+    wait_for("b runs and waits", || lifecycle(&st, &b) == Some(SeatLifecycle::Running) && waiting_for(&st, &b).is_some()).await;
+    wait_for("the boot ended", || !st.is_booting(&id)).await;
+    let start_seq = {
+        let store = st.store.lock().unwrap();
+        store.latest_of_types(&Subject::Rig(id.clone()), &["rig-booted"], 1).unwrap()[0].seq
+    };
+    let write = HandoffWrite {
+        seat: b.clone(),
+        start_seq,
+        first: true,
+        actor: Actor::System(HANDOFF_ACTOR.into()),
+        message_id: "held-1".into(),
+        intent: model::MessageIntent::Inform,
+        text: "Handed over by Asker\n\nCheck\n\n--- Asker's result ---\nheld".into(),
+        from: vec![HandoffSource { seat: a.clone(), turn_id: "turn-9".into(), turn_seq: 1, requested_seq: None }],
+        wave: None,
+        failed: None,
+    };
+    let items = st.store.lock().unwrap().record_handoff(&write).unwrap().expect("recorded");
+    st.publish(items);
+    st.store.lock().unwrap().connection()
+        .execute("INSERT INTO budget_queue (seat, message_id, json, at_ms) VALUES (?1, 'held-1', '{}', 1)", [&b]).unwrap();
+    controld::handoffs::process_rig(&st, &id, true).await;
+    settle().await;
+    assert_eq!(stuck(&st, &b), None, "a handoff waiting for a slot is not stuck");
+    assert!(st.store.lock().unwrap().seat(&b).unwrap().unwrap().slot_wait, "its view says it waits for a slot");
+}
+
 /// controld restarts while hostd (and its agents) keep running. Nothing is handed over
 /// twice, and a fan-in that was half done before the restart completes after it.
 #[tokio::test]

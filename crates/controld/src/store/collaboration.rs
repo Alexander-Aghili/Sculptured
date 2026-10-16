@@ -109,7 +109,7 @@ impl Store {
         limit: usize,
         usage: bool,
     ) -> rusqlite::Result<Vec<EventRecord>> {
-        let types = "'message-queued','message-delivered','message-consumed','message-failed','handed-over','tenure-started','events-lost'";
+        let types = "'message-queued','message-delivered','message-consumed','message-failed','message-held','handed-over','tenure-started','events-lost'";
         let types = if usage { format!("{types},'usage-reported'") } else { types.to_string() };
         let sql = format!("SELECT e.json FROM events e JOIN seats s ON e.subject='seat:'||s.id WHERE s.rig=?1 AND json_extract(e.json, '$.body.type') IN ({types}) ORDER BY e.seq DESC LIMIT ?2");
         self.conn.prepare(&sql)?

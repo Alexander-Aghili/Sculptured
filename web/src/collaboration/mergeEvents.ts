@@ -6,7 +6,7 @@ export function mergeEvents(history: EventRecord[], feed: Record<string, EventRe
 }
 
 /** The event types the Run board's arrows and the Communications view read (not tool calls or replies). */
-const COMMUNICATION = new Set(['message-queued', 'message-delivered', 'message-consumed', 'message-failed', 'handed-over', 'tenure-started', 'events-lost']);
+const COMMUNICATION = new Set(['message-queued', 'message-delivered', 'message-consumed', 'message-failed', 'message-held', 'handed-over', 'tenure-started', 'events-lost']);
 
 /**
  * `mergeEvents` of only the communication events, oldest first. Returns `previous` while it holds

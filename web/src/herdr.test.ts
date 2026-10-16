@@ -3,6 +3,11 @@ import { activityOf, agentState, chipText, shortAge, sortAgents, tierOf, tokensT
 import { ev, seatView } from './test-fixtures';
 
 describe('agent states', () => {
+  it('says an idle agent whose message waits for a slot is waiting, not stuck', () => {
+    const held = seatView('a', { lifecycle: 'running', activity: 'idle', slot_wait: true, handoff_stuck: { reason: 'the handoff from Lead was not delivered', can_resend: true } });
+    expect(agentState(held).word).toBe('waiting for a slot');
+    expect(agentState(seatView('a', { lifecycle: 'running', activity: 'working', slot_wait: true })).key).toBe('working');
+  });
   it('maps lifecycle and activity to herdr states, each with a glyph and a word', () => {
     const s = (over: Parameters<typeof seatView>[1]) => agentState(seatView('a', over));
     expect(s({ lifecycle: 'attention' })).toMatchObject({ key: 'needs-you', glyph: '◉', word: 'needs you', tone: 'red' });

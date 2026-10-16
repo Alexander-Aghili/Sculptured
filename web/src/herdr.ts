@@ -13,6 +13,7 @@ import { RUNTIME_LABEL } from './vocab';
 export type StateKey =
   | 'needs-you'
   | 'stuck'
+  | 'slot'
   | 'working'
   | 'done'
   | 'idle'
@@ -33,12 +34,16 @@ export const DONE_TIP = 'turn finished';
 /** "stuck" says the agent's handoffs cannot go on by themselves; the reason says why. */
 export const STUCK_TIP = 'its handoffs cannot go on by themselves';
 
+/** "waiting for a slot": a message waits until fewer of the run's agents work at once. */
+export const SLOT_TIP = 'its next message waits until fewer agents work at once (Run budget)';
+
 /** Static frame of the working spinner, used when motion is reduced and in text. */
 export const WORKING_GLYPH = '⣟';
 
 const S: Record<StateKey, AgentState> = {
   'needs-you': { key: 'needs-you', glyph: '◉', word: 'needs you', tone: 'red' },
   stuck: { key: 'stuck', glyph: '▲', word: 'stuck', tone: 'red', tip: STUCK_TIP },
+  slot: { key: 'slot', glyph: '⧗', word: 'waiting for a slot', tone: 'muted', tip: SLOT_TIP },
   working: { key: 'working', glyph: WORKING_GLYPH, word: 'working', tone: 'vendor' },
   done: { key: 'done', glyph: '✓', word: 'done', tone: 'green', tip: DONE_TIP },
   idle: { key: 'idle', glyph: '○', word: 'idle', tone: 'plain' },
@@ -55,7 +60,7 @@ export const STATES = S;
  * The state shown for an agent. `done` means a turn ended since this browser last viewed
  * the agent; it only applies to a running, idle agent. A missing view is unknown.
  */
-export function agentState(seat: (Pick<SeatView, 'lifecycle' | 'activity'> & Partial<Pick<SeatView, 'handoff_stuck'>>) | undefined, done = false): AgentState {
+export function agentState(seat: (Pick<SeatView, 'lifecycle' | 'activity'> & Partial<Pick<SeatView, 'handoff_stuck' | 'slot_wait'>>) | undefined, done = false): AgentState {
   if (!seat) return S.unknown;
   switch (seat.lifecycle) {
     case 'attention':
@@ -69,6 +74,8 @@ export function agentState(seat: (Pick<SeatView, 'lifecycle' | 'activity'> & Par
         case 'working':
           return S.working;
         case 'idle':
+          // Its next message is held for a free slot: that is why it is idle, not a stuck handoff.
+          if (seat.slot_wait) return S.slot;
           // Idle because its handoffs cannot go on by themselves: say so.
           if (seat.handoff_stuck) return S.stuck;
           return done ? S.done : S.idle;
@@ -261,5 +268,5 @@ export function tierOf(p: Provenance | string | null | undefined, claim = false)
 /** Rolled-up state counts for a team header or the status line. */
 export type Counts = Record<StateKey, number>;
 export function emptyCounts(): Counts {
-  return { 'needs-you': 0, stuck: 0, working: 0, done: 0, idle: 0, unknown: 0, launching: 0, stopping: 0, stopped: 0, failed: 0, planned: 0 };
+  return { 'needs-you': 0, stuck: 0, slot: 0, working: 0, done: 0, idle: 0, unknown: 0, launching: 0, stopping: 0, stopped: 0, failed: 0, planned: 0 };
 }

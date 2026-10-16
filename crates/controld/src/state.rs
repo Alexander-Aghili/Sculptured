@@ -53,7 +53,7 @@ impl AppState {
         let (hub, _) = broadcast::channel(1024);
         let store = Arc::new(Mutex::new(store));
         let hosts = HostRegistry::default();
-        hosts.set_gate(crate::budget::gate::hook(store.clone()));
+        hosts.set_gate(crate::budget::gate::hook(store.clone(), hub.clone()));
         Self {
             store,
             hosts,

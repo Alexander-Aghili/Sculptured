@@ -151,7 +151,8 @@ export function conversationItems(events: EventRecord[]): Item[] {
     if (!m || m.state === 'failed') return;
     if (RANK[state] > RANK[m.state]) {
       m.state = state;
-      if (reason) m.reason = reason;
+      // A reason belongs to the state it came with (a held message's wait ends when it is delivered).
+      m.reason = reason;
     }
   };
   let prov = '';
@@ -195,6 +196,11 @@ export function conversationItems(events: EventRecord[]): Item[] {
       case 'message-failed':
         advance(b.message_id, 'failed', b.reason);
         break;
+      case 'message-held': {
+        const m = messages.get(b.message_id);
+        if (m?.state === 'queued') m.reason = b.reason;
+        break;
+      }
       case 'turn-started':
         turnStart.set(b.turn_id, e.at_ms);
         break;

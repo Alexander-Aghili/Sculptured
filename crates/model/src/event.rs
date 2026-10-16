@@ -102,6 +102,8 @@ pub enum EventBody {
     MessageDelivered { message_id: String },
     MessageConsumed { message_id: String, turn_id: String },
     MessageFailed { message_id: String, reason: String },
+    /// controld keeps the message until a slot frees (the run budget's "most agents working at once").
+    MessageHeld { message_id: String, reason: String },
     EventsLost {
         #[ts(type = "number")]
         count: u64,
