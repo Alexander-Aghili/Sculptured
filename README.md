@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/images/banner.png" alt="Sculptured: design, run and steer teams of coding agents" width="100%"></p>
+<p align="center"><img src="docs/images/banner.png" alt="Sculptured: design, run and steer teams of agents" width="100%"></p>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-2f6f73"></a>

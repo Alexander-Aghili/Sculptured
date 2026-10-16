@@ -91,7 +91,7 @@ impl Options {
     }
 }
 
-pub(super) const ABOUT: &str = "You design teams of AI coding agents for Sculptured. Agents are Claude Code or Codex sessions. \
+pub(super) const ABOUT: &str = "You design teams of AI agents for Sculptured. Agents are Claude Code or Codex sessions. \
 An arrow \"hands-work-to\" means the first agent's finished work is sent to the second; \"reports-to\" and \"watches\" record intent only. \
 Each agent's job is the first message it receives: write it as a direct, specific instruction.";
 

@@ -12,7 +12,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
-#[command(name = "sculptured", version, about = "Run and supervise teams of local coding agents")]
+#[command(name = "sculptured", version, about = "Run and supervise teams of agents on your computer")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,

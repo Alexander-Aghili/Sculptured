@@ -24,7 +24,7 @@ function LoginForm() {
     try { await gw('POST', '/login/password', form); window.location.assign('/'); } catch (err) { setError((err as Error).message); setBusy(false); }
   };
   return (
-    <AuthCard title="Sign in to Sculptured" lead="Design, run and steer teams of coding agents.">
+    <AuthCard title="Sign in to Sculptured" lead="Design, run and steer teams of agents.">
       {error && <p className="auth-error" role="alert">{error}</p>}
       <ProviderButtons providers={providers} purpose="login" />
       <form onSubmit={submit} className="auth-form">
