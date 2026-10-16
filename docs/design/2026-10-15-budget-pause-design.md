@@ -35,11 +35,13 @@ stateDiagram-v2
 4. **After the reset** (`resets_at` plus 2 minutes, so the first reading belongs to the new window), Sculptured restarts the agents that were working or had queued work, and the budget takes a new baseline in the new window. The run counts how many windows it has used.
 5. If the runner is offline at that moment, the run stays paused and says so. It continues when the runner reconnects.
 
-## How agents continue (your choice)
+## How agents continue
 
-| Mode | Cost | Fit |
+Both ways are offered, as at Start (**Start fresh** or **Resume**). The person picks one beside **Pause until the window resets**, and can change the pick while the run is paused, from the Run board's paused banner.
+
+| Choice | Cost | Fit |
 |---|---|---|
-| **From their notes** (recommended default) | Each agent starts a fresh conversation with its job, the team briefing and its own checkpoint note. Its start is small again. | Long runs: the C172 developers had 120k–174k-token contexts that a resumed conversation re-reads on every call. |
+| **From their notes** (selected unless the person picks otherwise) | Each agent starts a fresh conversation with its job, the team briefing and its own checkpoint note. Its start is small again. | Long runs: the C172 developers had 120k–174k-token contexts that a resumed conversation re-reads on every call. |
 | **Resume their conversation** | Each agent continues its own conversation and is told the window reset. | Short tasks where the conversation itself matters. |
 
 ## Edge cases
@@ -56,7 +58,7 @@ stateDiagram-v2
 - In resume mode, the restart uses `LaunchMode::Resume` with each agent's session id.
 - Continue now and Stop while paused; the runner offline at the reset; the N-window cap; no `resets_at` at Start.
 
-## Open choices for the person
+## Settled
 
-1. The default continue mode: **from notes** (recommended) or **resume**.
-2. The default cap: 3 windows.
+- Both ways of continuing are offered; the person picks (15 October 2026).
+- The cap defaults to 3 windows and can be changed beside the choice.
