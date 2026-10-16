@@ -175,6 +175,12 @@ If one isn't signed in, sign it in once:
 
 Every agent on that computer can then use it.
 
+## Use one computer with several accounts
+
+A computer can run agents for more than one account, for example your own and a test account. Copy the connect command from the other account's **Computers** page and run it on the same computer. Sculptured sees that the computer is already connected to a different account and adds this one beside it: each account gets its own runner, its own folder (`~/.sculptured/runners/<id>`) and its own background service, so both run at once. Running an account's command again reconnects its existing runner instead of adding the computer twice.
+
+The new runner starts with the same allowed folders and access as the computer's first one; change them with `sculptured allow … --data-dir ~/.sculptured/runners/<id>`.
+
 ## Stop agents when something stops responding
 
 **Stop** and **Stop everything now** always finish in Sculptured, even when the computer running the agents is offline. Its agents are marked stopped at once. If one is still running on that computer, the computer ends it as soon as it reconnects.
@@ -185,7 +191,7 @@ To end them on the computer itself, without Sculptured, run this there. It works
 sculptured stop
 ```
 
-It ends, like Ctrl+C, every agent this computer's runner started, together with the commands they started, and lists them. It only touches processes the runner started for agents. Pass `--data-dir` if you connected with one. It works when the runner itself has stopped responding.
+It ends, like Ctrl+C, every agent this computer's runner started, together with the commands they started, and lists them. It only touches processes the runner started for agents. Pass `--data-dir` if you connected with one. It works when the runner itself has stopped responding, and covers every account's runner on the computer.
 
 ## Disconnect or remove
 

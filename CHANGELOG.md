@@ -5,6 +5,7 @@ All notable changes to Sculptured are listed here. The format follows [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- One computer, several accounts: a connect key for an account other than the computer's runner's gets a runner of its own in `~/.sculptured/runners/<id>` with its own service name (gateway `POST /gw/api/device/same-account`); `sculptured stop` covers every account's runner.
 - `sculptured stop` ends every agent this computer's runner started, without the server (process groups recorded at launch, checked by start time). Stopping agents whose computer is offline marks them stopped at once; a reconnecting computer ends any agent the server has stopped.
 - Delete a trashed project forever (`DELETE /api/project-visibility/{id}`): its design, runs, history and reports; not its folder or agents' copies.
 - Plan budgets can pause a run at their hard value and continue it after the window resets (`PlanBudget.pause`: `continue_with` notes or resume, `max_windows`), with a checkpoint wrap-up, `BudgetState::Paused`, `POST /api/teams/{id}/budget/paused` (continue, stop, mode), `budget-state-changed` states `paused` and `continued`, and the MADL extension `plan_pause`.

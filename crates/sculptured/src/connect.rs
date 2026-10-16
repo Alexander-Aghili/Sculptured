@@ -164,34 +164,56 @@ fn win_quote(a: &str) -> String {
 
 /// The commands that (re)start the login service from `file`. Running them again restarts it, so a
 /// newly installed runner takes over from the old one.
+#[cfg(test)]
 pub fn service_commands(file: &Path) -> Vec<Vec<String>> {
+    service_commands_for(file, None)
+}
+
+/// The service's name: the first account's runner keeps the original name; another account's adds
+/// its folder's name, so each account's runner is a service of its own.
+fn named(base: &str, sep: &str, suffix: Option<&str>, end: &str) -> String {
+    suffix.map_or_else(|| base.to_string(), |s| format!("{base}{sep}{s}{end}"))
+}
+
+/// `service_commands` for the runner whose folder gives `suffix`.
+pub fn service_commands_for(file: &Path, suffix: Option<&str>) -> Vec<Vec<String>> {
     let f = file.display().to_string();
+    let unit = named("sculptured-runner", "-", suffix, "");
+    let task = named(WINDOWS_TASK, " (", suffix, ")");
     let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
     if cfg!(target_os = "macos") {
         vec![v(&["launchctl", "unload", &f]), v(&["launchctl", "load", "-w", &f])]
     } else if cfg!(windows) {
-        vec![v(&["schtasks", "/End", "/TN", WINDOWS_TASK]), v(&["schtasks", "/Create", "/TN", WINDOWS_TASK, "/XML", &f, "/F"]), v(&["schtasks", "/Run", "/TN", WINDOWS_TASK])]
+        vec![v(&["schtasks", "/End", "/TN", &task]), v(&["schtasks", "/Create", "/TN", &task, "/XML", &f, "/F"]), v(&["schtasks", "/Run", "/TN", &task])]
     } else {
-        vec![v(&["systemctl", "--user", "daemon-reload"]), v(&["systemctl", "--user", "enable", "sculptured-runner"]), v(&["systemctl", "--user", "restart", "sculptured-runner"])]
+        vec![v(&["systemctl", "--user", "daemon-reload"]), v(&["systemctl", "--user", "enable", &unit]), v(&["systemctl", "--user", "restart", &unit])]
     }
 }
 
 const WINDOWS_TASK: &str = "Sculptured runner";
 
 /// The login service that keeps this computer connected: (file to write, contents).
+#[cfg(test)]
 pub fn service_unit(args: &[String], path_env: &str) -> (PathBuf, String) {
+    service_unit_for(args, path_env, None)
+}
+
+/// `service_unit` for the runner whose folder gives `suffix`.
+pub fn service_unit_for(args: &[String], path_env: &str, suffix: Option<&str>) -> (PathBuf, String) {
     let home = hostd::platform::home().unwrap_or_default();
+    let folder = suffix.map_or_else(|| home.join(".sculptured").join("runner"), |s| home.join(".sculptured").join("runners").join(s));
     if cfg!(windows) {
         let user = format!("{}\\{}", std::env::var("USERDOMAIN").unwrap_or_default(), std::env::var("USERNAME").unwrap_or_default());
-        return (home.join(".sculptured").join("runner").join("sculptured-runner.xml"), windows_task(args, user.trim_start_matches('\\')));
+        return (folder.join("sculptured-runner.xml"), windows_task(args, user.trim_start_matches('\\')));
     }
+    let label = named("dev.sculptured.runner", ".", suffix, "");
     if cfg!(target_os = "macos") {
-        let file = home.join("Library/LaunchAgents/dev.sculptured.runner.plist");
+        let file = home.join(format!("Library/LaunchAgents/{label}.plist"));
         let argv: String = args.iter().map(|a| format!("<string>{}</string>", xml(a))).collect();
         let text = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>Label</key><string>dev.sculptured.runner</string>
+<key>Label</key><string>{label}</string>
 <key>ProgramArguments</key><array>{argv}</array>
 <key>EnvironmentVariables</key><dict><key>PATH</key><string>{}</string></dict>
 <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
@@ -199,7 +221,7 @@ pub fn service_unit(args: &[String], path_env: &str) -> (PathBuf, String) {
 "#, xml(path_env));
         (file, text)
     } else {
-        let file = home.join(".config/systemd/user/sculptured-runner.service");
+        let file = home.join(format!(".config/systemd/user/{}.service", named("sculptured-runner", "-", suffix, "")));
         let exec: Vec<String> = args.iter().map(|a| systemd_quote(a)).collect();
         let text = format!("[Unit]\nDescription=Sculptured runner\nAfter=network-online.target\n\n[Service]\nEnvironment={}\nExecStart={}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n",
             systemd_quote(&format!("PATH={path_env}")), exec.join(" "));
@@ -255,6 +277,29 @@ pub fn set_caps(policy: &mut hostd::policy::RunnerPolicy, changes: &[(String, bo
     Ok(())
 }
 
+/// The runner folder for this connect, and credentials already settled for it. With a connect key and
+/// no `--data-dir`, the key's account is matched to the runner already connected to it; another
+/// account gets a runner of its own, so this computer serves both.
+async fn account_runner(origin: &str, a: &ConnectArgs, name: &str) -> Result<(PathBuf, Option<Credentials>), String> {
+    let (Some(key), None) = (a.key.as_deref(), &a.data_dir) else { return Ok((runner_dir(a.data_dir.clone())?, None)) };
+    let base = runner_dir(None)?;
+    match crate::runners::place_for_key(origin, key, &base).await? {
+        crate::runners::Place::Reuse(dir, c) => Ok((dir, Some(c))),
+        crate::runners::Place::Redeem(dir) => Ok((dir, None)),
+        crate::runners::Place::NewAccount => {
+            let c = redeem(origin, key, name, std::env::consts::OS).await?;
+            let dir = runner_dir(Some(crate::runners::new_dir(&base, &c.device_id)))?;
+            // The same folders and access as this computer's first runner, to begin with.
+            if let Ok(text) = std::fs::read_to_string(base.join("runner.json")) {
+                std::fs::write(dir.join("runner.json"), text).map_err(|e| e.to_string())?;
+            }
+            c.save(&dir)?;
+            println!("This computer is already connected to another account. It now runs this account's agents too, from {}.", dir.display());
+            Ok((dir, Some(c)))
+        }
+    }
+}
+
 /// `~/.sculptured/runner` unless `--data-dir` is given; created owner-only.
 fn runner_dir(given: Option<PathBuf>) -> Result<PathBuf, String> {
     let dir = match given {
@@ -277,7 +322,8 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
     tls_provider();
     let origin = a.origin.trim_end_matches('/').to_string();
     let url = host_url(&origin)?;
-    let dir = runner_dir(a.data_dir)?;
+    let name = a.name.clone().unwrap_or_else(this_computer);
+    let (dir, chosen) = account_runner(&origin, &a, &name).await?;
     let policy_file = dir.join("runner.json");
     let mut policy = hostd::policy::RunnerPolicy::load(&policy_file)?;
     for f in &a.allow { policy.allow(f)?; }
@@ -288,8 +334,7 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
     set_caps(&mut policy, &a.caps)?;
     policy.save(&policy_file)?;
     let saved = Credentials::load(&dir)?;
-    let name = a.name.clone().unwrap_or_else(this_computer);
-    let from_key = credentials(&origin, saved.clone(), a.key.as_deref(), &name).await.transpose()?;
+    let from_key = match chosen { Some(c) => Some(c), None => credentials(&origin, saved.clone(), a.key.as_deref(), &name).await.transpose()? };
     let creds = match (from_key, saved) {
         (Some(c), _) => { c.save(&dir)?; c }
         (None, Some(c)) if c.origin == origin => c,
@@ -320,11 +365,12 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
         let codex = a.codex_program.clone().or_else(|| found("codex"));
         let args = service_args(&exe, &origin, &dir, claude.as_deref(), codex.as_deref());
         let path_env = std::env::var("PATH").unwrap_or_else(|_| "/usr/local/bin:/usr/bin:/bin".into());
-        let (file, text) = service_unit(&args, &path_env);
+        let suffix = crate::runners::service_suffix(&dir);
+        let (file, text) = service_unit_for(&args, &path_env, suffix.as_deref());
         write_service_file(&file, &text)?;
         // The first command (reload, or stop the old one) may fail when nothing was installed yet; the rest must work.
         let run = |c: &Vec<String>| std::process::Command::new(&c[0]).args(&c[1..]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success());
-        let cmds = service_commands(&file);
+        let cmds = service_commands_for(&file, suffix.as_deref());
         let ok = cmds.iter().enumerate().fold(true, |ok, (i, c)| run(c) || i == 0 && ok);
         if ok {
             println!("Connected to {origin}. Sculptured now runs in the background and starts again whenever you log in.");
@@ -351,9 +397,17 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
     }).await
 }
 
-/// `sculptured stop`: ends this computer's agents without the server.
+/// `sculptured stop`: ends this computer's agents without the server: every account's runner here,
+/// or only the one in `--data-dir`.
 pub fn run_stop(data_dir: Option<PathBuf>) -> Result<(), String> {
-    let ended = hostd::local_stop::run(&runner_dir(data_dir)?)?;
+    let dirs = match data_dir {
+        Some(d) => vec![runner_dir(Some(d))?],
+        None => { let base = runner_dir(None)?; std::iter::once(base.clone()).chain(crate::runners::other_dirs(&base)).collect() }
+    };
+    let mut ended = Vec::new();
+    for d in dirs.iter().filter(|d| d.join("hostd").join("hostd.sqlite").exists()) {
+        ended.extend(hostd::local_stop::run(d)?);
+    }
     match ended.len() {
         0 => println!("No agent started by this computer's runner is running."),
         n => println!("Stopped {n} agent{}: {}", if n == 1 { "" } else { "s" }, ended.join(", ")),
@@ -468,6 +522,23 @@ mod tests {
         chosen.allow(&projects).unwrap();
         assert!(!default_to_home(&mut chosen, home.path()).unwrap(), "folders already chosen are kept as they are");
         assert_eq!(chosen.allowed_folders.len(), 1);
+    }
+
+    #[test]
+    fn another_accounts_runner_is_a_service_of_its_own() {
+        let args = vec!["/x/sculptured".to_string(), "connect".into()];
+        let (file, text) = service_unit_for(&args, "/usr/bin", Some("b1c2d3e4"));
+        let cmds = service_commands_for(&file, Some("b1c2d3e4"));
+        if cfg!(target_os = "linux") {
+            assert!(file.ends_with(".config/systemd/user/sculptured-runner-b1c2d3e4.service"), "{}", file.display());
+            assert_eq!(cmds.last().unwrap(), &["systemctl", "--user", "restart", "sculptured-runner-b1c2d3e4"]);
+        }
+        if cfg!(target_os = "macos") {
+            assert!(file.ends_with("Library/LaunchAgents/dev.sculptured.runner.b1c2d3e4.plist") && text.contains("<string>dev.sculptured.runner.b1c2d3e4</string>"));
+        }
+        let (first, _) = service_unit_for(&args, "/usr/bin", None);
+        assert_ne!(first, file, "the first account's service is left as it is");
+        let _ = text;
     }
 
     #[test]

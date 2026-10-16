@@ -1,6 +1,7 @@
 //! `sculptured serve` runs controld and supervises a local hostd child process.
 //! `sculptured hostd` runs the host runtime; controld normally starts it.
 mod connect;
+mod runners;
 use axum::Router;
 use clap::{Parser, Subcommand};
 use controld::{app, hosts::{HostRegistry, LOCAL_HOST}, store::Store, AppState};
