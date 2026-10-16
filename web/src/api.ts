@@ -145,7 +145,8 @@ export const api = {
   budgetPaused: (id: string, action: 'continue' | 'stop' | 'mode', continue_with?: 'notes' | 'resume') => post(`${teamUrl(id)}/budget/paused`, newRequestId(), { action, continue_with }),
   setTeamBudget: (id: string, output_limit: number | null) => post(`${teamUrl(id)}/budget`, newRequestId(), {output_limit}),
   managedChildren: (id:string) => get<import('./generated/ManagedChild').ManagedChild[]>(`${teamUrl(id)}/children`),
-  communications: (id: string) => get<EventRecord[]>(`${teamUrl(id)}/communications`),
+  /** The team's latest message, handoff and start events; `usage` adds its model-usage reports. */
+  communications: (id: string, usage = false) => get<EventRecord[]>(`${teamUrl(id)}/communications${usage ? '?usage=true' : ''}`),
   agentControl: (id: string) => get<{mode: string | null}>(`${seatUrl(id)}/control`),
   controlAgent: (id: string, mode: "soft" | "hard" | "resume", requestId: string) => post(`${seatUrl(id)}/control`, requestId, {mode}),
   workflow: (id: string) => get<{ config: Workflow | null; run: WorkflowRun | null; active: boolean; usage?: Record<string, import('./generated/TurnTokens').TurnTokens> }>(`${teamUrl(id)}/workflow`),
@@ -161,6 +162,8 @@ export const api = {
     post<{ rig: string; diagnostics: Diagnostic[] }>('/api/rigs', requestId, { spec_path: specPath }),
   stopRig: (name: string, requestId = newRequestId()) =>
     post<StopRigOutcome>(`${rigUrl(name)}/stop`, requestId),
+  /** Each agent's newest `tail` events for a whole team, long text shortened (one request for the board). */
+  teamRecent: (id: string, tail: number) => get<Record<string, EventRecord[]>>(`${teamUrl(id)}/recent?tail=${tail}`),
   latestSeatEvents: (id: string, tail = HISTORY_LIMIT) =>
     get<EventRecord[]>(`${seatUrl(id)}/events?tail=${tail}`),
   send: (id: string, msg: SendBody, requestId = newRequestId()) =>

@@ -27,7 +27,8 @@ import { teamTokensText } from '../herdr';
 
 /** Before history arrives: one constant, so memos keyed on it hold. */
 const NO_LINKS: [never[], never[]] = [[], []];
-import { mergeEvents } from '../collaboration/mergeEvents';
+import { communicationEvents } from '../collaboration/mergeEvents';
+import type { EventRecord } from '../generated/EventRecord';
 import { usePolled } from '../usePolling';
 import { WorkflowInspector } from '../workflow/WorkflowInspector';
 import type { WorkflowTarget } from '../workflow/WorkflowGraph';
@@ -122,8 +123,15 @@ export function TeamLive(p: Props) {
   const links = usePolled(() => Promise.all([api.communications(rig), api.managedChildren(rig)]), 5000, [rig, state.epoch]);
   const [observed, children] = links.data ?? NO_LINKS;
   const observedError = links.error && 'Communication history unavailable; showing captured live events.';
-  const events = useMemo(() => mergeEvents(observed, state.feed), [observed, state.feed]);
-  const fresh = useMemo(() => liveProjection(snap.rig, state.seats, events, p.layout, children, subtree), [snap.rig, state.seats, events, p.layout, children, subtree]);
+  // Live events arrive many times a second; the arrows change only with a message, a handoff or a
+  // start or stop, so the projection reruns only then.
+  const lastEvents = useRef<EventRecord[] | null>(null);
+  const events = useMemo(() => communicationEvents(observed, state.feed, lastEvents.current), [observed, state.feed]);
+  useEffect(() => { lastEvents.current = events; }, [events]);
+  const lifecycles = snap.rig.seats.map((s) => state.seats[s.id]?.lifecycle ?? '').join();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the projection reads only each agent's lifecycle
+  const seatsNow = useMemo(() => state.seats, [lifecycles]);
+  const fresh = useMemo(() => liveProjection(snap.rig, seatsNow, events, p.layout, children, subtree), [snap.rig, seatsNow, events, p.layout, children, subtree]);
   // Keep the drawn objects while only counts change, so the graph does not route every arrow again.
   const previous = useRef<ReturnType<typeof liveProjection> | null>(null);
   const projection = useMemo(() => stableProjection(previous.current, fresh), [fresh]);

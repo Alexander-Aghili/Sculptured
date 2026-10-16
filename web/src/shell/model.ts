@@ -93,7 +93,18 @@ export function firstMessageIsWork(compiled: CompiledRig, seats: Record<string, 
 }
 
 /** Every seat reachable from `seat` along "hands work to" (not `seat` itself). */
+const downstreamCache = new WeakMap<CompiledRig, Map<string, string[]>>();
 export function downstreamOf(compiled: CompiledRig, seat: string): string[] {
+  let byTeam = downstreamCache.get(compiled);
+  if (!byTeam) downstreamCache.set(compiled, (byTeam = new Map()));
+  const hit = byTeam.get(seat);
+  if (hit) return hit;
+  const below = reachable(compiled, seat);
+  byTeam.set(seat, below);
+  return below;
+}
+
+function reachable(compiled: CompiledRig, seat: string): string[] {
   const seen = new Set<string>();
   const todo = [seat];
   while (todo.length) {
@@ -106,6 +117,13 @@ export function downstreamOf(compiled: CompiledRig, seat: string): string[] {
     }
   }
   return [...seen];
+}
+
+const runtimes = new WeakMap<CompiledRig, Map<string, string>>();
+function runtimeOf(compiled: CompiledRig, seat: string) {
+  let m = runtimes.get(compiled);
+  if (!m) runtimes.set(compiled, (m = new Map(compiled.seats.map((s) => [s.id, s.runtime]))));
+  return m.get(seat);
 }
 
 /** One row per agent of a team, in declaration order. */
@@ -144,7 +162,7 @@ export function teamAgents(
       downstream: {
         count: below.length,
         accounts: (['claude-code', 'codex'] as const)
-          .filter((r) => below.some((id) => compiled.seats.find((s) => s.id === id)?.runtime === r))
+          .filter((r) => below.some((id) => runtimeOf(compiled, id) === r))
           .map((r) => (r === 'codex' ? 'Codex' : 'Claude')),
       },
     };

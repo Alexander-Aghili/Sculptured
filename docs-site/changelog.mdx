@@ -7,6 +7,11 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 16 October 2026
 
+### Faster while a team runs
+
+- **Pages stay quick during big runs.** The Run board now downloads only the messages and handoffs it draws, not every tool call: on a 21-agent test run, about 0.2 MB every five seconds instead of 3.3 MB. It loads each agent's latest activity in one request instead of one per agent, and redraws arrows only when a message or handoff arrives. Its CPU time while a run streams roughly halved.
+- **A cleaner Design board.** The arrow key moved from its own line onto the board's corner, and the folder button says **Choose folder** until you pick one.
+
 ### One computer, several accounts
 
 - **A computer can run agents for several accounts.** Running another account's connect command on an already connected computer used to reconnect the first account without a word. Now the computer gets a second runner for that account, with its own folder and background service, and both run at once. See [Connect a computer](/connect-a-computer#use-one-computer-with-several-accounts).

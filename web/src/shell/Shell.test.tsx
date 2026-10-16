@@ -1,3 +1,4 @@
+import type { EventRecord } from '../generated/EventRecord';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -19,7 +20,7 @@ vi.mock('../api', async (orig) => {
   const m = await orig<typeof import('../api')>();
   return {
     ...m,
-    api: { ...m.api, latestSeatEvents: vi.fn(), listRigs: vi.fn(), interrupt: vi.fn(), send: vi.fn(), stopRig: vi.fn() },
+    api: { ...m.api, latestSeatEvents: vi.fn(), teamRecent: vi.fn(), listRigs: vi.fn(), interrupt: vi.fn(), send: vi.fn(), stopRig: vi.fn() },
   };
 });
 
@@ -76,6 +77,7 @@ beforeEach(() => {
   localStorage.setItem(RIGHT_PANEL_KEY, 'true');
   resetSeenCache();
   vi.mocked(api.latestSeatEvents).mockReset().mockResolvedValue([]);
+  vi.mocked(api.teamRecent).mockReset().mockResolvedValue({});
   vi.mocked(api.listRigs).mockReset().mockResolvedValue([]);
   vi.mocked(api.interrupt).mockReset().mockResolvedValue({});
   vi.mocked(api.send).mockReset().mockResolvedValue({ message_id: 'm1' });
@@ -267,11 +269,13 @@ describe('done state', () => {
   it('comes back after a later turn ends', async () => {
     localStorage.setItem('sculptured.seen.v1', JSON.stringify({ 'dev.a@r': 11 }));
     resetSeenCache();
-    vi.mocked(api.latestSeatEvents).mockImplementation(async (id) =>
-      id === 'dev.a@r' ? [ev(11, { type: 'turn-ended', turn_id: 't11', status: 'completed' })] : [],
+    // One request per team brings every agent's recent events (not one request per agent).
+    vi.mocked(api.teamRecent).mockImplementation(async (rig): Promise<Record<string, EventRecord[]>> =>
+      rig === 'r' ? { 'dev.a@r': [ev(11, { type: 'turn-ended', turn_id: 't11', status: 'completed' })] } : {},
     );
     await twoTeams();
-    await waitFor(() => expect(api.latestSeatEvents).toHaveBeenCalled());
+    await waitFor(() => expect(api.teamRecent).toHaveBeenCalledWith('r', 60));
+    expect(api.latestSeatEvents).not.toHaveBeenCalled();
     expect(await screen.findByRole('link', { name: 'a — idle' })).toBeInTheDocument();
     act(() => stream('r').emit('event', turnEnd(14)));
     expect(screen.getByRole('link', { name: 'a — done' })).toBeInTheDocument();

@@ -143,7 +143,7 @@ export function useActivity(teams: Teams): Record<string, AgentActivity> {
       const snap = t.state.snapshot;
       if (!snap || !epoch || loaded.current.get(rig) === epoch) continue;
       loaded.current.set(rig, epoch);
-      for (const s of snap.rig.seats) loadSeatTail(s.id, (events) => setHist((h) => ({ ...h, [s.id]: events })));
+      loadTeamTails(rig, (bySeat) => setHist((h) => ({ ...h, ...bySeat })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -154,12 +154,13 @@ export function useActivity(teams: Teams): Record<string, AgentActivity> {
   return useMemo(() => (last.current = activityBySeat(teams, hist, cache.current, last.current)), [teams, hist]);
 }
 
-/** The seat's last ACTIVITY_TAIL events about itself. History is an addition: a failure is ignored. */
-function loadSeatTail(id: string, onEvents: (events: EventRecord[]) => void) {
+/** Each of the team's agents' last ACTIVITY_TAIL events about itself, in one request. History is an
+ *  addition: a failure is ignored. */
+function loadTeamTails(rig: string, onEvents: (bySeat: Record<string, EventRecord[]>) => void) {
   Promise.resolve()
-    .then(() => api.latestSeatEvents(id, ACTIVITY_TAIL))
-    .then((events) => {
-      if (Array.isArray(events)) onEvents(events.filter((e) => e.subject.kind === 'seat' && e.subject.id === id));
+    .then(() => api.teamRecent(rig, ACTIVITY_TAIL))
+    .then((bySeat) => {
+      if (bySeat && typeof bySeat === 'object') onEvents(bySeat);
     })
     .catch(() => {
       // The live feed still drives the view.

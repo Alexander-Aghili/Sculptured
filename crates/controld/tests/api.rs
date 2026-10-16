@@ -770,3 +770,45 @@ async fn a_wrong_method_is_405_with_the_envelope() {
         assert_eq!((status, v["error"]["code"].as_str()), (StatusCode::METHOD_NOT_ALLOWED, Some("method_not_allowed")), "{method} {uri}: {v}");
     }
 }
+
+#[tokio::test]
+async fn a_teams_recent_events_come_in_one_request_with_long_text_shortened() {
+    let (st, router) = setup();
+    let rig = rigspec::compile(GOOD).unwrap();
+    st.store.lock().unwrap().upsert_rig(&rig, &controld::store::RigSource::File { path: "/specs/r.yaml".into() }, model::Desired::Running).unwrap();
+    let long = "x".repeat(5000);
+    for (seat, text) in [("dev.a@r", "short"), ("dev.a@r", long.as_str()), ("dev.b@r", "hello")] {
+        st.local_event(Actor::System("test".into()), Subject::Seat(seat.into()), Provenance::AgentReported, EventBody::AgentText { turn_id: None, text: text.into() }).unwrap();
+    }
+    let (status, body) = call(&router, "GET", "/api/teams/r/recent?tail=60", None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let a = body["dev.a@r"].as_array().expect("each agent's events");
+    assert_eq!(a.len(), 2);
+    let cut = a[1]["body"]["text"].as_str().unwrap();
+    assert!(cut.chars().count() < 500 && cut.ends_with('…'), "a tool output or long reply is shortened");
+    assert_eq!(body["dev.b@r"][0]["body"]["text"], "hello");
+}
+
+#[tokio::test]
+async fn a_teams_communications_leave_out_tool_events_and_include_usage_only_when_asked() {
+    let (st, router) = setup();
+    let rig = rigspec::compile(GOOD).unwrap();
+    st.store.lock().unwrap().upsert_rig(&rig, &controld::store::RigSource::File { path: "/specs/r.yaml".into() }, model::Desired::Running).unwrap();
+    let seat = || Subject::Seat("dev.a@r".into());
+    let usage = EventBody::UsageReported { turn_id: None, input_tokens: 1, output_tokens: 2, cache_read_tokens: 3, cache_write_tokens: 4, cost: None, in_turn: true };
+    for body in [
+        EventBody::MessageQueued { message_id: "m1".into(), intent: model::MessageIntent::Inform, text: "hi".into() },
+        EventBody::ToolCalled { turn_id: None, call_id: "c1".into(), name: "Bash".into(), input: json!({ "command": "ls" }), parent_call_id: None },
+        EventBody::ToolResulted { turn_id: None, call_id: "c1".into(), output: "x".repeat(5000), is_error: false },
+        usage,
+        EventBody::MessageDelivered { message_id: "m1".into() },
+    ] {
+        st.local_event(Actor::System("test".into()), seat(), Provenance::AgentReported, body).unwrap();
+    }
+    let types = |v: &Value| v.as_array().unwrap().iter().map(|e| e["body"]["type"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    let (status, body) = call(&router, "GET", "/api/teams/r/communications", None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(types(&body), ["message-delivered", "message-queued"], "the Run board's arrows need only messages");
+    let (_, body) = call(&router, "GET", "/api/teams/r/communications?usage=true", None).await;
+    assert_eq!(types(&body), ["message-delivered", "usage-reported", "message-queued"]);
+}

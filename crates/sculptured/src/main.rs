@@ -2,6 +2,7 @@
 //! `sculptured hostd` runs the host runtime; controld normally starts it.
 mod connect;
 mod runners;
+mod web_cache;
 use axum::Router;
 use clap::{Parser, Subcommand};
 use controld::{app, hosts::{HostRegistry, LOCAL_HOST}, store::Store, AppState};
@@ -253,7 +254,8 @@ async fn serve(
     };
     // `fallback` (not `not_found_service`) keeps status 200 for SPA deep links.
     let web_ui = Router::new()
-        .fallback_service(ServeDir::new(&web_dir).fallback(ServeFile::new(web_dir.join("index.html"))));
+        .fallback_service(ServeDir::new(&web_dir).fallback(ServeFile::new(web_dir.join("index.html"))))
+        .layer(axum::middleware::from_fn(web_cache::layer));
     let router = app(st.clone(), Some(web_ui));
 
     let server = tokio::spawn(async move { axum::serve(listener, router).await });

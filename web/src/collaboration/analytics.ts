@@ -1,6 +1,10 @@
 import type { EventRecord } from '../generated/EventRecord';
 import { splitTeamMessage } from '../teamMessage';
 export type TrafficMessage={id:string;from:string[];to:string;queued:number;delivered?:number;read?:number;failure?:string;text:string;briefing?:string;bytes:number;contextBytes:number;event:EventRecord};
+const encoder=new TextEncoder();
+// Events never change once recorded: each message's split and sizes are worked out once.
+const parsed=new WeakMap<EventRecord,{text:string;briefing?:string;bytes:number;contextBytes:number}>();
+function messageParts(e:EventRecord,text:string){let p=parsed.get(e);if(!p){const split=splitTeamMessage(text);p={text:split.text,briefing:split.briefing,bytes:encoder.encode(text).length,contextBytes:encoder.encode(split.briefing??'').length};parsed.set(e,p);}return p;}
 export function communicationStats(input:EventRecord[],since=0,agent=''){
   const events=[...new Map(input.map(e=>[e.seq,e])).values()].sort((a,b)=>a.seq-b.seq);
   const handoffs=new Map<string,string[]>();
@@ -8,8 +12,8 @@ export function communicationStats(input:EventRecord[],since=0,agent=''){
   const messages=new Map<string,TrafficMessage>();let orphanReceipts=0;
   for(const e of events){const b=e.body;
     if(b.type==='message-queued' && e.subject.kind==='seat'){
-      const split=splitTeamMessage(b.text);const from=handoffs.get(b.message_id) ?? [e.actor.kind==='seat'?e.actor.id:e.actor.kind==='human'?'You':'System'];
-      messages.set(b.message_id,{id:b.message_id,from,to:e.subject.id,queued:e.at_ms,text:split.text,briefing:split.briefing,bytes:new TextEncoder().encode(b.text).length,contextBytes:new TextEncoder().encode(split.briefing ?? '').length,event:e});
+      const from=handoffs.get(b.message_id) ?? [e.actor.kind==='seat'?e.actor.id:e.actor.kind==='human'?'You':'System'];
+      messages.set(b.message_id,{id:b.message_id,from,to:e.subject.id,queued:e.at_ms,...messageParts(e,b.text),event:e});
     }else if(b.type==='message-delivered'||b.type==='message-consumed'||b.type==='message-failed'){
       const m=messages.get(b.message_id);if(!m){orphanReceipts++;continue;}
       if(b.type==='message-delivered')m.delivered=e.at_ms;

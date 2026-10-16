@@ -2,7 +2,9 @@
 /* Design board: the Add toolbar takes its own row above the board instead of covering it. */
 .sb-tools-disclosure { position:static; margin:6px 8px 0; max-width:none; }
 .sb-tools-disclosure > .sb-toolbar { max-width:none; box-shadow:none; }
-.sb-legend { margin:6px 10px 0; font-size:.8rem; }
+.sb-legend { position:absolute; left:12px; bottom:10px; z-index:9; margin:0; display:flex; gap:14px; padding:4px 10px; font-size:.75rem; border-radius:6px; background:rgba(17,22,28,.85); pointer-events:none; }
+.sb-legend span { display:inline-flex; align-items:center; gap:6px; }
+@media (max-width:640px) { .sb-legend { flex-direction:column; gap:2px; } }
 /* A label on every arrow is noise: show it on hover, keyboard focus or when the arrow is selected. */
 .sb-edge-label:not(.selected):not(:hover):not(:focus-visible) { opacity:0; }
 /* Run: one "More" menu for the less-used views. */

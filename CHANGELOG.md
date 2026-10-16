@@ -4,6 +4,10 @@ All notable changes to Sculptured are listed here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- Faster pages while a team runs: `GET /api/teams/{id}/communications` returns only message, handoff, start and capture-gap events (`?usage=true` adds model-usage reports), not tool calls; one `GET /api/teams/{id}/recent?tail=` replaces a request per agent; the Run board recomputes its arrows only when a message or handoff arrives; per-message sizes and downstream sets are cached. Smaller logo files and cache headers for built assets (`/assets/` immutable, `/brand/` one day).
+- Wording: Sculptured is for teams of agents, not only coding agents. The Design board's arrow key sits on the board's corner; the team folder button says "Choose folder" when none is set.
+
 ### Added
 - One computer, several accounts: a connect key for an account other than the computer's runner's gets a runner of its own in `~/.sculptured/runners/<id>` with its own service name (gateway `POST /gw/api/device/same-account`); `sculptured stop` covers every account's runner.
 - `sculptured stop` ends every agent this computer's runner started, without the server (process groups recorded at launch, checked by start time). Stopping agents whose computer is offline marks them stopped at once; a reconnecting computer ends any agent the server has stopped.

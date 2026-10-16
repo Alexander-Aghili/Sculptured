@@ -45,6 +45,6 @@ async fn an_answer_whose_reply_cannot_go_out_is_recorded_as_failed() {
     drop(link);
     ended(call).await;
     let reason = answer_failed(&s, &agent, &q).expect("the lost answer is recorded");
-    assert!(reason.contains("dropped before the answer reached the agent"), "{reason}");
+    assert!(reason.contains("could not pass the answer on to the agent"), "{reason}");
     assert_eq!(question_view(&s, &agent, &q).await["state"], "withdrawn");
 }

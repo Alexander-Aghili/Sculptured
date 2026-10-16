@@ -66,12 +66,21 @@ async fn archive(
     })
     .await
 }
-async fn events(State(st): State<AppState>, Path(id): Path<String>) -> Response {
+#[derive(Deserialize)]
+struct CommunicationsQuery {
+    #[serde(default)]
+    usage: bool,
+}
+async fn events(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<CommunicationsQuery>,
+) -> Response {
     respond(
         st.store
             .lock()
             .unwrap()
-            .communication_events(&id, 10000)
+            .communication_events(&id, 10000, q.usage)
             .map_err(ApiError::from),
     )
 }

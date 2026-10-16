@@ -546,7 +546,6 @@ export function StructureCanvas(p: Props) {
 
   return (
     <div className={`sb-canvas${af.quiet ? ' arrows-quiet' : ''}`}>
-      <p className="sb-legend muted">Solid arrow: hands work to (it starts after). Dashed: reports to / watches (not enforced). Click an arrow for details.</p>
       <details className="sb-tools-disclosure" ref={paletteDisclosure} open>
         <summary>Edit tools</summary>
       <div className="sb-toolbar" role="toolbar" aria-label="Add to the team" ref={paletteRef}>
@@ -597,6 +596,10 @@ export function StructureCanvas(p: Props) {
       </div>
       </details>
       <div className="sb-viewport-wrap">
+      <p className="sb-legend muted">
+        <span><svg aria-hidden="true" width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="currentColor" strokeWidth="1.5" /></svg> hands work to (it starts after)</span>
+        <span><svg aria-hidden="true" width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 3" /></svg> reports to / watches (not enforced)</span>
+      </p>
       <span role="group" aria-label="Zoom" className="seg zoom-float">
         <Btn variant="ghost" size="sm" icon="minus" iconOnly onClick={() => zoomAt(1 / 1.2)} aria-label="Zoom out" kbd="-" />
         <Btn variant="ghost" size="sm" icon="plus" iconOnly onClick={() => zoomAt(1.2)} aria-label="Zoom in" kbd="+" />
@@ -837,7 +840,7 @@ function TeamFolderButton({ draft, locked, onChoose }: { draft: TeamDraft; locke
   const shown = draft.folder ? shortPath(draft.folder, home) : 'none chosen';
   return <>
     <Btn onClick={() => setPicking(true)} icon="folder" disabled={locked} aria-label={`Project folder: ${shown}. Choose a folder for every agent`} tip="The folder every agent works in">
-      {shown}
+      {draft.folder ? shown : 'Choose folder'}
     </Btn>
     {picking && <FolderPicker initialPath={draft.folder ?? null} onClose={() => setPicking(false)} onChoose={folder => { onChoose(folder); setPicking(false); }} />}
   </>;

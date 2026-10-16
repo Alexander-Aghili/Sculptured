@@ -100,12 +100,19 @@ impl Store {
     pub fn children(&self, parent: &str) -> rusqlite::Result<Vec<String>> {
         self.conn.prepare("SELECT c.child FROM agent_children c JOIN seats s ON s.id=c.child WHERE c.parent=?1 ORDER BY c.created_ms,c.child")?.query_map([parent], |r| r.get(0))?.collect()
     }
+    /// The team's latest message, handoff, start and capture-gap events, newest first; with `usage`,
+    /// its model-usage reports too. Tool calls and replies are left out: they are most of a run's
+    /// events and no communication view reads them.
     pub fn communication_events(
         &self,
         rig: &str,
         limit: usize,
+        usage: bool,
     ) -> rusqlite::Result<Vec<EventRecord>> {
-        self.conn.prepare("SELECT e.json FROM events e JOIN seats s ON e.subject='seat:'||s.id WHERE s.rig=?1 ORDER BY e.seq DESC LIMIT ?2")?
+        let types = "'message-queued','message-delivered','message-consumed','message-failed','handed-over','tenure-started','events-lost'";
+        let types = if usage { format!("{types},'usage-reported'") } else { types.to_string() };
+        let sql = format!("SELECT e.json FROM events e JOIN seats s ON e.subject='seat:'||s.id WHERE s.rig=?1 AND json_extract(e.json, '$.body.type') IN ({types}) ORDER BY e.seq DESC LIMIT ?2");
+        self.conn.prepare(&sql)?
             .query_map(params![rig, limit as i64], |r| r.get::<_,String>(0))?.map(|r| r.and_then(|s| json_parse(&s))).collect()
     }
 }
