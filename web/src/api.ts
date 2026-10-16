@@ -141,6 +141,8 @@ export const api = {
   deployment: (id:string,seq:number) => get<import('./generated/DeploymentHistory').DeploymentHistory>(`${teamUrl(id)}/deployments/${seq}`),
   deploymentEvents: (id:string,seq:number,seat:string,before?:number) => get<import('./generated/DeploymentEvents').DeploymentEvents>(`${teamUrl(id)}/deployments/${seq}/events?seat=${encodeURIComponent(seat)}${before ? `&before=${before}` : ''}`),
   teamBudget: (id: string) => get<import("./generated/TeamBudget").TeamBudget>(`${teamUrl(id)}/budget`),
+  /** A run paused at its plan budget: `continue` now, `stop`, or set how it continues (`mode`). */
+  budgetPaused: (id: string, action: 'continue' | 'stop' | 'mode', continue_with?: 'notes' | 'resume') => post(`${teamUrl(id)}/budget/paused`, newRequestId(), { action, continue_with }),
   setTeamBudget: (id: string, output_limit: number | null) => post(`${teamUrl(id)}/budget`, newRequestId(), {output_limit}),
   managedChildren: (id:string) => get<import('./generated/ManagedChild').ManagedChild[]>(`${teamUrl(id)}/children`),
   communications: (id: string) => get<EventRecord[]>(`${teamUrl(id)}/communications`),

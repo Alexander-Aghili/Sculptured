@@ -1,7 +1,9 @@
 import type { SoftHard } from '../generated/SoftHard';
 import type { TeamDraft } from '../generated/TeamDraft';
 import type { Edit } from './Panels';
-import { budgetProblems, PLAN_ROWS, planOf, softHard, softOf, withBudget, withPlan } from './budgetDraft';
+import { budgetProblems, PLAN_ROWS, planOf, softHard, softOf, withBudget, withPause, withPlan } from './budgetDraft';
+import type { PlanBudget } from '../generated/PlanBudget';
+import type { PlanPause } from '../generated/PlanPause';
 
 const num = (text: string) => (text.trim() === '' ? null : Math.max(0, Number(text) || 0));
 
@@ -29,6 +31,30 @@ function Pair({ label, unit, value, locked, whole, onChange }: PairProps) {
   );
 }
 
+/** What happens at a plan budget's hard value: stop, or pause until the window resets and continue. */
+function PauseRow({ label, plan, locked, onChange }: { label: string; plan: PlanBudget; locked: boolean; onChange: (p: PlanPause | undefined) => void }) {
+  const p = plan.pause;
+  const windows = (text: string) => onChange({ ...p!, max_windows: Math.max(1, Math.floor(num(text) ?? 1)) });
+  return (
+    <div className="ta-budget-pause" role="group" aria-label={`${label}: pause`}>
+      <label><span>{label}: at the hard value</span>
+        <select className="fld-input" aria-label={`${label}: at the hard value`} disabled={locked} value={p ? 'pause' : 'stop'}
+          onChange={(e) => onChange(e.target.value === 'pause' ? { continue_with: 'notes', max_windows: 3 } : undefined)}>
+          <option value="stop">Stop</option>
+          <option value="pause">Pause until the window resets</option>
+        </select></label>
+      {p && <label><span>Continue</span>
+        <select className="fld-input" aria-label={`${label}: continue`} disabled={locked} value={p.continue_with} onChange={(e) => onChange({ ...p, continue_with: e.target.value as PlanPause['continue_with'] })}>
+          <option value="notes">From their notes (fresh start)</option>
+          <option value="resume">Resume their conversation</option>
+        </select></label>}
+      {p && <label><span>At most</span>
+        <input className="fld-input" type="number" min={1} aria-label={`${label}: at most windows`} disabled={locked} value={p.max_windows} onChange={(e) => windows(e.target.value)} />
+        <span>windows</span></label>}
+    </div>
+  );
+}
+
 function MaxWorking({ draft, edit, locked }: { draft: TeamDraft; edit: Edit; locked: boolean }) {
   const set = (text: string) => {
     const n = num(text);
@@ -44,6 +70,7 @@ function MaxWorking({ draft, edit, locked }: { draft: TeamDraft; edit: Edit; loc
 }
 
 const NOTE = 'Soft: no new work starts and every agent wraps up with a summary. Hard: every agent is stopped at once, like Ctrl+C. '
+  + 'A plan budget can instead pause the run at its hard value: agents save a note at the soft value, and the run continues by itself after the window resets. '
   + 'Empty soft = 85% of hard. Plan percentages count all your use of that plan, including outside Sculptured. The Run board shows each budget as the run goes.';
 
 
@@ -65,6 +92,9 @@ export function BudgetFields({ draft, edit, locked }: { draft: TeamDraft; edit: 
           <Pair label="Time" unit="minutes" whole value={b?.minutes} locked={locked}
             onChange={(v) => edit((d) => withBudget(d, (x) => ({ ...x, minutes: v })), 'budget:minutes')} />
       </div>
+      {PLAN_ROWS.flatMap((r) => { const plan = planOf(b, r.provider, r.window); return plan ? [
+        <PauseRow key={`pause-${r.provider}-${r.window}`} label={r.label} plan={plan} locked={locked}
+          onChange={(p) => edit((d) => withBudget(d, (x) => withPause(x, r.provider, r.window, p)), `budget:${r.provider}:${r.window}:pause`)} />] : []; })}
       <MaxWorking draft={draft} edit={edit} locked={locked} />
       {problems.map((p) => <p key={p} className="reason fld-reason" role="alert">{p}</p>)}
       <p className="fld-meta">{NOTE}</p>

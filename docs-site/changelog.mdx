@@ -7,6 +7,12 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 15 October 2026
 
+### Pause until the window resets
+
+- **A plan budget can pause a run instead of stopping it.** At the soft value agents write a short note; at the hard value they stop, and the run continues by itself two minutes after the plan window resets, for at most the number of windows you set (3 by default). See [Budgets and limits](/guides/budgets#pause-until-the-window-resets).
+- **Continue from notes or resume.** Agents continue either from their notes with a fresh, small context, or by resuming their conversations. You choose under **Run budget**, and can change it while the run is paused.
+- **The Run board shows a paused run** with when it continues, **Continue now** and **Stop**.
+
 ### Smaller messages to agents
 
 - **Each agent gets the team briefing once per conversation**, with its first message, instead of with every message. In a 26-agent run every message repeated about 7,000 tokens of briefing.

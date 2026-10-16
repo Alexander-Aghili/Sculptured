@@ -50,4 +50,17 @@ describe('BudgetFields', () => {
     expect(e.budget?.plan).toEqual([{ provider: 'codex', window: 'five_hour', hard: 10 }, { provider: 'claude', window: 'five_hour', hard: 25 }]);
     expect(budgetProblems({ plan: [{ provider: 'claude', window: 'five_hour', hard: 130 }] })).toEqual(['Plan budget: 130 is not a percent between 0 and 100']);
   });
+
+  it('pauses a plan budget until its window resets, keeps the choice when the values change, and offers both ways to continue', () => {
+    render(<Harness start={{ ...teamDraft({ id: 't', name: 'T' }), budget: { plan: [{ provider: 'claude', window: 'five_hour', hard: 30 }] } }} />);
+    fireEvent.change(screen.getByLabelText('Claude, 5-hour window: at the hard value'), { target: { value: 'pause' } });
+    expect(budget().plan[0].pause).toEqual({ continue_with: 'notes', max_windows: 3 });
+    fireEvent.change(screen.getByLabelText('Claude, 5-hour window: continue'), { target: { value: 'resume' } });
+    fireEvent.change(screen.getByLabelText('Claude, 5-hour window: at most windows'), { target: { value: '2' } });
+    expect(budget().plan[0].pause).toEqual({ continue_with: 'resume', max_windows: 2 });
+    fireEvent.change(screen.getByLabelText('Claude, 5-hour window: hard (% of plan)'), { target: { value: '25' } });
+    expect(budget().plan[0]).toEqual({ provider: 'claude', window: 'five_hour', hard: 25, pause: { continue_with: 'resume', max_windows: 2 } });
+    fireEvent.change(screen.getByLabelText('Claude, 5-hour window: at the hard value'), { target: { value: 'stop' } });
+    expect(budget().plan[0].pause).toBeUndefined();
+  });
 });

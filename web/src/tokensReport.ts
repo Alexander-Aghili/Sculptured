@@ -16,7 +16,7 @@ export type ToolUse = { tool: string; agents_given: number; definition_tokens: F
 export type TimePoint = { at_ms: number; tokens: number; agents_working: number };
 export type Fanout = { at_ms: number; agents: number; from: string | null };
 export type Durations = { count: number; total_ms: number; median_ms: number | null; p90_ms: number | null };
-export type BudgetEvent = { kind: 'wrap-up' | 'stop'; at_ms: number; reason: string };
+export type BudgetEvent = { kind: 'wrap-up' | 'stop' | 'pause' | 'continue'; at_ms: number; reason: string };
 export type PlanSeries = {
   provider: string; window: string; points: [number, number, number][]; first: number; highest: number;
   added: Figure<number>; points_per_million: Figure<number>; budget: [number, number] | null; events: BudgetEvent[];

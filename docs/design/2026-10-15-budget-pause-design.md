@@ -1,6 +1,6 @@
 # Pause a run at its plan budget, continue when the window resets
 
-Status: draft for review, 15 October 2026. Extends [budgets](2026-10-15-budgets-skills-run-design.md), part A.
+Status: built, 15 October 2026. Extends [budgets](2026-10-15-budgets-skills-run-design.md), part A.
 
 ## Why
 
@@ -29,9 +29,9 @@ stateDiagram-v2
   WrapUp --> Stopped: "hard value, Stop chosen"
 ```
 
-1. **At the soft value**, agents of a pausing run are asked to reach a checkpoint rather than finish: commit or save their work, and write a short note (what is done, what is next, which files) to `.sculptured/notes/<agent>.md` in their folder. No new work starts.
-2. **At the hard value**, every agent is stopped at once, as a hard stop does today. The run's budget record moves to `Paused { until_ms, reason, window }`, where `until_ms` is the window's `resets_at` from its latest reading. A `budget-state-changed` event records it, with `state: "paused"`.
-3. **While paused**, the Run board says "Paused until 17:40: Claude 5-hour window resets", with **Continue now** and **Stop**. Messages to the team's agents wait in their queues.
+1. **At the soft value**, the working agents are remembered, and agents of a pausing run are asked to reach a checkpoint rather than finish: commit or save their work, and write a short note (what is done, what is next, which files) to `.sculptured/notes/<agent>.md` in their folder. No new work starts.
+2. **At the hard value**, or once every agent has finished its wrap-up below it, every agent is stopped at once, as a hard stop does today. The run's budget record moves to `Paused { until_ms, reason, window }`, where `until_ms` is the window's `resets_at` from its latest reading. A `budget-state-changed` event records it, with `state: "paused"`.
+3. **While paused**, the Run board says "Paused until 17:40: Claude 5-hour window resets", with **Continue now** and **Stop**. New work for the team's agents is refused with the reason, as at a stop; the agents that continue are sent their work again.
 4. **After the reset** (`resets_at` plus 2 minutes, so the first reading belongs to the new window), Sculptured restarts the agents that were working or had queued work, and the budget takes a new baseline in the new window. The run counts how many windows it has used.
 5. If the runner is offline at that moment, the run stays paused and says so. It continues when the runner reconnects.
 

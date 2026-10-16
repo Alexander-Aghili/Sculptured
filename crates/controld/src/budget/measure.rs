@@ -34,6 +34,32 @@ pub struct Meter {
     pub estimated: bool,
     #[ts(type = "number | null")]
     pub observed_ms: Option<i64>,
+    /// Set when reaching the hard value pauses the run (a plan budget with windows left) instead of
+    /// stopping it.
+    pub pause: Option<PauseAt>,
+}
+
+/// Where a run would pause: until when, and which window of how many it is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct PauseAt {
+    /// The window's reset plus 2 minutes, so the first reading after it belongs to the new window.
+    #[ts(type = "number")]
+    pub until_ms: i64,
+    pub window: u32,
+    pub max_windows: u32,
+}
+
+/// After the window resets, the readings of a moment ago may still show the old window.
+pub const AFTER_RESET_MS: i64 = 120_000;
+
+/// The pause a plan budget calls for at its hard value: it pauses, it has a window left, and its window
+/// says when it resets.
+pub(super) fn pause_at(r: &Record, t: &PlanTrack, b: &model::PlanBudget) -> Option<PauseAt> {
+    let p = b.pause?;
+    let window = r.windows + 1;
+    (window < p.max_windows).then_some(())?;
+    Some(PauseAt { until_ms: t.resets_at? * 1000 + AFTER_RESET_MS, window, max_windows: p.max_windows })
 }
 
 fn provider_of_runtime(runtime: &str) -> &'static str {
@@ -143,19 +169,20 @@ pub fn meters(r: &Record, spend: &HashMap<&str, Spend>, working: &HashMap<&str, 
         let measured = share(t, s.tokens, rate);
         let reserve = rate.map_or(0.0, |r| working.get(t.provider.as_str()).copied().unwrap_or(0) as f64 * s.max_call as f64 * r);
         out.push(Meter { what: window_words(&t.provider, &t.window), unit: "percent".into(), used: measured.map(|m| m.0),
-            soft: b.soft_value(), hard: b.hard, reserve, estimated: measured.is_some_and(|m| m.1), observed_ms: t.last.map(|l| l.at_ms) });
+            soft: b.soft_value(), hard: b.hard, reserve, estimated: measured.is_some_and(|m| m.1), observed_ms: t.last.map(|l| l.at_ms), pause: pause_at(r, t, b) });
     }
     if let Some(tb) = r.budget.tokens {
         let total: u64 = spend.values().map(|s| s.tokens).sum();
         let max_call = spend.values().map(|s| s.max_call).max().unwrap_or(0);
         let n: u32 = working.values().sum();
         out.push(Meter { what: "Tokens".into(), unit: "tokens".into(), used: Some(total as f64), soft: tb.soft_value() as f64,
-            hard: tb.hard as f64, reserve: (n as u64 * max_call) as f64, estimated: false, observed_ms: None });
+            hard: tb.hard as f64, reserve: (n as u64 * max_call) as f64, estimated: false, observed_ms: None, pause: None });
     }
     if let Some(m) = r.budget.minutes {
-        let used = (now_ms - r.start_ms).max(0) as f64 / 60_000.0;
+        // Minutes the run worked: time paused at a plan budget does not count.
+        let used = (now_ms - r.start_ms - r.paused_ms).max(0) as f64 / 60_000.0;
         out.push(Meter { what: "Time".into(), unit: "minutes".into(), used: Some(used), soft: m.soft_value() as f64, hard: m.hard as f64,
-            reserve: 0.0, estimated: false, observed_ms: None });
+            reserve: 0.0, estimated: false, observed_ms: None, pause: None });
     }
     out
 }

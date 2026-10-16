@@ -21,7 +21,8 @@ pub struct Imported {
 pub fn from_madl(doc: &m::Document) -> Imported {
     let resolved = madl::resolve(doc);
     let mut cx = Cx { doc, ext: ext_of(&doc.extensions), dropped: Vec::new() };
-    let (budget, budget_dropped) = super::limits::run_in(doc.system.budget.as_ref());
+    let (mut budget, budget_dropped) = super::limits::run_in(doc.system.budget.as_ref());
+    with_pauses(&mut budget, &ext_of(&doc.extensions));
     for (path, why) in budget_dropped {
         cx.drop(path, why);
     }
@@ -133,4 +134,19 @@ pub(super) fn kind_of(runtime: Option<&str>) -> Option<AgentKind> {
 
 pub(super) fn effective_runtime(r: &AgentSettings) -> Option<&str> {
     r.settings.preferences.runtime.as_deref()
+}
+
+#[derive(serde::Deserialize)]
+struct PlanPauseExt {
+    provider: String,
+    window: String,
+    pause: model::PlanPause,
+}
+
+/// The plan budgets that pause at their hard value, from Sculptured's extension.
+fn with_pauses(budget: &mut model::RunBudget, ext: &serde_json::Map<String, serde_json::Value>) {
+    let Some(list) = ext.get("plan_pause").and_then(|v| serde_json::from_value::<Vec<PlanPauseExt>>(v.clone()).ok()) else { return };
+    for p in &mut budget.plan {
+        p.pause = list.iter().find(|x| x.provider == p.provider && x.window == p.window).map(|x| x.pause);
+    }
 }

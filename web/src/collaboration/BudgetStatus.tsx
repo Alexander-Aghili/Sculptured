@@ -12,7 +12,7 @@ export function BudgetStatus({rig, names}: {rig:string; names:NameMap}) {
     <summary>Token limits · {limited.filter(a => a.exhausted).length} reached</summary>
     <ul>{limited.map(a => <li key={a.seat}>{nameForId(a.seat,names)}: {a.token_used === null ? 'usage unknown' : a.token_used.toLocaleString()} / {a.token_limit!.tokens.toLocaleString()} {a.token_limit!.counts === 'all' ? 'tokens' : a.token_limit!.counts === 'new' ? 'tokens excluding cache reads' : 'output tokens'}{a.token_limit!.include_subagents ? ', with agents it spawned' : ''}{a.exhausted ? ' · limit reached' : ''}</li>)}</ul>
   </details>;
-  const run = budget?.run ? <RunMeters run={budget.run} waiting={budget.waiting ?? []} names={names} /> : null;
+  const run = budget?.run ? <RunMeters rig={rig} run={budget.run} waiting={budget.waiting ?? []} names={names} /> : null;
   if (!budget?.output_limit) return failed ? <span className="muted">Budget status unavailable</span> : (run || perAgent) ? <>{run}{perAgent}</> : null;
   return <>{run}{perAgent}<details className="agent-budget">
     <summary>{budget.output_limit.toLocaleString()} output tokens per agent · descendants included{failed ? ' · status unavailable' : ''}</summary>

@@ -3,6 +3,7 @@ import { tokens } from './UsageDashboard';
 import { pct, provenanceNote, providerName, windowName, type Part, type PlanSeries, type TokensReport } from '../tokensReport';
 
 const W = 720, PAD = { l: 56, r: 12 };
+const EVENT_WORDS: Record<string, string> = { stop: 'Stopped', 'wrap-up': 'Wrapped up', pause: 'Paused', continue: 'Continued' };
 const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 /** Each plan window: what was used before the run, what the run added, and the budget's wrap-up and stop. */
@@ -24,7 +25,7 @@ export function PlanWindows({ plan }: { plan: PlanSeries[] }) {
         {hard !== null && <g><line className="plan-mark plan-stop" x1={x(s.first + hard)} x2={x(s.first + hard)} y1={6} y2={30} /><text className="usage-axis" x={x(s.first + hard) + 3} y={42}>stop {hard}</text></g>}
         <text className="usage-axis" x={PAD.l - 6} y={22} textAnchor="end">{providerName(s.provider)}</text>
       </svg>
-      {s.events.length > 0 && <ul className="tokens-events">{s.events.map((e) => <li key={e.at_ms}>{clock(e.at_ms)} · {e.kind === 'stop' ? 'Stopped' : 'Wrapped up'}: {e.reason}</li>)}</ul>}
+      {s.events.length > 0 && <ul className="tokens-events">{s.events.map((e) => <li key={e.at_ms}>{clock(e.at_ms)} · {EVENT_WORDS[e.kind]}: {e.reason}</li>)}</ul>}
     </figure>;
   })}</div>;
 }

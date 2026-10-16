@@ -47,7 +47,7 @@ fn queue(store: &Store, seat: &str, cmd: &HostCommand) -> rusqlite::Result<()> {
 /// Why `rig` takes no new work now (its run is past a soft value), or None.
 pub fn refusal(store: &Store, rig: &str) -> rusqlite::Result<Option<String>> {
     Ok(store.run_budget(rig)?.and_then(|r| match r.state {
-        BudgetState::WrapUp { reason, .. } | BudgetState::Stopped { reason, .. } => Some(format!("Run budget: {reason}")),
+        BudgetState::WrapUp { reason, .. } | BudgetState::Stopped { reason, .. } | BudgetState::Paused { reason, .. } => Some(format!("Run budget: {reason}")),
         BudgetState::Normal => None,
     }))
 }
@@ -59,7 +59,7 @@ pub fn decide(store: &Store, cmd: &HostCommand) -> rusqlite::Result<Gate> {
     let Some(r) = store.run_budget(&view.rig)? else { return Ok(Gate::Pass) };
     let sending = matches!(cmd, HostCommand::Send { .. });
     match &r.state {
-        BudgetState::Stopped { reason, .. } => return Ok(Gate::Refuse(format!("Run budget: {reason}"))),
+        BudgetState::Stopped { reason, .. } | BudgetState::Paused { reason, .. } => return Ok(Gate::Refuse(format!("Run budget: {reason}"))),
         // The wrap-up instruction itself goes to agents that are wrapping up; nothing else does.
         BudgetState::WrapUp { .. } if sending && store.control(seat)?.is_some() => return Ok(Gate::Pass),
         BudgetState::WrapUp { reason, .. } => return Ok(Gate::Refuse(format!("Run budget: {reason}"))),

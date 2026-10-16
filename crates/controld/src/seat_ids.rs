@@ -9,3 +9,9 @@ pub(crate) fn rig_of(seat: &str) -> Option<&str> {
 pub(crate) fn rig_or_empty(seat: &str) -> &str {
     rig_of(seat).unwrap_or("")
 }
+
+/// The team member a seat runs: `pod.member@rig` → `member`.
+pub(crate) fn member_of(seat: &str) -> &str {
+    let logical = seat.split('@').next().unwrap_or(seat);
+    logical.rsplit('.').next().unwrap_or(logical)
+}

@@ -183,6 +183,11 @@ fn team_extension(file: &TeamFile) -> m::Extensions {
     if !team.claude_setup.is_default() {
         ext.insert("claude_setup".into(), json!(team.claude_setup));
     }
+    // MADL's plan shares say how much a run may add, not that it pauses: kept as Sculptured's own.
+    let pauses: Vec<_> = team.budget.plan.iter().filter_map(|p| Some(json!({ "provider": p.provider, "window": p.window, "pause": p.pause? }))).collect();
+    if !pauses.is_empty() {
+        ext.insert("plan_pause".into(), json!(pauses));
+    }
     if let Some(f) = &team.folder {
         ext.insert("folder".into(), json!(f));
     }

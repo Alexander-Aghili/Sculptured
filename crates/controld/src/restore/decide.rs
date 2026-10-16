@@ -121,7 +121,7 @@ async fn restore_one(st: &AppState, seat: &str, decision: RestoreDecision) -> Re
 
 /// Relaunches, then sends what the agent is still owed. A resume that does not come up leaves a new,
 /// non-resumable offer with the reason, so the operator decides again.
-async fn relaunch_and_send(st: &AppState, seat: &str, mode: LaunchMode, cause: TenureCause, baseline: Option<[u64; 4]>) -> Result<(), ApiError> {
+pub(crate) async fn relaunch_and_send(st: &AppState, seat: &str, mode: LaunchMode, cause: TenureCause, baseline: Option<[u64; 4]>) -> Result<(), ApiError> {
     let owed = if cause == TenureCause::Resume { OwedMode::Resumed } else { OwedMode::Fresh };
     let restarting = Restarting::new(st, seat);
     let settled = relaunch(st, seat, mode, cause, baseline).await;

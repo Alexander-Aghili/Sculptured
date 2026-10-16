@@ -36,7 +36,7 @@ fn budgets_and_agent_limits_round_trip_through_madl() {
     let mut file: TeamFile = serde_json::from_str(&text).unwrap();
     file.team.revision = 0;
     file.team.budget = serde_json::from_value(json!({
-        "plan": [{ "provider": "claude", "window": "five_hour", "soft": 25.0, "hard": 30.0 }, { "provider": "codex", "window": "seven_day", "hard": 10.0 }],
+        "plan": [{ "provider": "claude", "window": "five_hour", "soft": 25.0, "hard": 30.0, "pause": { "continue_with": "resume", "max_windows": 2 } }, { "provider": "codex", "window": "seven_day", "hard": 10.0 }],
         "tokens": { "hard": 50000000 }, "minutes": { "soft": 45, "hard": 60 }, "max_working": 6,
     })).unwrap();
     let a = &mut file.team.agents[0].advanced;

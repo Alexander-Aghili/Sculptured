@@ -15,7 +15,7 @@ use axum::{
     response::Response,
     routing::{get, post},
 };
-pub use controls::{control_agent, run, stop_now, Control};
+pub use controls::{control_agent, note_path, run, stop_now, Control};
 pub use token_limits::check as check_agent_limits;
 use serde::{Deserialize, Serialize};
 use serde_json::json;

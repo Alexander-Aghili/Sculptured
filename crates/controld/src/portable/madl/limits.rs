@@ -49,7 +49,7 @@ pub fn run_in(b: Option<&m::RunBudget>) -> (RunBudget, Vec<(String, String)>) {
         dropped.push(("/system/budget/cost_usd".into(), "Sculptured budgets plan shares, tokens and time, not money; the cost limit was not kept".into()));
     }
     let budget = RunBudget {
-        plan: b.plan.iter().map(|p| PlanBudget { provider: p.provider.clone(), window: p.window.clone(), soft: p.soft, hard: p.hard }).collect(),
+        plan: b.plan.iter().map(|p| PlanBudget { provider: p.provider.clone(), window: p.window.clone(), soft: p.soft, hard: p.hard, pause: None }).collect(),
         tokens: b.tokens.as_ref().map(|t| SoftHard { soft: t.soft().copied(), hard: *t.hard() }),
         minutes: b.wall_clock.as_ref().and_then(minutes_in),
         max_working: b.max_working,

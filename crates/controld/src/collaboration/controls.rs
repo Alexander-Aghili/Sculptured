@@ -6,6 +6,8 @@ use model::{EventBody, MessageIntent, SeatLifecycle};
 pub enum Control {
     /// Wrap up the current work, then stop.
     Soft,
+    /// Wrap up at a checkpoint the agent can continue from: the run pauses until its plan window resets.
+    Checkpoint,
     /// Stop now, with every agent it spawned.
     Hard,
     /// Undo a stop.
@@ -87,19 +89,23 @@ pub async fn control_agent(st: &AppState, seat: &str, control: Control) -> Resul
     if view.lifecycle != SeatLifecycle::Running {
         return Ok(());
     }
-    let text = "Soft stop requested by You. Wrap up the CURRENT assignment quickly within approximately 5,000 additional output tokens. Do not begin new research, broad refactors, new tasks or child agents. Save the current work, summarize exact artifact paths/revision, checks actually run, remaining problems and what the next agent needs. If appropriate, call complete_work with the honest outcome or send_agent_message to the next agent/your parent. Never claim success to finish faster. End your turn. The runner will stop this session after the wrap-up turn, the observed token budget, or 5 minutes. Usage reports may arrive late; the 5K threshold is approximate.";
+    let text = if control == Control::Checkpoint { checkpoint_text(seat) } else { SOFT_TEXT.to_string() };
     // Interrupting first makes the wrap-up instruction available even to CLIs that queue input.
-    let id = reconciler::send_message(
-        st,
-        seat,
-        text.into(),
-        MessageIntent::Instruct,
-        view.current_turn.is_some(),
-    )
-    .await?;
+    let id = reconciler::send_message(st, seat, text, MessageIntent::Instruct, view.current_turn.is_some()).await?;
     st.store.lock().unwrap().set_control_message(seat, &id)?;
     Ok(())
 }
+
+/// Where an agent keeps its checkpoint note, relative to its folder.
+pub fn note_path(seat: &str) -> String {
+    format!(".sculptured/notes/{}.md", crate::seat_ids::member_of(seat))
+}
+
+fn checkpoint_text(seat: &str) -> String {
+    format!("The run is pausing: it reached its plan budget and continues by itself after the plan window resets. Stop at a checkpoint within approximately 5,000 additional output tokens. Do not begin new research, broad refactors, new tasks or child agents. Save your work, then write {} in your folder: what is done (exact artifact paths and revisions), checks actually run, what is next, and anything you would need to know to continue with nothing else in context. Keep it short. End your turn.", note_path(seat))
+}
+
+const SOFT_TEXT: &str = "Soft stop requested by You. Wrap up the CURRENT assignment quickly within approximately 5,000 additional output tokens. Do not begin new research, broad refactors, new tasks or child agents. Save the current work, summarize exact artifact paths/revision, checks actually run, remaining problems and what the next agent needs. If appropriate, call complete_work with the honest outcome or send_agent_message to the next agent/your parent. Never claim success to finish faster. End your turn. The runner will stop this session after the wrap-up turn, the observed token budget, or 5 minutes. Usage reports may arrive late; the 5K threshold is approximate.";
 /// Stops `seats` (all of team `rig`) and every agent they started, now and all at once, like Ctrl+C,
 /// under one claim on the team (separate `control_agent` calls would refuse each other).
 pub async fn stop_now(st: &AppState, rig: &str, seats: &[String]) -> Result<(), ApiError> {

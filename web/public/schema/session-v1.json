@@ -469,6 +469,21 @@
         }
       ]
     },
+    "ContinueMode": {
+      "description": "How a run paused at a plan budget continues after its window resets.",
+      "oneOf": [
+        {
+          "description": "Each agent starts a fresh conversation from the note it wrote when the run wrapped up.",
+          "type": "string",
+          "const": "notes"
+        },
+        {
+          "description": "Each agent continues its own conversation (it re-reads all of it on every call).",
+          "type": "string",
+          "const": "resume"
+        }
+      ]
+    },
     "CopiesMode": {
       "type": "string",
       "enum": [
@@ -2123,6 +2138,17 @@
           "type": "number",
           "format": "double"
         },
+        "pause": {
+          "description": "At the hard value: absent, every agent is stopped; set, the run pauses and continues by itself\nonce the window resets.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanPause"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "provider": {
           "description": "`claude` or `codex`.",
           "type": "string"
@@ -2144,6 +2170,22 @@
         "window",
         "hard"
       ]
+    },
+    "PlanPause": {
+      "description": "Pause at the hard value, then continue after the window resets, for at most `max_windows` windows.",
+      "type": "object",
+      "properties": {
+        "continue_with": {
+          "$ref": "#/$defs/ContinueMode",
+          "default": "notes"
+        },
+        "max_windows": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 3,
+          "minimum": 0
+        }
+      }
     },
     "PlanUsage": {
       "description": "A CLI's report of how much of the signed-in plan is used. Account-wide: it counts use from\noutside Sculptured too.",

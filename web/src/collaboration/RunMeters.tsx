@@ -2,6 +2,7 @@ import { compactNumber } from '../format';
 import type { Meter } from '../generated/Meter';
 import type { RunStatus } from '../generated/RunStatus';
 import { nameForId, type NameMap } from '../vocab';
+import { PausedRun } from './PausedRun';
 
 function amount(m: Meter, v: number): string {
   if (m.unit === 'percent') return `${+v.toFixed(1)}%`;
@@ -32,11 +33,12 @@ export function MeterRow({ m, now }: { m: Meter; now: number }) {
 }
 
 /** The run's budgets on the Run board, what the run did at a soft or hard value, and who waits for a slot. */
-export function RunMeters({ run, waiting, names, now = Date.now() }: { run: RunStatus; waiting: string[]; names: NameMap; now?: number }) {
+export function RunMeters({ rig, run, waiting, names, now = Date.now() }: { rig: string; run: RunStatus; waiting: string[]; names: NameMap; now?: number }) {
   const s = run.state;
   return (
     <section className="run-meters" aria-label="Run budget">
-      {s.state !== 'normal' && (
+      {s.state === 'paused' && <PausedRun rig={rig} s={s} mode={run.continue_with} />}
+      {s.state !== 'normal' && s.state !== 'paused' && (
         <p className={`run-budget-state ${s.state === 'stopped' ? 'tone-red' : 'tone-amber'}`} role="status">
           {s.state === 'stopped' ? 'Stopped by the run budget: ' : 'Wrapping up: '}{s.reason}
         </p>

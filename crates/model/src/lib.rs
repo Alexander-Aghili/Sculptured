@@ -4,7 +4,7 @@ mod action;
 pub mod cap;
 mod caps;
 mod budget;
-pub use budget::{ClaudeSetup, PlanBudget, RunBudget, SoftHard, SOFT_SHARE};
+pub use budget::{ClaudeSetup, ContinueMode, PlanBudget, PlanPause, RunBudget, SoftHard, SOFT_SHARE};
 mod draft;
 mod event;
 mod ids;

@@ -29,6 +29,26 @@ stateDiagram-v2
   <Step title="Start">The Start confirmation repeats the budget before anything runs.</Step>
 </Steps>
 
+## Pause until the window resets
+
+A plan window refills on a schedule: Claude's and Codex's 5-hour windows five hours after they start, the weekly ones each week. Instead of stopping, a plan budget can pause the run and continue it by itself once the window resets, so work that needs more than one window's share still finishes.
+
+Under **Run budget**, a plan budget you have set gets **At the hard value**:
+
+- **Stop** (as before): every agent is stopped.
+- **Pause until the window resets**: at the soft value, agents stop at a checkpoint and write a short note of what is done and what is next (`.sculptured/notes/<agent>.md` in their folder). At the hard value every agent is stopped, and two minutes after the window resets the agents that were working start again.
+
+Choose how they continue:
+
+| Choice | What happens | Cost |
+|---|---|---|
+| **From their notes** (fresh start) | Each agent starts a new conversation with its job and its note. | Small: its context starts small again. |
+| **Resume their conversation** | Each agent continues its own conversation. | Larger: it re-reads all of it on every step. |
+
+**At most** sets how many windows the run may use (3 unless you change it); after the last, it stops. Token and time budgets don't refill, so they always stop; time spent paused doesn't count toward a time budget.
+
+While the run is paused, the Run board says until when, and offers **Continue now** (the run gets a new share of the window it is in), **Stop**, and the choice of how it continues.
+
 ## Set an agent's limits
 
 Select an agent and find **Limits for one run** in its panel. Each row is a soft box, then a hard box:

@@ -40,6 +40,9 @@ pub enum BudgetState {
     WrapUp { reason: String, #[ts(type = "number")] at_ms: i64 },
     /// The hard value was reached: every agent was stopped at once.
     Stopped { reason: String, #[ts(type = "number")] at_ms: i64 },
+    /// A plan budget's hard value was reached: every agent was stopped, and the run continues by itself
+    /// at `until_ms`, after the window resets, in window `window + 1` of `max_windows`.
+    Paused { reason: String, #[ts(type = "number")] at_ms: i64, #[ts(type = "number")] until_ms: i64, window: u32, max_windows: u32 },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -53,6 +56,18 @@ pub struct Record {
     pub wrap_up_ms: Option<i64>,
     /// Highest token count measured.
     pub peak_tokens: u64,
+    /// Windows the run has continued into after a pause.
+    #[serde(default)]
+    pub windows: u32,
+    /// Time spent paused, which the time budget does not count.
+    #[serde(default)]
+    pub paused_ms: i64,
+    /// The configured agents that were working when the run paused: the ones that continue.
+    #[serde(default)]
+    pub paused_seats: Vec<String>,
+    /// How they continue, when the person changed it while paused (else the budget's choice).
+    #[serde(default)]
+    pub continue_with: Option<model::ContinueMode>,
 }
 
 impl Store {

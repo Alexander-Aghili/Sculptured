@@ -4,6 +4,7 @@
 pub mod gate;
 pub mod measure;
 pub mod record;
+pub mod pause;
 
 use crate::state::AppState;
 use crate::store::Store;
@@ -22,6 +23,8 @@ pub struct RunStatus {
     pub meters: Vec<Meter>,
     #[ts(type = "number | null")]
     pub wrap_up_ms: Option<i64>,
+    /// How a run that pauses continues after its window resets (absent when it does not pause).
+    pub continue_with: Option<model::ContinueMode>,
 }
 
 /// The newest reading of `window` on `provider`'s plan in `all`: (percent, resets_at, observed_ms).
@@ -115,13 +118,18 @@ fn amount(m: &Meter, v: f64) -> String {
 /// already past its hard value: from Normal, the reserve (what working agents may still add) brings
 /// the wrap-up forward; once wrapping up, it brings the stop forward.
 pub fn decide(state: &BudgetState, meters: &[Meter], now: i64) -> Option<BudgetState> {
-    if matches!(state, BudgetState::Stopped { .. }) {
+    if matches!(state, BudgetState::Stopped { .. } | BudgetState::Paused { .. }) {
         return None;
     }
     let normal = matches!(state, BudgetState::Normal);
     let past = |m: &&Meter, limit: f64, reserve: f64| m.used.is_some_and(|u| u + reserve >= limit);
     let hard = |m: &&Meter| past(m, m.hard, if normal { 0.0 } else { m.reserve });
     if let Some(m) = meters.iter().find(hard) {
+        if let Some(p) = m.pause {
+            let reason = format!("{}: {} used of the run's hard limit of {}; every agent was stopped and the run is paused until the window resets (window {} of {})",
+                m.what, amount(m, m.used.unwrap_or(0.0)), amount(m, m.hard), p.window, p.max_windows);
+            return Some(BudgetState::Paused { reason, at_ms: now, until_ms: p.until_ms, window: p.window, max_windows: p.max_windows });
+        }
         let reason = format!("{}: {} used of the run's hard limit of {}; every agent was stopped", m.what, amount(m, m.used.unwrap_or(0.0)), amount(m, m.hard));
         return Some(BudgetState::Stopped { reason, at_ms: now });
     }
@@ -153,13 +161,14 @@ async fn act(st: &AppState, rig: &str, state: &BudgetState) -> rusqlite::Result<
     let (live, roots) = running(&st.store.lock().unwrap(), rig)?;
     match state {
         BudgetState::WrapUp { .. } => {
+            let control = pause::wrap_up_control(&st.store.lock().unwrap(), rig)?;
             for s in live.iter().filter(|s| st.store.lock().unwrap().control(s).ok().flatten().is_none()) {
-                if let Err(e) = crate::collaboration::control_agent(st, s, crate::collaboration::Control::Soft).await {
+                if let Err(e) = crate::collaboration::control_agent(st, s, control).await {
                     tracing::warn!(seat = %s, error = %e.message, "budget wrap-up not sent");
                 }
             }
         }
-        BudgetState::Stopped { .. } if !roots.is_empty() => {
+        BudgetState::Stopped { .. } | BudgetState::Paused { .. } if !roots.is_empty() => {
             if let Err(e) = crate::collaboration::stop_now(st, rig, &roots).await {
                 tracing::warn!(%rig, error = %e.message, "budget stop will retry");
             }
@@ -171,14 +180,14 @@ async fn act(st: &AppState, rig: &str, state: &BudgetState) -> rusqlite::Result<
 
 /// A stopped run whose agents still run (a stop that failed or a team that was busy): stop again.
 fn stop_again(r: &Record, live: bool, now: i64) -> bool {
-    matches!(r.state, BudgetState::Stopped { at_ms, .. } if live && now - at_ms > 3_000)
+    matches!(r.state, BudgetState::Stopped { at_ms, .. } | BudgetState::Paused { at_ms, .. } if live && now - at_ms > 3_000)
 }
 
 /// Repeats what a run's state calls for when it did not take (the team was busy): a stopped run's
 /// agents are stopped again, and agents a wrap-up missed get it. True when the run is stopped.
 async fn catch_up(st: &AppState, rig: &str, r: &Record) -> rusqlite::Result<bool> {
     match r.state {
-        BudgetState::Stopped { .. } => {
+        BudgetState::Stopped { .. } | BudgetState::Paused { .. } => {
             if stop_again(r, true, model::now_ms()) {
                 act(st, rig, &r.state).await?;
             }
@@ -195,7 +204,7 @@ pub async fn check(st: &AppState) -> rusqlite::Result<()> {
     for rig in rigs {
         let Some(mut r) = st.store.lock().unwrap().run_budget(&rig)? else { continue };
         let live = !running(&st.store.lock().unwrap(), &rig)?.0.is_empty();
-        if r.budget.is_empty() || !live || catch_up(st, &rig, &r).await? {
+        if pause::on_tick(st, &rig, &r, live).await? || r.budget.is_empty() || !live || catch_up(st, &rig, &r).await? {
             continue;
         }
         let meters = measure(st, &rig, &mut r)?;
@@ -205,6 +214,9 @@ pub async fn check(st: &AppState) -> rusqlite::Result<()> {
         }
         if let Some(n) = &next {
             r.state = n.clone();
+        }
+        if matches!(next, Some(BudgetState::WrapUp { .. } | BudgetState::Paused { .. })) {
+            pause::remember(&st.store.lock().unwrap(), &rig, &mut r)?;
         }
         st.store.lock().unwrap().put_run_budget(&rig, &r)?;
         if let Some(n) = next {
@@ -221,6 +233,7 @@ fn record(st: &AppState, rig: &str, state: &BudgetState) -> rusqlite::Result<()>
     let (name, reason) = match state {
         BudgetState::WrapUp { reason, .. } => ("wrap-up", reason),
         BudgetState::Stopped { reason, .. } => ("stopped", reason),
+        BudgetState::Paused { reason, .. } => ("paused", reason),
         BudgetState::Normal => return Ok(()),
     };
     let body = model::EventBody::BudgetStateChanged { state: name.into(), reason: reason.clone() };
@@ -232,7 +245,8 @@ fn record(st: &AppState, rig: &str, state: &BudgetState) -> rusqlite::Result<()>
 pub fn status(st: &AppState, rig: &str) -> rusqlite::Result<Option<RunStatus>> {
     let Some(mut r) = st.store.lock().unwrap().run_budget(rig)?.filter(|r| !r.budget.is_empty()) else { return Ok(None) };
     let meters = measure(st, rig, &mut r)?;
-    Ok(Some(RunStatus { state: r.state, meters, wrap_up_ms: r.wrap_up_ms }))
+    let continue_with = r.continue_with.or_else(|| r.budget.plan.iter().find_map(|p| p.pause).map(|p| p.continue_with));
+    Ok(Some(RunStatus { state: r.state, meters, wrap_up_ms: r.wrap_up_ms, continue_with }))
 }
 
 /// Usage, a plan reading, or a turn ending (which may free a slot).
@@ -291,7 +305,7 @@ mod tests {
     use super::*;
 
     fn meter(used: f64, reserve: f64) -> Meter {
-        Meter { what: "Claude 5-hour".into(), unit: "percent".into(), used: Some(used), soft: 25.5, hard: 30.0, reserve, estimated: false, observed_ms: None }
+        Meter { what: "Claude 5-hour".into(), unit: "percent".into(), used: Some(used), soft: 25.5, hard: 30.0, reserve, estimated: false, observed_ms: None, pause: None }
     }
 
     #[test]

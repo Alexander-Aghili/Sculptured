@@ -48,6 +48,37 @@ pub struct PlanBudget {
     #[ts(optional)]
     pub soft: Option<f64>,
     pub hard: f64,
+    /// At the hard value: absent, every agent is stopped; set, the run pauses and continues by itself
+    /// once the window resets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub pause: Option<PlanPause>,
+}
+
+/// How a run paused at a plan budget continues after its window resets.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum ContinueMode {
+    /// Each agent starts a fresh conversation from the note it wrote when the run wrapped up.
+    #[default]
+    Notes,
+    /// Each agent continues its own conversation (it re-reads all of it on every call).
+    Resume,
+}
+
+/// Pause at the hard value, then continue after the window resets, for at most `max_windows` windows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[ts(export)]
+pub struct PlanPause {
+    #[serde(default)]
+    pub continue_with: ContinueMode,
+    #[serde(default = "three_windows")]
+    pub max_windows: u32,
+}
+
+fn three_windows() -> u32 {
+    3
 }
 
 // Percents are checked to be finite numbers, so equality is total.
@@ -68,6 +99,9 @@ impl PlanBudget {
         }
         if !ok(self.hard) || self.soft.is_some_and(|s| !ok(s)) {
             return Some(format!("Plan budget: {} is not a percent between 0 and 100", self.soft.filter(|s| !ok(*s)).unwrap_or(self.hard)));
+        }
+        if self.pause.is_some_and(|p| p.max_windows == 0) {
+            return Some("Plan budget: a paused run needs at least 1 window".to_string());
         }
         (self.soft_value() > self.hard).then(|| "Plan budget: the soft value is above the hard value".to_string())
     }

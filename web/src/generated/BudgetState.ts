@@ -3,4 +3,4 @@
 /**
  * Where the run stands against its budget.
  */
-export type BudgetState = { "state": "normal" } | { "state": "wrap-up", reason: string, at_ms: number, } | { "state": "stopped", reason: string, at_ms: number, };
+export type BudgetState = { "state": "normal" } | { "state": "wrap-up", reason: string, at_ms: number, } | { "state": "stopped", reason: string, at_ms: number, } | { "state": "paused", reason: string, at_ms: number, until_ms: number, window: number, max_windows: number, };

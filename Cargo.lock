@@ -1447,7 +1447,7 @@ dependencies = [
 [[package]]
 name = "mais"
 version = "0.1.0"
-source = "git+https://github.com/Alexander-Aghili/Multi-Agent-Investigative-Systems?rev=5b268b0666eaa7c8310dc0a3c4a8f57ce8c97452#5b268b0666eaa7c8310dc0a3c4a8f57ce8c97452"
+source = "git+https://github.com/Alexander-Aghili/Multi-Agent-Investigative-Systems?rev=73485f76897d0e81d053b402fb6c8fe79ea78c44#73485f76897d0e81d053b402fb6c8fe79ea78c44"
 dependencies = [
  "chrono",
  "madl",

@@ -1,4 +1,5 @@
 import type { PlanBudget } from '../generated/PlanBudget';
+import type { PlanPause } from '../generated/PlanPause';
 import type { RunBudget } from '../generated/RunBudget';
 import type { SoftHard } from '../generated/SoftHard';
 import type { TeamDraft } from '../generated/TeamDraft';
@@ -32,10 +33,22 @@ export function softHard(soft: number | null, hard: number | null): SoftHard<num
 
 /** The budget with one plan window's limit set, or removed. */
 export function withPlan(b: RunBudget, provider: string, window: string, v: SoftHard<number> | undefined): RunBudget {
+  const was = planOf(b, provider, window);
   const others = (b.plan ?? []).filter((p) => !(p.provider === provider && p.window === window));
-  const plan: PlanBudget[] = v ? [...others, { provider, window, ...v }] : others;
+  // Changing the values keeps what happens at the hard value.
+  const plan: PlanBudget[] = v ? [...others, { provider, window, ...v, ...(was?.pause ? { pause: was.pause } : {}) }] : others;
   const { plan: _p, ...rest } = b;
   return plan.length ? { ...rest, plan } : rest;
+}
+
+/** The budget with one plan window pausing at its hard value (`pause`), or stopping (undefined). */
+export function withPause(b: RunBudget, provider: string, window: string, pause: PlanPause | undefined): RunBudget {
+  const plan = (b.plan ?? []).map((p) => {
+    if (p.provider !== provider || p.window !== window) return p;
+    const { pause: _old, ...rest } = p;
+    return pause ? { ...rest, pause } : rest;
+  });
+  return { ...b, plan };
 }
 
 export const planOf = (b: RunBudget | undefined, provider: string, window: string) => b?.plan?.find((p) => p.provider === provider && p.window === window);
@@ -47,6 +60,7 @@ export function budgetProblems(b: RunBudget | undefined): string[] {
   for (const p of b.plan ?? []) {
     if (p.hard <= 0 || p.hard > 100) out.push(`Plan budget: ${p.hard} is not a percent between 0 and 100`);
     else if (p.soft != null && p.soft > p.hard) out.push('Plan budget: the soft value is above the hard value');
+    if (p.pause && p.pause.max_windows < 1) out.push('Plan budget: a paused run needs at least 1 window');
   }
   if (b.tokens?.soft != null && b.tokens.soft > b.tokens.hard) out.push('Token budget: the soft value is above the hard value');
   if (b.minutes?.soft != null && b.minutes.soft > b.minutes.hard) out.push('Time budget: the soft value is above the hard value');
