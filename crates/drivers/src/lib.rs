@@ -188,6 +188,10 @@ pub trait Session: Send {
     }
     /// Returns the event stream exactly once; it ends after `DriverEvent::Exited`.
     fn take_events(&mut self) -> Option<BoxStream<'static, DriverEvent>>;
+    /// The pid leading the process group the driver made for this session alone, if it has one.
+    fn process_id(&self) -> Option<u32> {
+        None
+    }
 }
 
 /// How long a hard stop waits after its interrupt before it forces the stop.

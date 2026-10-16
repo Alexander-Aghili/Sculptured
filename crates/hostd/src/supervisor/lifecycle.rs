@@ -143,11 +143,23 @@ impl Supervisor {
             return Err("driver returned a session without events".to_string());
         };
         match self.next_tenure(&req.seat, req.drv.name()) {
-            Ok(tenure) => Ok(Opened { session, events, tenure }),
+            Ok(tenure) => {
+                self.record_process(&req.seat, session.process_id());
+                Ok(Opened { session, events, tenure })
+            }
             Err(e) => {
                 let _ = session.stop(Duration::from_millis(0)).await;
                 Err(e.to_string())
             }
+        }
+    }
+
+    /// Keeps the agent's process on record for `sculptured stop`, which works without the server.
+    fn record_process(&self, seat: &str, pid: Option<u32>) {
+        let Some(pid) = pid else { return };
+        let ident = crate::local_stop::identity(pid);
+        if let Err(e) = self.inner.journal.lock().unwrap().record_process(seat, pid, ident.as_deref()) {
+            tracing::warn!(error = %e, seat, "cannot record the agent's process");
         }
     }
 
@@ -208,6 +220,9 @@ impl Supervisor {
             for m in map_event(ctx, seat, ev, g.stop_requested) {
                 self.emit(seat, m);
             }
+        }
+        if let Err(e) = self.inner.journal.lock().unwrap().clear_process(seat) {
+            tracing::warn!(error = %e, seat, "cannot clear the agent's process record");
         }
         let mut seats = self.inner.seats.lock().await;
         // A Stop owns removal of its own entry.

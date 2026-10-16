@@ -175,6 +175,18 @@ If one isn't signed in, sign it in once:
 
 Every agent on that computer can then use it.
 
+## Stop agents when something stops responding
+
+**Stop** and **Stop everything now** always finish in Sculptured, even when the computer running the agents is offline. Its agents are marked stopped at once. If one is still running on that computer, the computer ends it as soon as it reconnects.
+
+To end them on the computer itself, without Sculptured, run this there. It works while the computer is offline:
+
+```bash
+sculptured stop
+```
+
+It ends, like Ctrl+C, every agent this computer's runner started, together with the commands they started, and lists them. It only touches processes the runner started for agents. Pass `--data-dir` if you connected with one. It works when the runner itself has stopped responding.
+
 ## Disconnect or remove
 
 To disconnect a computer, choose **Disconnect** next to it on the Computers page. Its identity stops working at once. To connect it again later, copy a new command and run it.

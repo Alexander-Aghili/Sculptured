@@ -44,8 +44,12 @@ pub async fn restart_seat(st: &AppState, seat_id: &str) -> Result<(), ApiError> 
 
 /// Stops a seat's process. A host that says the seat is not running has nothing to
 /// stop; reconcile any live projection from that explicit response. A computer that is offline
-/// cannot stop it now: the seat is recorded as stopping, and the stop is sent when the computer
-/// reconnects (`restore::on_hello`). Its process is unknown until then, so it is not called stopped.
+/// cannot stop it now, and may never come back: the seat is stopped here at once, with a reason
+/// that says it may still run there, and the computer ends it when it reconnects
+/// (`restore::on_hello`), or `sculptured stop` ends it on that computer.
+/// Why an agent whose computer is offline shows as stopped.
+pub(crate) const OFFLINE_STOP: &str = "Stopped here; its computer is offline. If the agent is still running there, it is ended when that computer reconnects, or run `sculptured stop` on it";
+
 pub(crate) async fn stop_on_host(st: &AppState, host: &str, seat: &str) -> Result<(), String> {
     stop_on_host_as(st, host, seat, false).await
 }
@@ -54,8 +58,8 @@ pub(crate) async fn stop_on_host(st: &AppState, host: &str, seat: &str) -> Resul
 pub(crate) async fn stop_on_host_as(st: &AppState, host: &str, seat: &str, hard: bool) -> Result<(), String> {
     match st.hosts.command_now(host, HostCommand::Stop { seat: seat.to_string(), grace_ms: STOP_GRACE_MS, hard }).await {
         Err(CommandFailure::NotConnected(_)) => {
-            let reason = "Stops as soon as its computer reconnects".to_string();
-            crate::hosts::record_lifecycle(st, seat.to_string(), Provenance::Operator, SeatLifecycle::Stopping, reason);
+            let reason = OFFLINE_STOP.to_string();
+            crate::hosts::record_lifecycle(st, seat.to_string(), Provenance::Operator, SeatLifecycle::Stopped, reason);
             Ok(())
         }
         Err(CommandFailure::Refused(e)) if e == format!("seat {seat} is not running") => {

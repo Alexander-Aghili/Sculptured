@@ -59,11 +59,13 @@ pub fn on_hello(st: &AppState, host: &str, live_seats: &[String], launching_seat
     }
 }
 
-/// An agent stopped while its computer was offline: stopped now that it is back. True when that
-/// settles the seat (nothing else to reattach).
+/// An agent stopped while its computer was offline: stopped now that it is back. The computer obeys
+/// the server: an agent it still runs that the server has stopped is ended. True when that settles
+/// the seat (nothing else to reattach).
 fn stop_owed(st: &AppState, s: &SeatView, live: bool) -> bool {
     let team_stopped = st.store.lock().unwrap().rig_snapshot(&s.rig).ok().flatten().is_some_and(|r| r.desired == Desired::Stopped);
-    let owed = s.lifecycle == SeatLifecycle::Stopping || (team_stopped && s.lifecycle == SeatLifecycle::Stale);
+    let stopped_here = s.lifecycle == SeatLifecycle::Stopped && live;
+    let owed = s.lifecycle == SeatLifecycle::Stopping || stopped_here || (team_stopped && s.lifecycle == SeatLifecycle::Stale);
     if !owed {
         return false;
     }
@@ -72,7 +74,9 @@ fn stop_owed(st: &AppState, s: &SeatView, live: bool) -> bool {
         record_lifecycle(st, s.id.clone(), Provenance::ProtocolObserved, SeatLifecycle::Stopped, reason);
         return true;
     }
-    record_lifecycle(st, s.id.clone(), Provenance::Operator, SeatLifecycle::Stopping, "Its computer reconnected; stopping the agent".into());
+    if !stopped_here {
+        record_lifecycle(st, s.id.clone(), Provenance::Operator, SeatLifecycle::Stopping, "Its computer reconnected; stopping the agent".into());
+    }
     let (st, host, seat) = (st.clone(), s.host.clone().unwrap_or_default(), s.id.clone());
     tokio::spawn(async move {
         if let Err(e) = crate::reconciler::stop_on_host(&st, &host, &seat).await {

@@ -257,6 +257,10 @@ impl CodexSession {
 
 #[async_trait]
 impl Session for CodexSession {
+    fn process_id(&self) -> Option<u32> {
+        self.pid
+    }
+
     /// Starts a turn now, or queues the message until the running turn completes.
     async fn send(&mut self, msg: OutboundMessage) -> Result<(), DriverError> {
         if *self.exited.borrow() {

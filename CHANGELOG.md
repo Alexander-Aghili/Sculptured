@@ -5,6 +5,7 @@ All notable changes to Sculptured are listed here. The format follows [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- `sculptured stop` ends every agent this computer's runner started, without the server (process groups recorded at launch, checked by start time). Stopping agents whose computer is offline marks them stopped at once; a reconnecting computer ends any agent the server has stopped.
 - Delete a trashed project forever (`DELETE /api/project-visibility/{id}`): its design, runs, history and reports; not its folder or agents' copies.
 - Plan budgets can pause a run at their hard value and continue it after the window resets (`PlanBudget.pause`: `continue_with` notes or resume, `max_windows`), with a checkpoint wrap-up, `BudgetState::Paused`, `POST /api/teams/{id}/budget/paused` (continue, stop, mode), `budget-state-changed` states `paused` and `continued`, and the MADL extension `plan_pause`.
 - The team briefing goes with an agent's first message per conversation only, and covers its group and connected agents in full and the rest by name. The workflow tools are offered only to teams with a workflow (`SeatToolsParams.workflow`, `SCULPTURED_SEAT_WORKFLOW`).

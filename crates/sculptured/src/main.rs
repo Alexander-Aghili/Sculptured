@@ -100,6 +100,11 @@ enum Cmd {
         #[arg(long)]
         data_dir: Option<PathBuf>,
     },
+    /// Stop every agent this computer's runner started, now, without the server (like Ctrl+C).
+    Stop {
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -147,6 +152,7 @@ async fn run(cli: Cli) -> ExitCode {
             connect::run_connect(connect::ConnectArgs { origin, name, allow, data_dir, claude_program, codex_program, install_service, no_browser, access, caps, key }).await
         }
         Cmd::Allow { folder, data_dir } => connect::run_allow(&folder, data_dir),
+        Cmd::Stop { data_dir } => connect::run_stop(data_dir),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

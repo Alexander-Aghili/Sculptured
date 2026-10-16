@@ -200,6 +200,10 @@ impl ClaudeSession {
 
 #[async_trait]
 impl Session for ClaudeSession {
+    fn process_id(&self) -> Option<u32> {
+        self.pid
+    }
+
     async fn send(&mut self, msg: OutboundMessage) -> Result<(), DriverError> {
         if *self.exited.borrow() {
             return Err(DriverError::Closed);

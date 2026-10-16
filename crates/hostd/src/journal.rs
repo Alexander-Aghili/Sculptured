@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS seats (
     tenure INTEGER NOT NULL
 );
 INSERT OR IGNORE INTO meta (k, v) VALUES ('next_seq', 1);
+CREATE TABLE IF NOT EXISTS processes (seat TEXT PRIMARY KEY, pid INTEGER NOT NULL, ident TEXT);
 ";
 
 /// Durable, bounded buffer of events not yet acknowledged by controld, plus the
@@ -93,6 +94,28 @@ impl Journal {
             params![seat, driver, native, tenure],
         )?;
         Ok(())
+    }
+
+    /// The agent's process (the leader of the group its driver made) and what identifies it beyond
+    /// its pid, so `sculptured stop` can end it without the server, and never a process that reused the pid.
+    pub fn record_process(&mut self, seat: &str, pid: u32, ident: Option<&str>) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT INTO processes (seat, pid, ident) VALUES (?1, ?2, ?3) ON CONFLICT(seat) DO UPDATE SET pid = excluded.pid, ident = excluded.ident",
+            params![seat, pid, ident],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_process(&mut self, seat: &str) -> rusqlite::Result<()> {
+        self.conn.execute("DELETE FROM processes WHERE seat = ?1", params![seat])?;
+        Ok(())
+    }
+
+    /// Every recorded agent process: (seat, pid, identity).
+    pub fn processes(&self) -> rusqlite::Result<Vec<(String, u32, Option<String>)>> {
+        let mut q = self.conn.prepare("SELECT seat, pid, ident FROM processes ORDER BY seat")?;
+        let rows = q.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        rows.collect()
     }
 
     /// The seat's latest tenure number, or 0 if it has never launched on this host.

@@ -82,12 +82,20 @@ async fn stopping_a_team_while_its_computer_is_offline_works_and_happens_when_it
     let agent = seat(&team, "claude");
     runner.drop_link(&s).await;
     stop_team(&s, &team).await;
-    assert_eq!(lifecycle(&s.st, &agent), Some(SeatLifecycle::Stopping), "stopping, until the computer confirms it");
+    // A computer that may never come back cannot hold the stop open: it is done here at once.
+    let v = s.st.store.lock().unwrap().seat(&agent).unwrap().unwrap();
+    assert_eq!(v.lifecycle, SeatLifecycle::Stopped);
+    assert!(v.lifecycle_reason.as_deref().unwrap_or("").contains("its computer is offline"), "{:?}", v.lifecycle_reason);
+    assert_eq!(call(&s.router, "PUT", &format!("/api/project-visibility/{team}"), json!({ "status": "trashed" })).await.0, 200, "nothing counts as running");
     assert!(!runner.sup.live_seats().await.is_empty(), "the agent still runs on the offline computer");
 
     runner.reconnect(&s).await;
-    wait_for("agent stopped on the computer", || lifecycle(&s.st, &agent) == Some(SeatLifecycle::Stopped)).await;
-    assert!(runner.sup.live_seats().await.is_empty());
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while !runner.sup.live_seats().await.is_empty() {
+        assert!(tokio::time::Instant::now() < deadline, "the computer ends the agent when it returns");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(lifecycle(&s.st, &agent), Some(SeatLifecycle::Stopped));
 }
 
 #[tokio::test]

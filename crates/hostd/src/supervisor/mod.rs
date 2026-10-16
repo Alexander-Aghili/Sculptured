@@ -166,6 +166,11 @@ impl Supervisor {
     }
 
     /// Seats with a process or one starting: a reconnect during a launch must not mark them lost.
+    /// The agent processes on record for `sculptured stop`: (seat, pid, identity).
+    pub fn recorded_processes(&self) -> Vec<(String, u32, Option<String>)> {
+        self.inner.journal.lock().unwrap().processes().unwrap_or_default()
+    }
+
     pub async fn live_seats(&self) -> Vec<String> {
         let mut v: Vec<String> = self
             .inner

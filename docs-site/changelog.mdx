@@ -7,6 +7,11 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 16 October 2026
 
+### Stopping always works
+
+- **Stop finishes even when the agents' computer is offline.** The agents are marked stopped at once instead of waiting for a computer that may never come back, so their project can go to the Trash. If an agent is still running there, the computer ends it when it reconnects.
+- **`sculptured stop`** ends every agent a computer's runner started, on that computer, without Sculptured. See [Connect a computer](/connect-a-computer#stop-agents-when-something-stops-responding). Reinstall the runner from **Computers** to get it.
+
 ### Delete forever
 
 - **Projects in the Trash can be deleted forever.** In the sidebar's **Trash**, **Delete forever** asks once more, then removes the project's design, runs, history and reports from Sculptured. Your project folder and agents' git copies are not touched.

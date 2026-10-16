@@ -596,7 +596,7 @@ async fn spec_path_at_a_secret_file_does_not_echo_or_store_it() {
 /// Stopping while the runner is offline is not a failure: each agent waits in `stopping` and is
 /// stopped when the runner reconnects (`offline_computer.rs`).
 #[tokio::test]
-async fn stop_rig_with_the_runner_offline_leaves_its_agents_stopping() {
+async fn stop_rig_with_the_runner_offline_stops_its_agents_here_at_once() {
     let (st, router) = setup();
     let rig = rigspec::compile(GOOD).unwrap();
     st.store.lock().unwrap().upsert_rig(&rig, &controld::store::RigSource::File { path: "/specs/r.yaml".into() }, model::Desired::Running).unwrap();
@@ -615,8 +615,8 @@ async fn stop_rig_with_the_runner_offline_leaves_its_agents_stopping() {
     assert_eq!(body, json!({ "failed": [] }));
     for seat in ["dev.a@r", "dev.b@r"] {
         let v = st.store.lock().unwrap().seat(seat).unwrap().unwrap();
-        assert_eq!(v.lifecycle, SeatLifecycle::Stopping);
-        assert_eq!(v.lifecycle_reason.as_deref(), Some("Stops as soon as its computer reconnects"));
+        assert_eq!(v.lifecycle, SeatLifecycle::Stopped, "a computer that may never return cannot hold the stop open");
+        assert!(v.lifecycle_reason.as_deref().is_some_and(|r| r.contains("its computer is offline")), "{:?}", v.lifecycle_reason);
     }
 }
 

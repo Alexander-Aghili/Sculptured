@@ -3,6 +3,7 @@
 //! wait in the journal until controld acknowledges them.
 pub mod journal;
 pub mod link;
+pub mod local_stop;
 pub mod mapping;
 pub mod ops;
 pub mod platform;

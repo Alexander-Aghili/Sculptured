@@ -351,6 +351,16 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
     }).await
 }
 
+/// `sculptured stop`: ends this computer's agents without the server.
+pub fn run_stop(data_dir: Option<PathBuf>) -> Result<(), String> {
+    let ended = hostd::local_stop::run(&runner_dir(data_dir)?)?;
+    match ended.len() {
+        0 => println!("No agent started by this computer's runner is running."),
+        n => println!("Stopped {n} agent{}: {}", if n == 1 { "" } else { "s" }, ended.join(", ")),
+    }
+    Ok(())
+}
+
 pub fn run_allow(folder: &Path, data_dir: Option<PathBuf>) -> Result<(), String> {
     let dir = runner_dir(data_dir)?;
     let file = dir.join("runner.json");
