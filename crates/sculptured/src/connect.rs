@@ -192,6 +192,36 @@ pub fn service_commands_for(file: &Path, suffix: Option<&str>) -> Vec<Vec<String
 
 const WINDOWS_TASK: &str = "Sculptured runner";
 
+/// The exit code of a runner whose account disconnected this computer: its service does not restart it.
+pub const DISCONNECTED_EXIT: u8 = 78;
+
+/// Commands that keep the runner's login service from starting again (systemd also skips a restart on
+/// DISCONNECTED_EXIT; launchd and Task Scheduler cannot tell exit codes apart).
+pub fn service_off_commands(file: &Path, suffix: Option<&str>) -> Vec<Vec<String>> {
+    let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    if cfg!(target_os = "macos") {
+        vec![v(&["launchctl", "unload", "-w", &file.display().to_string()])]
+    } else if cfg!(windows) {
+        vec![v(&["schtasks", "/Change", "/TN", &named(WINDOWS_TASK, " (", suffix, ")"), "/DISABLE"])]
+    } else {
+        // `--no-block`: this runner is the service being stopped, so it must not wait for its own stop.
+        vec![v(&["systemctl", "--user", "disable", "--now", "--no-block", &named("sculptured-runner", "-", suffix, "")])]
+    }
+}
+
+/// A disconnected computer's runner turns its login service off, so it is not started again every few
+/// seconds. Connecting again (`sculptured connect`) turns it back on.
+fn service_off(dir: &Path) {
+    let suffix = crate::runners::service_suffix(dir);
+    let (file, _) = service_unit_for(&[], "", suffix.as_deref());
+    if !file.exists() {
+        return;
+    }
+    for c in service_off_commands(&file, suffix.as_deref()) {
+        let _ = std::process::Command::new(&c[0]).args(&c[1..]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+    }
+}
+
 /// The login service that keeps this computer connected: (file to write, contents).
 #[cfg(test)]
 pub fn service_unit(args: &[String], path_env: &str) -> (PathBuf, String) {
@@ -223,7 +253,7 @@ pub fn service_unit_for(args: &[String], path_env: &str, suffix: Option<&str>) -
     } else {
         let file = home.join(format!(".config/systemd/user/{}.service", named("sculptured-runner", "-", suffix, "")));
         let exec: Vec<String> = args.iter().map(|a| systemd_quote(a)).collect();
-        let text = format!("[Unit]\nDescription=Sculptured runner\nAfter=network-online.target\n\n[Service]\nEnvironment={}\nExecStart={}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n",
+        let text = format!("[Unit]\nDescription=Sculptured runner\nAfter=network-online.target\n\n[Service]\nEnvironment={}\nExecStart={}\nRestart=always\nRestartSec=5\nRestartPreventExitStatus={DISCONNECTED_EXIT}\n\n[Install]\nWantedBy=default.target\n",
             systemd_quote(&format!("PATH={path_env}")), exec.join(" "));
         (file, text)
     }
@@ -386,7 +416,7 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
         hostd::policy::Access::Sandboxed => "Access: sandboxed. Claude asks before risky actions; Codex writes only inside its folder.",
     });
     println!("Your account may also use here: {}", { let c = policy.info().capabilities; if c.is_empty() { "nothing else".to_string() } else { c.join(", ") } });
-    hostd::run_hostd(hostd::HostdOptions {
+    let ran = hostd::run_hostd(hostd::HostdOptions {
         controld_url: url,
         host_id: creds.device_id.clone(),
         data_dir: dir.join("hostd"),
@@ -394,7 +424,11 @@ pub async fn run_connect(a: ConnectArgs) -> Result<(), String> {
         claude_program: a.claude_program,
         codex_program: a.codex_program,
         policy: Some(policy),
-    }).await
+    }).await;
+    if ran.as_ref().is_err_and(|e| e == hostd::DISCONNECTED) {
+        service_off(&dir);
+    }
+    ran
 }
 
 /// `sculptured stop`: ends this computer's agents without the server: every account's runner here,
@@ -578,11 +612,23 @@ mod tests {
             assert!(text.contains(r#"ExecStart="/opt/My Apps/sculptured" "connect""#), "{text}");
             assert!(text.contains(r#"Environment="PATH=/usr/bin:/home/a/.local/bin:/a&b""#), "{text}");
             assert!(text.contains("Restart=always"));
+            assert!(text.contains(&format!("RestartPreventExitStatus={DISCONNECTED_EXIT}")), "a disconnected computer is not restarted: {text}");
         }
         if cfg!(target_os = "macos") {
             assert!(file.ends_with("Library/LaunchAgents/dev.sculptured.runner.plist"));
             assert!(text.contains("<string>/opt/My Apps/sculptured</string>") && text.contains("/a&amp;b") && text.contains("<key>KeepAlive</key>"));
         }
+    }
+}
+
+#[test]
+fn a_disconnected_runner_turns_its_own_service_off() {
+    let off = service_off_commands(Path::new("/home/a/.config/systemd/user/sculptured-runner-b.service"), Some("b"));
+    if cfg!(target_os = "linux") {
+        assert_eq!(off, [["systemctl", "--user", "disable", "--now", "--no-block", "sculptured-runner-b"]]);
+    }
+    if cfg!(target_os = "macos") {
+        assert_eq!(off[0][..3], ["launchctl", "unload", "-w"]);
     }
 }
 

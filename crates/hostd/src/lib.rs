@@ -15,5 +15,5 @@ pub mod supervisor;
 
 pub use journal::Journal;
 pub use link::{run_link, LinkError};
-pub use run::{run_hostd, HostdOptions, ALREADY_RUNNING};
+pub use run::{run_hostd, HostdOptions, ALREADY_RUNNING, DISCONNECTED};
 pub use supervisor::Supervisor;

@@ -24,6 +24,8 @@ pub struct HostdOptions {
 /// Returned by `run_hostd` when another hostd already owns the data dir.
 /// The `sculptured hostd` subcommand exits with code 75 (EX_TEMPFAIL) for it.
 pub const ALREADY_RUNNING: &str = "another hostd already owns this data dir";
+/// Why a connected computer's runner stopped: its account disconnected it (its key is refused).
+pub const DISCONNECTED: &str = "This computer was disconnected from its Sculptured account. Run `sculptured connect <address>` again to reconnect it.";
 
 /// Holds an exclusive lock on `{data_dir}/hostd.lock` for the life of the process (flock on Unix,
 /// LockFileEx on Windows), so a controld restart can never produce two hostds driving the same seats.
@@ -149,7 +151,7 @@ async fn keep_linked(opts: &HostdOptions, sup: &Supervisor) -> Result<(), String
             Ok(()) => return Ok(()),
             // A connected computer whose key is refused was disconnected: say so and stop retrying.
             Err(e) if opts.policy.is_some() && e.disconnected() => {
-                return Err("This computer was disconnected from its Sculptured account. Run `sculptured connect <address>` again to reconnect it.".into());
+                return Err(DISCONNECTED.into());
             }
             Err(e) => {
                 tracing::warn!(error = %e, "link down; agents keep running");

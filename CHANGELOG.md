@@ -9,6 +9,7 @@ All notable changes to Sculptured are listed here. The format follows [Keep a Ch
 - The team's model setting lists the agents whose own or group model wins over it, with "Use the team models for every agent".
 
 ### Fixed
+- A runner whose account disconnected its computer exited with an error every time, and its login service started it again every 5 seconds, all day. It now exits with code 78, which the systemd service does not restart (`RestartPreventExitStatus=78`), and turns its own login service off (systemd, launchd or Task Scheduler). Connecting again turns it back on.
 - The Run board polled every message ever sent to the team (`/communications`; 47 MB every 5 s for a 26-agent team whose handoffs carry the briefing). It now asks for the latest run's events with long text cut (`?run=latest&brief=true`): 49 KB, and on that team no more 200 ms freezes and 10 MB instead of 177 MB of page memory.
 - The live graph draws only cards, groups and arrows near the screen (off-screen agents keep a focusable stand-in); long agent lists skip off-screen rows; the browser's live event list keeps long tool output and briefings cut, and the open agent loads its events in full.
 - Plan budget meters say they count the run's own share of the window ("this run used 26% of the window · it may use 30%").

@@ -12,6 +12,10 @@ Changes you can see or use, by date. The open-source core's full history is on [
 - **The Run board no longer slows down during big runs.** It downloaded every message the team had ever sent every five seconds (each handoff carries the team briefing), 47 MB on a 26-agent team. It now gets only the current run's messages, cut short: 49 KB. On that team the page uses 10 MB instead of 177 MB and no longer freezes.
 - **Only what is on screen is drawn.** Agents, groups and arrows off screen cost nothing until you pan to them; Tab still reaches every agent.
 
+### A disconnected computer stays quiet
+
+- **A runner whose computer was disconnected from its account stops for good.** It used to be started again every 5 seconds by its login service. It now turns its service off; `sculptured connect` turns it back on. Reinstall the runner from **Computers** to get it.
+
 ### Upload files to the Input
 
 - **Upload** in the Input opens the picker on the agents' computer. Tick files in any folder; their full paths are added to the Input so the agents can open them. On a connected computer, reinstall the runner from **Computers** to use it.

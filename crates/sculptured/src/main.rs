@@ -158,6 +158,11 @@ async fn run(cli: Cli) -> ExitCode {
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
+        // The service must not start a runner whose account disconnected this computer again.
+        Err(e) if e == hostd::DISCONNECTED => {
+            eprintln!("sculptured: {e}");
+            ExitCode::from(connect::DISCONNECTED_EXIT)
+        }
         Err(e) if e == hostd::ALREADY_RUNNING => {
             eprintln!("sculptured: {e}");
             ExitCode::from(75)
