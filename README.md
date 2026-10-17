@@ -10,31 +10,36 @@
 
 # Sculptured
 
-Sculptured runs teams of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Codex](https://github.com/openai/codex) agents on your own computer, with your own sign-in. You give each agent a role and a folder, draw who hands work to whom, and press **Start**. Then you see what every agent is doing, read its transcript, answer its questions, and step in when it needs you.
+Sculptured is a visual workspace for teams of agents performing complex tasks. Give each agent a job and a folder, connect their handoffs, and follow the work from one board. Open any agent to read its conversation, answer questions or send guidance.
+
+Agents run on your own computer through your installed [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) CLI, with your existing sign-in. Use the hosted app with a connected computer, or build and run the app locally using the steps below.
 
 ![The board of an example team: groups of agents with their jobs and folders, connected by arrows showing who hands work to whom](docs/images/board.png)
 
-## Why
+## Work with a team of agents
 
-One agent in one terminal is easy to follow. Five agents planning, building, reviewing and testing the same project are not. Sculptured makes that work visible:
+When several agents plan, build and review the same project, you need to see who owns each task and what has actually happened. Sculptured provides:
 
-- **A board, not a log.** Agents, groups and handoffs are drawn as they run. Click any agent to open its conversation, files and evidence.
-- **Honest status.** "The agent said done", "a tool succeeded" and "a check passed" are shown as different things, and where every fact came from is labelled. Nothing is reported as verified unless something verified it.
-- **Your agents, your machine.** Agents run through your installed Claude Code or Codex CLI with your existing sign-in. Projects, transcripts and Git work stay in `~/.sculptured/`.
-- **Simple first, powerful when you need it.** The main path is plain words: team, agent, job, folder, "hands work to". Workflows with checks, review panels, round limits, merges, schedules and a decision log sit under **Advanced**.
+- **A shared board.** Arrange agents and groups, define handoffs and follow their progress. Open a card to inspect its conversation, files and evidence.
+- **Traceable results.** Agent reports, captured tool results and verified checks have distinct labels. A passing check supports only the properties it tests.
+- **Local execution.** Agents use your installed CLIs and work in the folders you choose. In local mode, Sculptured stores its own data, including run history, in `~/.sculptured/`.
+- **Workflows for more involved tasks.** Add stages, review panels, checks and revision limits when the work needs them. Advanced settings include merges, schedules and a decision log.
 
 ## Quick start
 
-You need [Rust](https://rustup.rs/) 1.95 or newer, [Node.js](https://nodejs.org/) 24, Git, and Claude Code or Codex installed and signed in (Practice agents work without either).
+To build locally, you need [Rust](https://rustup.rs/) 1.95 or newer, [Node.js](https://nodejs.org/) 24 and Git. Install Claude Code or Codex and sign in before running real agents.
 
 ```bash
 git clone https://github.com/Alexander-Aghili/sculptured.git
 cd sculptured
-npm --prefix web ci && npm --prefix web run build
+npm --prefix web ci
+npm --prefix web run build
 cargo run --release -p sculptured -- serve
 ```
 
-Open http://127.0.0.1:4410, choose **New project**, pick a template such as **Builder → Reviewer**, choose a folder, and press **Start team**. Try **Practice agents** first: they behave like agents but never call a model.
+Open http://127.0.0.1:4410 and choose **New project**. Select Claude or Codex, pick **Builder → Reviewer**, then choose a project folder and write each agent's **Job**. When the board shows **Ready**, choose **Start team** and review the confirmation. Agents use your provider account and may incur charges or consume plan usage.
+
+The [quickstart](https://docs.usesculptured.com/quickstart) walks through setup, the first run and reviewing the result. It also covers the hosted beta.
 
 ## How it works
 
@@ -49,7 +54,7 @@ flowchart LR
   R -- "every event" --> S
 ```
 
-`sculptured serve` keeps an append-only journal of everything agents do and turns it into the views you see. The runner drives each CLI, captures its output and passes messages between agents. A runner can also live on another computer you connect.
+`sculptured serve` stores captured events in an append-only journal and uses them to build the app's views. The runner starts each CLI, captures its output and delivers messages. You can also connect a runner on another computer.
 
 ## Documentation
 

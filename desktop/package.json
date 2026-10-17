@@ -3,7 +3,7 @@
   "productName": "Sculptured",
   "version": "0.1.0",
   "private": true,
-  "description": "Sculptured on your computer: design, run and watch teams of local Claude Code and Codex agents",
+  "description": "Sculptured desktop app: design, run and watch teams of agents performing complex tasks",
   "main": "main.mjs",
   "scripts": {
     "start": "electron .",

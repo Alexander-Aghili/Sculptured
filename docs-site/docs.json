@@ -18,8 +18,8 @@
         "pages": [
           "introduction",
           "quickstart",
-          "concepts",
-          "connect-a-computer"
+          "connect-a-computer",
+          "concepts"
         ]
       },
       {
@@ -28,33 +28,38 @@
           "guides/agent-design",
           "guides/board",
           "guides/design-assistant",
-          "guides/workflows",
-          "guides/groups",
           "guides/examples",
-          "guides/textbook"
+          "guides/groups"
         ]
       },
       {
         "group": "Run a team",
         "pages": [
           "guides/running",
-          "guides/questions",
           "guides/control",
           "guides/budgets",
           "guides/where-tokens-went",
+          "guides/questions",
           "guides/context",
-          "guides/offline",
           "guides/git",
-          "guides/import-a-session"
+          "guides/offline"
         ]
       },
       {
-        "group": "Share",
+        "group": "Build workflows",
         "pages": [
-          "guides/community",
-          "guides/pattern-catalog",
+          "guides/workflows",
+          "guides/textbook",
+          "guides/pattern-catalog"
+        ]
+      },
+      {
+        "group": "Save and share",
+        "pages": [
           "guides/team-files",
-          "guides/madl"
+          "guides/madl",
+          "guides/import-a-session",
+          "guides/community"
         ]
       },
       {
@@ -68,7 +73,7 @@
         ]
       },
       {
-        "group": "Self-host & security",
+        "group": "Hosting and security",
         "pages": [
           "operations",
           "security",
@@ -91,5 +96,5 @@
       "view"
     ]
   },
-  "description": "Sculptured lets you design a team of Claude Code and Codex agents on a visual board, run it on your own computer, and see the evidence behind every result."
+  "description": "Sculptured lets you design a team of agents performing complex tasks on a visual board, run it and see the evidence behind every result."
 }
