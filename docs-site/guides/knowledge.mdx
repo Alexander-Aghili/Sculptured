@@ -21,7 +21,7 @@ Agents have a `search_history` tool. It searches what the team's agents, includi
 
 ## Lessons
 
-When something cost an agent a wrong turn that others could avoid, it records a short lesson with `record_lesson`. Every agent of the team is told the latest lessons when it starts a conversation, including after continuing fresh from its notes.
+When something cost an agent a wrong turn that others could avoid, it records a short lesson with `record_lesson`. Every agent of the team is told the latest lessons when it starts a conversation, including after continuing fresh from its notes. Teammates already working get a new lesson with the next message they receive, so nothing interrupts them.
 
 A lesson starts as **reported**. When you agree with it, **Confirm** it: agents then see it marked as confirmed. **Hide** removes it from what agents are told.
 

@@ -17,7 +17,10 @@ pub(crate) fn with_context(st: &AppState, seat: &str, text: String) -> String {
         format!("You work in your own git copy of the project, on branch {}. Commit your work there. Teammates cannot see your files until the operator merges your branch, so send them what they need (file contents, paths and commits) in messages.\n\n{text}", crate::copies::branch_of(id, seat))
     } else { text };
     let briefed = briefed(&st.store.lock().unwrap(), seat).unwrap_or(false);
-    let draft = st.store.lock().unwrap().draft(id).ok().flatten().filter(|_| !briefed);
+    let team = st.store.lock().unwrap().draft(id).ok().flatten();
+    let lessons = team.as_ref().filter(|_| briefed).and_then(|d| crate::knowledge::new_lessons(st, id, seat, d));
+    let text = match lessons { Some(note) => format!("{note}\n\n{text}"), None => text };
+    let draft = team.filter(|_| !briefed);
     let log = draft.as_ref().and_then(|d| decision_log_note(&st.store.lock().unwrap(), id, d.decision_log));
     let text = match log { Some(note) => format!("{note}\n\n{text}"), None => text };
     let known = draft.as_ref().map(|d| crate::knowledge::briefing_lines(st, id, seat, d)).unwrap_or_default();

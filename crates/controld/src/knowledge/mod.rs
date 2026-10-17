@@ -105,6 +105,20 @@ pub(crate) fn briefing_lines(st: &AppState, team: &str, seat: &str, d: &TeamDraf
     out
 }
 
+/// For an agent already briefed: the lessons its teammates recorded since its last message, so a
+/// lesson reaches agents that are already working, quietly, with the next message they get anyway.
+pub(crate) fn new_lessons(st: &AppState, team: &str, seat: &str, d: &TeamDraft) -> Option<String> {
+    let me = d.agent_for_seat(seat).map(|a| a.name.clone());
+    let store = st.store.lock().unwrap();
+    let since = store.latest_of_types(&model::Subject::Seat(seat.to_string()), &["message-queued"], 1).ok()?.first()?.at_ms;
+    let fresh: Vec<String> = store.decisions(team, None, 50, false).ok()?.into_iter()
+        .filter(|e| e.source == "lesson" && e.at_ms > since && me.as_ref() != Some(&e.author))
+        .take(BRIEFING_LESSONS)
+        .map(|e| format!("{} ({})", e.text.trim(), e.author))
+        .collect();
+    (!fresh.is_empty()).then(|| format!("New lesson{} from your team since your last message:\n- {}", if fresh.len() == 1 { "" } else { "s" }, fresh.join("\n- ")))
+}
+
 fn outline(map: &ProjectMap, who: &BTreeMap<String, BTreeSet<String>>) -> String {
     let mut areas: Vec<_> = map.areas.iter().collect();
     areas.sort_by(|a, b| who.contains_key(&b.path).cmp(&who.contains_key(&a.path)).then(b.files.cmp(&a.files)));

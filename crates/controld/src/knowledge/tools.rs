@@ -13,6 +13,8 @@ fn searchable(body: &Value) -> Option<(&'static str, String)> {
     let s = |k: &str| body.get(k).and_then(Value::as_str).map(str::to_string);
     match body.get("type")?.as_str()? {
         "agent-text" => Some(("wrote", s("text")?)),
+        // A search's own calls would only ever find themselves.
+        "tool-called" if s("name").is_some_and(|n| n.ends_with("search_history")) => None,
         "tool-called" => Some(("ran", format!("{} {}", s("name").unwrap_or_default(), body.get("input").map(Value::to_string).unwrap_or_default()))),
         "tool-resulted" => Some(("got back", s("output")?)),
         "message-queued" => Some(("was told", s("text")?)),
@@ -31,7 +33,7 @@ fn snippet(text: &str, q: &str) -> String {
 }
 
 /// `search_history { query, agent? }`: the newest matches in what this team's agents wrote, ran, got
-/// back and were told, with who and when.
+/// back and were told, with who and when. The asking agent's current turn is left out: it has that already.
 pub fn search_history(st: &AppState, seat: &str, args: &Value) -> Result<Value, String> {
     let team = crate::seat_ids::rig_of(seat).ok_or("Unknown agent.")?;
     let query = args.get("query").and_then(Value::as_str).map(|q| q.trim().to_lowercase()).filter(|q| q.chars().count() >= 3)
@@ -40,14 +42,18 @@ pub fn search_history(st: &AppState, seat: &str, args: &Value) -> Result<Value, 
     let like = format!("%{}%", query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
     let store = st.store.lock().unwrap();
     let draft = store.draft(team).map_err(|e| e.to_string())?;
+    let turn = store.latest_of_types(&model::Subject::Seat(seat.to_string()), &["message-queued"], 1).map_err(|e| e.to_string())?.first().map_or(i64::MAX, |m| m.seq);
     let mut q = store.connection().prepare(
-        "SELECT substr(e.subject, 6), e.at_ms, e.json FROM events e JOIN seats s ON e.subject = 'seat:' || s.id WHERE s.rig = ?1
+        "SELECT substr(e.subject, 6), e.at_ms, e.json, e.seq FROM events e JOIN seats s ON e.subject = 'seat:' || s.id WHERE s.rig = ?1
          AND json_extract(e.json, '$.body.type') IN ('agent-text', 'tool-called', 'tool-resulted', 'message-queued')
          AND lower(e.json) LIKE ?2 ESCAPE '\\' ORDER BY e.seq DESC LIMIT 200",
     ).map_err(|e| e.to_string())?;
-    let rows = q.query_map(rusqlite::params![team, like], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?))).map_err(|e| e.to_string())?;
+    let rows = q.query_map(rusqlite::params![team, like], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)?))).map_err(|e| e.to_string())?;
     let mut hits = Vec::new();
-    for (who, at_ms, raw) in rows.flatten() {
+    for (who, at_ms, raw, seq) in rows.flatten() {
+        if who == seat && seq >= turn {
+            continue;
+        }
         let name = draft.as_ref().and_then(|d| d.agent_for_seat(&who)).map_or(who.clone(), |a| a.name.clone());
         if agent.as_ref().is_some_and(|a| !name.to_lowercase().contains(a.as_str()) && !who.to_lowercase().contains(a.as_str())) {
             continue;
@@ -73,12 +79,19 @@ pub fn record_lesson(st: &AppState, seat: &str, args: &Value) -> Result<Value, S
     let store = st.store.lock().unwrap();
     let author = store.draft(team).ok().flatten().and_then(|d| d.agent_for_seat(seat).map(|a| a.name.clone())).unwrap_or_else(|| seat.to_string());
     store.add_decision(team, &author, &lesson, "lesson").map_err(|e| e.to_string())?;
-    Ok(json!({ "text": "Recorded. Every agent of this team is told it when it next starts a conversation." }))
+    Ok(json!({ "text": "Recorded. Teammates already working are told it with their next message, and every later agent of this team in its briefing." }))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::snippet;
+    use super::{searchable, snippet};
+    use serde_json::json;
+
+    #[test]
+    fn the_history_tools_own_calls_are_not_searchable() {
+        assert!(searchable(&json!({ "type": "tool-called", "name": "mcp__rig__search_history", "input": { "query": "round" } })).is_none());
+        assert!(searchable(&json!({ "type": "tool-called", "name": "Edit", "input": { "file_path": "money.py" } })).is_some());
+    }
 
     #[test]
     fn a_snippet_is_the_text_around_the_match() {
