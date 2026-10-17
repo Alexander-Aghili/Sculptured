@@ -3,7 +3,7 @@ title: MADL files
 description: Export a team as a Multi-Agent Descriptor Language file that other tools can read, and import MADL files as teams.
 ---
 
-[MADL](https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language), the Multi-Agent Descriptor Language, is an open, vendor-neutral file format for describing a multi-agent system. A MADL file holds:
+[MADL](https://github.com/Sculptured/Multi-Agent-Descriptor-Language), the Multi-Agent Descriptor Language, is an open, vendor-neutral file format for describing a multi-agent system. A MADL file holds:
 
 - the agents and the groups they are in;
 - who hands work to whom, and how agents communicate;
@@ -48,7 +48,7 @@ MADL can describe more than Sculptured runs today. Importing keeps what Sculptur
 A file that is not valid MADL is refused with each error and where it is. A MADL file that refers to other files (`$ref`) can't be uploaded as it is. Join it into one file first with `madl expand`:
 
 ```sh
-cargo install --git https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language madl-cli
+cargo install --git https://github.com/Sculptured/Multi-Agent-Descriptor-Language madl-cli
 madl expand team.madl.yaml > one-file.madl.yaml
 ```
 

@@ -13,8 +13,8 @@ Thanks for helping. Bug reports, ideas, docs fixes and code are all welcome.
 You need Rust 1.95 or newer, Node.js 24, and Git. Claude Code or Codex is only needed to run real agents; the tests never call them.
 
 ```bash
-git clone https://github.com/Alexander-Aghili/sculptured.git
-cd sculptured
+git clone https://github.com/Sculptured/Sculptured.git
+cd Sculptured
 npm --prefix web ci && npm --prefix web run build
 cargo run -p sculptured -- serve          # http://127.0.0.1:4410
 ```

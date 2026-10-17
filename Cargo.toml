@@ -7,7 +7,7 @@ exclude = ["spikes"]
 edition = "2024"
 version = "0.1.0"
 license = "Apache-2.0"
-repository = "https://github.com/Alexander-Aghili/sculptured"
+repository = "https://github.com/Sculptured/Sculptured"
 publish = false
 
 [workspace.dependencies]

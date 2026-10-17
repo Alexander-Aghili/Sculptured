@@ -4,7 +4,7 @@
 
 Please report security problems privately, not in a public issue:
 
-- **Preferred:** [open a private vulnerability report](https://github.com/Alexander-Aghili/sculptured/security/advisories/new) on GitHub.
+- **Preferred:** [open a private vulnerability report](https://github.com/Sculptured/Sculptured/security/advisories/new) on GitHub.
 - **Or email** security@usesculptured.com.
 
 Include what you found, how to reproduce it, and the version or commit. You will get an acknowledgement within three working days. We will keep you updated until a fix is released, and credit you in the release notes if you wish.

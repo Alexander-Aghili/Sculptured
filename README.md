@@ -30,8 +30,8 @@ When several agents plan, build and review the same project, you need to see who
 To build locally, you need [Rust](https://rustup.rs/) 1.95 or newer, [Node.js](https://nodejs.org/) 24 and Git. Install Claude Code or Codex and sign in before running real agents.
 
 ```bash
-git clone https://github.com/Alexander-Aghili/sculptured.git
-cd sculptured
+git clone https://github.com/Sculptured/Sculptured.git
+cd Sculptured
 npm --prefix web ci
 npm --prefix web run build
 cargo run --release -p sculptured -- serve
