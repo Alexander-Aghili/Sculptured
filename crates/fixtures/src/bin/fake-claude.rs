@@ -325,6 +325,20 @@ impl Fake {
                 self.assistant(&m, json!({ "type": "text", "text": "chatty done" }), None, "fake", MAIN);
                 self.result(false, "chatty done");
             }
+            // Context ceiling tests: `grow:<calls>:<start>:<step>` makes `calls` tool calls whose context
+            // grows from `start` tokens by `step` per call, like an agent reading file after file.
+            t if t.starts_with("grow:") => {
+                let n: Vec<u64> = t.trim_start_matches("grow:").split(':').filter_map(|x| x.trim().parse().ok()).collect();
+                let (calls, start, step) = (n.first().copied().unwrap_or(3), n.get(1).copied().unwrap_or(20_000), n.get(2).copied().unwrap_or(20_000));
+                for i in 0..calls {
+                    let (id, m) = (format!("toolu_grow_{i}"), self.message_id());
+                    self.assistant(&m, tool_use(&id, "Read", json!({ "file_path": format!("part{i}.txt") })), None, "fake", [0, 10, start + i * step, 0]);
+                    self.bash_result(&id, &format!("part {i}"), None);
+                }
+                let m = self.message_id();
+                self.assistant(&m, json!({ "type": "text", "text": "grown" }), None, "fake", [0, 5, start + calls * step, 0]);
+                self.result(false, "grown");
+            }
             t if t.starts_with("tool:") => {
                 let cmd = t.trim_start_matches("tool:").trim();
                 let m = self.message_id();

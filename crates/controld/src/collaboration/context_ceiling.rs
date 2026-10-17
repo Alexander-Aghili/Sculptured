@@ -50,13 +50,27 @@ fn steps(store: &Store, asked: &HashMap<String, i64>) -> rusqlite::Result<Vec<St
             let tenure = latest(store, &view.id, &["tenure-started"])?.map_or(0, |(seq, _)| seq);
             if let Some((seq, EventBody::ContextReported { used_tokens, .. })) = latest(store, &view.id, &["context-reported"])?
                 && seq > tenure
-                && used_tokens > ceiling
+                && used_tokens > ceiling.max(2 * start_size(store, &view.id, tenure)?)
             {
                 out.push(Step::Ask { seat: view.id.clone(), used: used_tokens, ceiling, seq });
             }
         }
     }
     Ok(out)
+}
+
+/// The conversation's starting context (its first reading since `tenure`): instructions, tools and the
+/// team briefing. The ceiling acts only past twice this, so a fresh conversation, which starts at this
+/// size again, can never trip it at once and restart in a loop.
+fn start_size(store: &Store, seat: &str, tenure: i64) -> rusqlite::Result<u64> {
+    Ok(store
+        .events_for_seat(seat, tenure, 500)?
+        .into_iter()
+        .find_map(|e| match e.body {
+            EventBody::ContextReported { used_tokens, .. } => Some(used_tokens),
+            _ => None,
+        })
+        .unwrap_or(0))
 }
 
 /// One round: ask agents over their ceiling for notes, and continue those whose note turn ended.
@@ -88,9 +102,15 @@ async fn restart_fresh(st: &AppState, seat: &str) -> Result<(), crate::error::Ap
 }
 
 async fn ask(st: &AppState, seat: String, used: u64, ceiling: u64, seq: i64) {
-    if let Err(e) = st.local_event(Actor::System(ACTOR.into()), Subject::Seat(seat.clone()), Provenance::Operator, EventBody::ContextCeilingReached { used_tokens: used, ceiling }) {
-        tracing::warn!(%seat, error = %e, "context ceiling not recorded");
-    }
+    // The note's turn is the first turn to end after this record, so remember its place: an earlier
+    // turn-end (the turn that grew the context) must not count as the note being written.
+    let seq = match st.local_event(Actor::System(ACTOR.into()), Subject::Seat(seat.clone()), Provenance::Operator, EventBody::ContextCeilingReached { used_tokens: used, ceiling }) {
+        Ok(item) => item.event.seq,
+        Err(e) => {
+            tracing::warn!(%seat, error = %e, "context ceiling not recorded");
+            st.store.lock().unwrap().last_seq().unwrap_or(seq)
+        }
+    };
     match reconciler::send_message_as(st, &seat, note_text(&seat, used), MessageIntent::Instruct, false, Actor::System(ACTOR.into())).await {
         Ok(_) => {
             st.context_asked.lock().unwrap().insert(seat, seq);

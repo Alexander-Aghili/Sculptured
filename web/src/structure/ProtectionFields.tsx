@@ -17,7 +17,7 @@ type NumberKey = 'read_kb' | 'shell_chars' | 'context_tokens';
 const NUMBERS: { key: NumberKey; label: string; unit: string; min: number }[] = [
   { key: 'read_kb', label: 'Refuse reading a whole file larger than', unit: 'KB', min: 1 },
   { key: 'shell_chars', label: 'Shell output an agent sees, at most', unit: 'characters', min: 500 },
-  { key: 'context_tokens', label: 'Continue an agent fresh from its notes at', unit: 'tokens of context', min: 10000 },
+  { key: 'context_tokens', label: 'Continue an agent fresh from its notes at', unit: 'tokens of context', min: 30000 },
 ];
 
 /** Rules between the team's agents and their tools, and which agents each one reaches. */

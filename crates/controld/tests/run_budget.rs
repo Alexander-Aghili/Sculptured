@@ -328,14 +328,38 @@ async fn an_agent_past_the_context_ceiling_continues_fresh_from_its_notes() {
     let s = serve().await;
     let _runner = claude_runner(&s).await;
     let dir = tempfile::tempdir_in(s.home.path()).unwrap();
-    // Each call re-reads 70k tokens: past the default 60k ceiling.
-    let id = team(&s, dir.path(), &[("a", "spend:2:70000:20".into())], json!({})).await;
+    // The context grows from 20k to 80k over the turn: past the default 60k ceiling, and past twice the
+    // conversation's 20k start.
+    let id = team(&s, dir.path(), &[("a", "grow:3:20000:20000".into())], json!({})).await;
     start_team(&s, &id).await;
     let a = seat(&id, "a");
     let has = |pred: &dyn Fn(&model::EventBody) -> bool| events(&s.st, &a).iter().any(|e| pred(&e.body));
     wait_long("the ceiling is reached", || has(&|b| matches!(b, model::EventBody::ContextCeilingReached { ceiling: 60_000, .. }))).await;
     wait_long("the note is asked for", || has(&|b| matches!(b, model::EventBody::MessageQueued { text, .. } if text.contains(".sculptured/notes/a.md")))).await;
     wait_long("it continues fresh", || has(&|b| matches!(b, model::EventBody::MessageQueued { text, .. } if text.contains("continuing in a fresh conversation")))).await;
-    let fresh = events(&s.st, &a).iter().filter(|e| matches!(e.body, model::EventBody::TenureStarted { .. })).count();
+    let all = events(&s.st, &a);
+    let fresh = all.iter().filter(|e| matches!(e.body, model::EventBody::TenureStarted { .. })).count();
     assert!(fresh >= 2, "a second, fresh conversation started");
+    // The note's turn ran to its end before the restart: a turn ended after the ceiling was recorded
+    // and before the second conversation began, and no turn was cut short.
+    let seq_of = |p: &dyn Fn(&model::EventBody) -> bool| all.iter().filter(|e| p(&e.body)).map(|e| e.seq).collect::<Vec<_>>();
+    let reached = seq_of(&|b| matches!(b, model::EventBody::ContextCeilingReached { .. }))[0];
+    let second = seq_of(&|b| matches!(b, model::EventBody::TenureStarted { .. }))[1];
+    assert!(seq_of(&|b| matches!(b, model::EventBody::TurnEnded { .. })).iter().any(|t| *t > reached && *t < second), "the note turn ended before the restart");
+    assert!(!all.iter().any(|e| matches!(&e.body, model::EventBody::TurnEnded { status, .. } if *status != model::TurnStatus::Completed)), "no turn was cut short");
+}
+
+/// A conversation that starts large and does not grow is not restarted: a fresh one would start just as
+/// large, and restart again, in a loop.
+#[tokio::test]
+async fn a_conversation_that_starts_above_the_ceiling_but_does_not_grow_is_left_alone() {
+    let s = serve().await;
+    let _runner = claude_runner(&s).await;
+    let dir = tempfile::tempdir_in(s.home.path()).unwrap();
+    let id = team(&s, dir.path(), &[("a", "spend:2:70000:20".into())], json!({})).await;
+    start_team(&s, &id).await;
+    let a = seat(&id, "a");
+    wait_long("the turn ends", || turns(&s, &a).len() == 1).await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    assert!(!events(&s.st, &a).iter().any(|e| matches!(e.body, model::EventBody::ContextCeilingReached { .. })), "no ceiling for a conversation that did not grow");
 }
