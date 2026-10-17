@@ -23,6 +23,8 @@ When several agents plan, build and review the same project, you need to see who
 - **A shared board.** Arrange agents and groups, define handoffs and follow their progress. Open a card to inspect its conversation, files and evidence.
 - **Traceable results.** Agent reports, captured tool results and verified checks have distinct labels. A passing check supports only the properties it tests.
 - **Local execution.** Agents use your installed CLIs and work in the folders you choose. In local mode, Sculptured stores its own data, including run history, in `~/.sculptured/`.
+- **Usage you control.** Run budgets keep a run within a share of your plan. Protections keep each agent's context small: no whole reads of large files, capped shell output, and a fresh conversation from the agent's notes once its context grows large.
+- **Agents that know the project.** Each start maps the project's folders, so agents see what exists before building it. They can search what the team already did and record lessons for each other.
 - **Workflows for more involved tasks.** Add stages, review panels, checks and revision limits when the work needs them. Advanced settings include merges, schedules and a decision log.
 
 ## Quick start
@@ -59,7 +61,7 @@ flowchart LR
 ## Documentation
 
 - **Using Sculptured:** [docs site](https://docs.usesculptured.com) (sources in [`docs-site/`](docs-site/)): designing teams, the board, controlling live agents, Git, workflows.
-- **How it is built:** [`docs/internals/`](docs/internals/README.md), starting with the [overview](docs/internals/overview.md): architecture, the event journal, drivers, workflows, the host protocol, testing.
+- **How it is built:** [`docs/internals/`](docs/internals/README.md), starting with the [overview](docs/internals/overview.md): architecture, the event journal, drivers, workflows, protections, knowledge, the host protocol, testing.
 - **Example teams:** [`examples/teams/`](examples/teams/) and [`docs/showcase/`](docs/showcase/).
 
 ## Project layout

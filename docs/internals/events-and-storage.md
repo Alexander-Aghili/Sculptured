@@ -222,12 +222,16 @@ Foreign keys are not declared in SQL. The links are by id: `seats.rig = rigs.nam
 | `imported_runs`, `imported_events` | Run files imported for History. They never enter `events` ([Portable formats](portable-formats.md)). |
 | `team_origins` | Where a team came from, for its provenance label ([AI team generator](ai-team-generator.md)) |
 | `schedule_runs` | Each time a team's schedule came due, and its outcome |
-| `team_decisions` | A team's decision log, written by people and read by agents |
+| `team_decisions` | A team's decision log: people's decisions and agents' lessons (source `lesson`), with `hidden_ms` and `confirmed_ms` ([Knowledge](knowledge.md)) |
+| `run_budgets` | Each run's budget state per start ([Limits and usage](limits-and-usage.md)) |
+| `budget_queue` | Messages waiting for a slot when a team's most-working-at-once limit is reached |
+| `run_reports` | Where a run's tokens went, per start (the `analyze-run` op, [Local operations](local-ops.md)) |
+| `project_maps` | The latest generated project map per team and folder ([Knowledge](knowledge.md)) |
 
 ## 11. Migrations
 
 - `store/schema.rs` holds `MIGRATIONS`, applied in order inside one immediate transaction. `PRAGMA user_version` counts those already applied.
-- **The current schema version is 23** (`SCHEMA_VERSION = MIGRATIONS.len()`). `tests/migrations.rs::an_m1_store_gains_the_m2_tables_and_columns` pins it.
+- **The current schema version is 26** (`SCHEMA_VERSION = MIGRATIONS.len()`). `tests/migrations.rs::an_m1_store_gains_the_m2_tables_and_columns` pins it.
 - A store from a newer build, or with a negative version, is refused with a message, not opened.
 - `already_applied` recognises migrations an older build left in place after a downgrade, so a store whose `user_version` was set back still opens.
 - Append new migrations. Never edit one that has shipped.

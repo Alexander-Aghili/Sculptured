@@ -110,6 +110,18 @@ Find your symptom below and expand it for the likely cause and next step. For an
   <Accordion title="An agent is “stuck”">
     It is idle and its handoffs can't go on by themselves. The pane says why: often an upstream agent hasn't produced a result, or its turn was interrupted. Use **Hand over again** to resend the work it is owed, **Resend handoff**, or send it guidance.
   </Accordion>
+  <Accordion title="An agent says “waiting for a slot to run”">
+    It is not stuck. The team's run budget limits how many agents work at once, and that many are working, so its next message waits. It is sent by itself when a slot frees. To run more at once, raise **Most agents working at once** in [Run budgets](/guides/budgets).
+  </Accordion>
+  <Accordion title="An agent's read was refused with “Sculptured protection: …”">
+    Protections refused reading a large file whole, or a file outside the agent's contract. The agent is told why and how to read only the part it needs, and usually carries on by itself. To allow larger reads, change **Advanced** → **Protections** on the team; to allow those paths, change the agent's **Contract**. See [Protections](/guides/budgets#protections-keep-each-agents-context-small).
+  </Accordion>
+  <Accordion title="An agent continued in a fresh conversation by itself">
+    Its context passed the team's protection limit, so between turns it wrote its notes to `.sculptured/notes/` in its folder and continued in a fresh conversation from them. Every later step is then cheaper. The limit is in the team's **Advanced** → **Protections**.
+  </Accordion>
+  <Accordion title="The Knowledge view says “No map yet”">
+    A project map is made each time the team starts. If the team has started since then, the runner on the agents' computer is older than project maps: reinstall it from **Computers**. See [What agents know](/guides/knowledge).
+  </Accordion>
   <Accordion title="An agent “needs attention”">
     It stopped when it shouldn't have, couldn't start, or was lost in a restart. Read the reason in its pane. Then **Restart this agent**, or answer the team's restore offer: **Resume**, **Start fresh** or **Leave stopped**.
   </Accordion>

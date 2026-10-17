@@ -102,8 +102,13 @@ Path fields are resolved by the runner, as described in [Connected computers §4
 | `clis` | – | `GET /api/clis[?host=]` | – | – | 40 s |
 | `cli-login` | `name` | `POST /api/clis/{name}/login[?host=]` | `cli_sign_in` | – | 20 s |
 | `plan-usage` | – | `GET /api/plan-usage` | `plan_usage` | – | 15 s |
-| `generate` | `cli, model?, prompt, schema` | `POST /api/generate/{questions,teams}` ([AI team generator](ai-team-generator.md)) | `generate` | – (runs in an empty temporary folder) | 300 s |
+| `generate` | `cli, model?, prompt, schema` | `POST /api/generate/{questions,teams}` ([AI team generator](ai-team-generator.md)) | `generate` | – (runs in an empty temporary folder) | 310 s |
 | `analyze-run` | `sessions` (runtime, CLI session id), `export` (the run's `sculptured.session/v1` with only `tenure-started`, `handed-over`, `plan-usage-reported` and `budget-state-changed`) | `GET /api/teams/{id}/report` and the minute refresh (`run_reports.rs`) | `usage_reports` | – (session files are found by id under `~/.claude/projects` or `$CLAUDE_CONFIG_DIR/projects`, and `$CODEX_HOME/sessions` around the run's day; ids are plain names, never paths) | 60 s |
+
+| `item-copy-prepare` | `project, team, task` | Workflow items with `copies: per-item` ([Workflows](workflows.md)) | `copies` | `project` (whole repository) | 120 s |
+| `item-merge` | `project, team, task, into?` | A workflow merge stage (`workflow/stage_merge.rs`) | `copies` | `project` (whole repository) | 120 s |
+| `run-check` | `cwd, item?, command, timeout_s` | Workflow check stages and guards (`workflow/stage_checks.rs`, `workflow/guard.rs`) | `checks` | `cwd` | the check's timeout + 30 s |
+| `project-map` | `path` | Every team start (`knowledge::refresh`, [Knowledge](knowledge.md)) | – | `path` | 30 s (controld waits 20 s) |
 
 Timeouts are set in `ops::timeout_for`. A runner from before `analyze-run` answers `unknown_op`; controld turns that into `runner_without_reports` (reinstall the runner). Copies get 120 s because creating or merging a worktree in a large repository can take that long.
 

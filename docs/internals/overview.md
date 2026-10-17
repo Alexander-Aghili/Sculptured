@@ -82,19 +82,19 @@ The Cargo workspace is `crates/*` (`spikes/` is excluded). The hosted gateway an
 | `crates/model` | Shared types: events, provenance, seat ids (`pod.member@rig`), team drafts, workflow, limits, pricing. No I/O. Exported to TypeScript with ts-rs. | Yes: event and draft JSON |
 | `crates/rigspec` | Parses, validates and compiles RigSpec YAML and team drafts into a `CompiledRig`; templates and team exchange formats. No file I/O. | Yes: `sculptured.team/v1` ([Portable formats](portable-formats.md)) |
 | `crates/host-proto` | Messages between controld and a runner, as JSON frames over a WebSocket (`ToHost`, `FromHost`, Hello, Welcome, acks). | Yes: [Host protocol](host-protocol.md) |
-| `crates/controld` | The product server: HTTP API, guard and hosted auth, SQLite event store and projections, launches, handoffs, questions, workflow engine, checks, usage, analytics. | Yes: `/api/*`, `/host` |
+| `crates/controld` | The product server: HTTP API, guard and hosted auth, SQLite event store and projections, launches, handoffs, questions, workflow engine, checks, usage, analytics, the context ceiling ([Protections](protections.md)) and knowledge ([Knowledge](knowledge.md)). | Yes: `/api/*`, `/host` |
 | `crates/hostd` | The agent runner: supervises agent processes, journals their events, serves seat tools on a local socket, enforces the computer owner's policy. | Client of `/host` |
 | `crates/drivers` | One driver per CLI: `claude` (stream-json), `codex` (app-server JSON-RPC), `stub` (Practice agents, no model). | Internal trait `Driver` ([Drivers](drivers.md)) |
-| `crates/localops` | Folders, git, own copies, checks, CLI sign-in, plan usage, generation. Called in-process or by a runner. | Yes: `LocalOp` JSON |
+| `crates/localops` | Folders, git, own copies, checks, CLI sign-in, plan usage, generation, project maps. Called in-process or by a runner. | Yes: `LocalOp` JSON |
 | `crates/interpreter` | Heuristic reading of tool calls into plain-language actions and risk flags. Pure; never reads the filesystem, never blocks. | No |
 | `crates/signing` | HMAC `sign` and `verify` for gateway-to-instance requests. | Yes: request signature |
-| `crates/sculptured` | The one binary: `serve`, `hostd`, `seat-tools`, `connect`, `allow`. | CLI |
+| `crates/sculptured` | The one binary: `serve`, `hostd`, `seat-tools`, `connect`, `allow`, `stop`, and `guard` (Claude Code's hook for [protections](protections.md)). | CLI |
 | `crates/fixtures` | Fake CLIs (`fake-claude`, `fake-codex`), scrubbed recordings, manual probes. Test-only. | No |
 | `crates/e2e-server` | The Playwright web server: real binary, throwaway data dir and `HOME`. Test-only. | No |
 | `web/src/generated` | TypeScript types generated from Rust. Never hand-edited. | Mirror of Rust types |
 | `web/src/structure` | Structure board: designing a team, folder picker, start confirmation, team generator UI. | No |
 | `web/src/shell` | App shell, agent pane, controls, chat, connection labels. | No |
-| `web/src/collaboration` | Conversation, communication map, usage and budget views. | No |
+| `web/src/collaboration` | Conversation, communication map, usage and budget views, the Knowledge view. | No |
 | `web/src/workflow` | Workflow board, stage editor, item board, run view, decision log. | No |
 | `web/src/visual` | Visual progress, context overview, phase brief, tool views. | No |
 | `web/src/progress` | Activity and summary sentences from events. | No |

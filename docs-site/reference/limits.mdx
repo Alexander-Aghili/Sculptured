@@ -22,6 +22,29 @@ flowchart LR
 | **Output budget** | A team's budget, set while the team is stopped | Each agent's output tokens since the run started, from 1 to 1,000,000 per agent, subagents included. | The agent and its subagents are hard-stopped. It cannot launch again until a new run starts. |
 | **Check timeout** | A check command on a workflow stage | Wall-clock time of the command. Default 600 seconds. | The check fails. |
 
+Run budgets, and each agent's turn and working-time limits, are in [Run budgets](/guides/budgets).
+
+## Protections
+
+On by default; change them in the team's **Advanced** → **Protections** ([details](/guides/budgets#protections-keep-each-agents-context-small)).
+
+| Limit | Default |
+| --- | --- |
+| A whole read of a file is refused above | 100 KB (images, PDFs and notebooks are never refused) |
+| Shell output an agent sees | 8,000 characters |
+| Context before an agent writes its notes and continues fresh | 60,000 tokens, and only once its conversation has doubled from where it started |
+
+## What agents know
+
+| Limit | Value |
+| --- | --- |
+| Files a project map looks at | 20,000 (a larger folder is mapped from its first files) |
+| Areas in the full map / in an agent's briefing | 80 / 25 |
+| Time a start waits for each folder's map | 20 seconds; then agents start without it |
+| Lessons in an agent's briefing | The 8 newest |
+| One lesson | 400 characters |
+| Matches one history search returns | 8 |
+
 ## Soft and hard stops
 
 | Stop | What happens |

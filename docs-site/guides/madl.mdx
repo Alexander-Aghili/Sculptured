@@ -28,11 +28,13 @@ A team exported from Sculptured and imported again comes back unchanged.
 | Hands work to, reports to, watches | `connections` of kind `handoff`, `report`, `watch` |
 | The Input | `inputs` |
 | Models | each agent's `model`, written as `provider/model` |
-| Token limits | `settings.restrictions.budget` |
+| Token, turn and time limits | `settings.restrictions.budget`, as `{ soft, hard }` |
+| Run budgets | `system.budget` |
+| Contracts: what an agent reads, writes and decides | `data_access` and `authority` |
 | Checks | `checks` |
 | Schedules | `policies.schedules` |
 | Positions on the board | `layout` |
-| Workflows, permissions, own copies, the decision log | Sculptured's own extension, `com.usesculptured` |
+| Workflows, permissions, own copies, the decision log, protections, your Claude Code setup, plan pauses | Sculptured's own extension, `com.usesculptured` |
 
 A workflow is also drawn in MADL's own terms, so other tools see its shape: check, person and merge stages become steps, and routes become handoffs labelled with their outcome.
 

@@ -174,9 +174,11 @@ Login services start with a minimal PATH, so the CLIs' full paths are found at i
 
 | OS | File | Started with |
 |---|---|---|
-| Linux | `~/.config/systemd/user/sculptured-runner.service` (`Restart=always`, `RestartSec=5`) | `systemctl --user enable --now sculptured-runner` |
+| Linux | `~/.config/systemd/user/sculptured-runner.service` (`Restart=always`, `RestartSec=5`, `RestartPreventExitStatus=78`) | `systemctl --user enable --now sculptured-runner` |
 | macOS | `~/Library/LaunchAgents/dev.sculptured.runner.plist` (`RunAtLoad`, `KeepAlive`) | `launchctl load -w <plist>` |
-| Windows | arrives with the installers (milestone 5) | |
+| Windows | Scheduled Task "Sculptured runner" (task XML) | `schtasks /Create /TN … /XML <file> /F`, then `schtasks /Run` |
+
+**When the account disconnects the computer.** The server then refuses the device key. The runner stops retrying (`hostd::run::keep_linked` returns `DISCONNECTED`) and exits with code 78 (`connect::DISCONNECTED_EXIT`). Before exiting it turns its own login service off (`service_off_commands`): systemd `disable --now --no-block`, launchd `unload -w`, and Task Scheduler `/DISABLE`. Without that it would be started again every few seconds and refused each time. systemd also skips the restart because of `RestartPreventExitStatus=78`; launchd and Task Scheduler cannot tell exit codes apart. Running `sculptured connect` again turns the service back on. Agents already running keep running when the link is only down, not refused.
 
 ## 7. TLS
 
@@ -197,3 +199,4 @@ Login services start with a minimal PATH, so the CLIs' full paths are found at i
 | A team runs on its chosen computer; offline computer refused by name; hosted single-computer default; folders passed through in hosted mode | `crates/controld/tests/hosts_choice.rs` |
 | Pairing client shows the code, waits for approval, saves private credentials; `wss` except on localhost; login service contents | `crates/sculptured/src/connect.rs` tests |
 | Approve, list and disconnect in the browser | `web/src/hosted/computers.test.tsx` |
+| A disconnected runner turns its own login service off; systemd does not restart exit 78 | `crates/sculptured/src/connect.rs` `a_disconnected_runner_turns_its_own_service_off` |

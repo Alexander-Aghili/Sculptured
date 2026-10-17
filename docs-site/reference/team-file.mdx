@@ -75,6 +75,10 @@ erDiagram
 | `input` | object or null | no | | The Input box: `text`, its board position `x` and `y`, and `to`, the agent ids that get it with their Job at start. |
 | `schedules` | [Schedule](#schedule)[] | no | | Messages sent to an agent every N minutes while the team runs. At most 8. |
 | `decision_log` | boolean | no | | People keep a decision log that agents read with [`read_decisions`](/reference/agent-tools#read_decisions). |
+| `limits` | [TeamLimits](#teamlimits) | no | no limits | Limits on agents that agents spawn. |
+| `budget` | [RunBudget](#runbudget) | no | no budget | What one run may use. |
+| `protection` | [Protection](#protection) | no | on, with the defaults below | Rules that keep each agent's context small. |
+| `claude_setup` | [ClaudeSetup](#claudesetup) | no | `{ "global": false, "project": true }` | Which of your own Claude Code setup Claude agents load. |
 
 ## DraftAgent
 
@@ -98,6 +102,10 @@ erDiagram
 | `resume` | `resume-if-possible`, `relaunch-fresh` or `checkpoint-only` | `resume-if-possible` | What happens to its session when the team starts again. |
 | `token_limit` | [TokenLimit](#tokenlimit) or null | | Tokens it may use in one run. Reaching the limit soft-stops it. |
 | `check` | string or null | | A shell command run in the agent's folder after each turn it finishes. Exit code 0 means passed. |
+| `turn_limit` | [SoftHard](#softhard) of turns | | Turns it may take in one run, its children's included. |
+| `minute_limit` | [SoftHard](#softhard) of minutes | | Minutes it may spend working in one run, its children's included. |
+| `data_access` | [DataAccess](#dataaccess) | | What it reads, writes and changes beyond its files. |
+| `authority` | [Authority](#authority) | | The decisions it owns. |
 
 ### TokenLimit
 
@@ -106,6 +114,70 @@ erDiagram
 | `tokens` | integer ≥ 0 | yes | | The limit, counted since the team started. |
 | `counts` | `all`, `new` or `output` | no | `all` | Which reported tokens count. `all` is input, output, cache reads and cache writes; `new` is everything except cache reads. |
 | `include_subagents` | boolean | no | `true` | Count the agents it spawns, and theirs, toward this limit. |
+
+### SoftHard
+
+A limit with a **soft** value (no new work; the agent wraps up with a summary) and a **hard** value (it is stopped at once).
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `hard` | integer > 0 | yes | Where it stops. |
+| `soft` | integer | no | Where it wraps up. Absent: 85% of `hard`. Must not be above `hard`. |
+
+### DataAccess
+
+Paths are relative to the agent's folder; a trailing `/` covers a folder. See [Contracts](/guides/budgets#contracts-what-each-agent-reads-writes-and-decides).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `reads` | string[] | Files and folders it reads. Empty: anything. |
+| `writes` | string[] | Files and folders it changes. With protections on, Claude agents' reads and writes outside these are refused. |
+| `side_effects` | string[] | Effects beyond its files, in plain words. |
+| `rationale` | string | Why. |
+
+### Authority
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `domains` | string[] | Decisions it owns. Every agent is told who decides what. |
+| `scope` | string | How far its decisions reach: a group id, or `system` for the whole team. Absent: its own work. |
+| `rationale` | string | Why. |
+
+## Team settings
+
+### TeamLimits
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `max_agents` | integer | Most agents in the team at once, its own and spawned children together. |
+| `max_child_levels` | integer | Most levels of children. `1` lets agents spawn children that cannot spawn their own. |
+
+### RunBudget
+
+See [Run budgets](/guides/budgets).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `plan` | list of `{ provider, window, soft?, hard, pause? }` | A share of a plan window the run may add, in percent. `provider` is `claude` or `codex`; `window` is `five_hour` or `seven_day`. With `pause` (`{ continue_with: notes \| resume, max_windows: 3 }`), the run pauses at `hard` and continues after the window resets instead of stopping. |
+| `tokens` | [SoftHard](#softhard) | Tokens of every kind the run may use. |
+| `minutes` | [SoftHard](#softhard) | Wall-clock minutes from Start. |
+| `max_working` | integer | Most agents working at once; the rest wait for a slot. |
+
+### Protection
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `on` | boolean | `true` | Off turns every protection off. |
+| `read_kb` | integer | `100` | A whole read of a larger file is refused. |
+| `shell_chars` | integer | `8000` | The most shell output an agent sees. |
+| `context_tokens` | integer | `60000` | Past this, an agent writes its notes and continues fresh. |
+
+### ClaudeSetup
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `global` | boolean | `false` | Load `~/.claude`: your plugins, skills, hooks, settings and MCP servers. |
+| `project` | boolean | `true` | Load the agent folder's `.claude/` and local settings. |
 
 ## DraftGroup
 

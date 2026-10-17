@@ -45,6 +45,11 @@ If the computer's connection drops while a call is waiting, the runner keeps the
 | [`complete_work`](#complete_work) | the agent holding an assignment | Finishes a workflow assignment with an outcome. |
 | [`workflow_status`](#workflow_status) | any agent | Reads the workflow's batch, assignments and reviews. |
 | [`read_decisions`](#read_decisions) | any agent | Reads the team's decision log. |
+| [`search_history`](#search_history) | any agent | Searches what the team's agents already wrote, ran and were told. |
+| [`record_lesson`](#record_lesson) | any agent | Records a lesson every agent of the team is told. |
+| [`read_pdf`](#read_pdf) | any agent | Reads a PDF's text, page by page. |
+
+The three workflow tools are offered only to teams that have a [workflow](/guides/workflows).
 
 ## Questions and reports
 
@@ -179,6 +184,38 @@ Reads the team's decision log: precedents people recorded, newest first, up to 5
 | Parameter | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `query` | string | no | Words to look for. Leave it out to read the latest entries. |
+
+## What the team knows
+
+These tools make no model calls. See [What agents know](/guides/knowledge).
+
+### `search_history`
+
+Searches what this team's agents, including finished ones, wrote, ran, got back and were told, newest first. Each match gives the agent, the time, what kind of thing it was and the text around the match. It returns at most 8 matches and leaves out the asking agent's current turn. Agents use it before building something that may already exist, or to find which teammate knows about something.
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `query` | string | yes | Words to find, at least 3 characters. |
+| `agent` | string | no | Only this agent's history, by name or id. |
+
+### `record_lesson`
+
+Records a lesson for the team: something that cost the agent a wrong turn, in a sentence or two. Teammates already working get it with their next message, and every later agent in its briefing. You see it in the Knowledge view, where you can confirm or hide it.
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `lesson` | string | yes | The lesson. At most 400 characters are kept. |
+
+## Reading files
+
+### `read_pdf`
+
+Reads a PDF's text page by page, on the agent's own computer. Text costs a small fraction of what page images do, and an image stays in the agent's context for every later step. Pages with no text, such as scans and drawings, are named, so the agent looks at only those as images. One call returns at most about 60,000 bytes of text and says where to continue.
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `path` | string | yes | The PDF. |
+| `pages` | string | no | A page or range, such as `5` or `10-20`. All pages when left out. |
 
 ## Limits on every call
 
