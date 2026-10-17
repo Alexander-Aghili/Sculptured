@@ -189,6 +189,8 @@ const MIGRATIONS: &[&str] = &[
     "CREATE TABLE IF NOT EXISTS run_budgets (rig TEXT NOT NULL, start_seq INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY(rig, start_seq));
      CREATE TABLE IF NOT EXISTS budget_queue (seat TEXT NOT NULL, message_id TEXT PRIMARY KEY, json TEXT NOT NULL, at_ms INTEGER NOT NULL);",
     "CREATE TABLE IF NOT EXISTS run_reports (rig TEXT NOT NULL, start_seq INTEGER NOT NULL, json TEXT NOT NULL, at_ms INTEGER NOT NULL, PRIMARY KEY(rig, start_seq));",
+    "CREATE TABLE IF NOT EXISTS project_maps (team TEXT NOT NULL, folder TEXT NOT NULL, json TEXT NOT NULL, at_ms INTEGER NOT NULL, PRIMARY KEY(team, folder));
+     ALTER TABLE team_decisions ADD COLUMN confirmed_ms INTEGER;",
 ];
 
 /// The schema version this build writes.
@@ -227,6 +229,10 @@ fn already_applied(tx: &Transaction, n: usize) -> rusqlite::Result<bool> {
     let table = |name: &str| -> rusqlite::Result<bool> {
         tx.query_row("SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = ?1", [name], |r| r.get(0))
     };
+    // The knowledge migration, found by what it makes rather than by its number.
+    if MIGRATIONS.get(n - 1).is_some_and(|m| m.contains("project_maps")) {
+        return column("team_decisions", "confirmed_ms");
+    }
     match n {
         2 => Ok(column("seats", "lifecycle_provenance")? && column("messages", "reason")?),
         3 => column("rigs", "source_kind"),

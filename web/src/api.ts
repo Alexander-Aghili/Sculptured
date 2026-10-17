@@ -159,6 +159,9 @@ export const api = {
   decisions: (id: string) => get<import('./generated/DecisionEntry').DecisionEntry[]>(`${teamUrl(id)}/decisions`),
   addDecision: (id: string, text: string) => request<{ id: string }>('POST', `${teamUrl(id)}/decisions`, { text }),
   hideDecision: (id: string, entry: string) => request<{ hidden: string }>('POST', `${teamUrl(id)}/decisions/${encodeURIComponent(entry)}/hide`, {}),
+  /** What the team's agents know: the project maps made at each start, and lessons and decisions. */
+  knowledge: (id: string) => get<import('./knowledge').Knowledge>(`${teamUrl(id)}/knowledge`),
+  confirmDecision: (id: string, entry: string) => request<{ confirmed: string }>('POST', `${teamUrl(id)}/decisions/${encodeURIComponent(entry)}/confirm`, {}),
   listRigs: () => get<RigSummary[]>('/api/rigs'),
   boot: (specPath: string, requestId = newRequestId()) =>
     post<{ rig: string; diagnostics: Diagnostic[] }>('/api/rigs', requestId, { spec_path: specPath }),

@@ -5,6 +5,7 @@ pub mod checks;
 pub mod clis;
 pub mod copies;
 pub mod folders;
+pub mod map;
 pub mod programs;
 pub mod generate;
 pub mod git;
@@ -68,6 +69,8 @@ pub enum LocalOp {
     /// Where a team run's tokens went, from this computer's Claude Code and Codex session files and the
     /// run's links (a filtered `sculptured.session/v1`); answers a `mais.report/v1` report.
     AnalyzeRun { sessions: Vec<analyze::RunSession>, export: String },
+    /// The project map of a folder (`map`), also written to its `.sculptured/map.md`.
+    ProjectMap { path: String },
 }
 
 /// A work item of a team, named rather than given as a path: the computer finds its copy itself.
@@ -147,6 +150,7 @@ pub async fn execute(cx: &Context, op: LocalOp) -> Result<serde_json::Value, Loc
         LocalOp::PlanUsage => blocking(move || Ok(json(plan::codex_files(&cx.codex_home)))).await,
         LocalOp::Generate { cli, model, prompt, schema } => generate::run(&cx, &cli, model.as_deref(), &prompt, &schema).await,
         LocalOp::AnalyzeRun { sessions, export } => blocking(move || analyze::run(&cx, &sessions, &export)).await,
+        LocalOp::ProjectMap { path } => blocking(move || Ok(json(map::build(Path::new(&path))?))).await,
     }
 }
 

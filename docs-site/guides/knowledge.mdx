@@ -1,0 +1,34 @@
+---
+title: What agents know
+description: The project map made at every start, lessons agents record, a search of the team's history, and the Knowledge view.
+---
+
+Agents often rebuild something that already exists, because nothing told them it was there. Sculptured gives every agent a wide, shallow picture of the project and of what the team has already done, with nothing for you to maintain.
+
+## The project map
+
+At every start, Sculptured maps each folder the team's agents work in, on the computer that runs them:
+
+- **Areas**: folders up to two levels deep, how many files they hold and of what kind, and what their own notes (a README or first document) say they are.
+- **Who worked where**: the agents that changed files in each area.
+- **Sections**: every Markdown document's headings, with their line ranges.
+
+Each agent's first message carries a short outline of the map. The full map is written to `.sculptured/map.md` in the folder, so an agent opens a section at its line range instead of reading a whole file. Ignored files (by `.gitignore`) and folders such as `node_modules` are left out. Nothing else in your folder changes.
+
+## Search what the team already did
+
+Agents have a `search_history` tool. It searches what the team's agents, including finished ones, wrote, ran, got back and were told, newest first, with who and when. It uses no model, so it costs no tokens beyond the answer. An agent uses it to check whether something exists, or to find which agent knows about something and ask it.
+
+## Lessons
+
+When something cost an agent a wrong turn that others could avoid, it records a short lesson with `record_lesson`. Every agent of the team is told the latest lessons when it starts a conversation, including after continuing fresh from its notes.
+
+A lesson starts as **reported**. When you agree with it, **Confirm** it: agents then see it marked as confirmed. **Hide** removes it from what agents are told.
+
+## The Knowledge view
+
+On the Run board, **More** → **Knowledge** shows the lessons and your decisions, and the latest project map with who worked where. When agents recorded lessons since you last looked, **More** shows a quiet count. It never interrupts a run.
+
+<Note>
+On a connected computer, the map and the two tools need a current runner: reinstall it from **Computers**. An older runner runs agents as before, without the map.
+</Note>

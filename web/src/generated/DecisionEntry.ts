@@ -4,4 +4,8 @@
  * One precedent in a team's decision log. Written by people (`source`: "person", or "decision" when it
  * came from a decision card); agents only read it. Hiding keeps the entry and records when.
  */
-export type DecisionEntry = { id: string, at_ms: number, author: string, text: string, source: string, hidden_ms: number | null, };
+export type DecisionEntry = { id: string, at_ms: number, author: string, text: string, source: string, hidden_ms: number | null, 
+/**
+ * When the person confirmed an agent's lesson: it is then treated as established.
+ */
+confirmed_ms: number | null, };

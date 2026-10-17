@@ -20,8 +20,9 @@ pub(crate) fn with_context(st: &AppState, seat: &str, text: String) -> String {
     let draft = st.store.lock().unwrap().draft(id).ok().flatten().filter(|_| !briefed);
     let log = draft.as_ref().and_then(|d| decision_log_note(&st.store.lock().unwrap(), id, d.decision_log));
     let text = match log { Some(note) => format!("{note}\n\n{text}"), None => text };
+    let known = draft.as_ref().map(|d| crate::knowledge::briefing_lines(st, id, seat, d)).unwrap_or_default();
     match draft.and_then(|d| briefing(&d, seat)) {
-        Some(context) => format!("{context}\n\n--- Current message ---\n{text}"),
+        Some(context) => format!("{context}\n\n{}--- Current message ---\n{text}", known.iter().map(|l| format!("{l}\n\n")).collect::<String>()),
         None if briefed => text,
         None => ancestor_briefing(st, id, seat, text),
     }

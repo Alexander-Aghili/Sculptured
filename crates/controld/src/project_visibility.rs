@@ -71,6 +71,7 @@ const TEAM_ROWS: &[(&str, &str)] = &[
     ("team_origins", "team=?1"),
     ("schedule_runs", "team=?1"),
     ("team_decisions", "team=?1"),
+    ("project_maps", "team=?1"),
     ("archived_projects", "id=?1"),
     ("project_visibility", "id=?1"),
     ("drafts", "id=?1"),

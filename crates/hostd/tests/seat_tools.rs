@@ -30,8 +30,8 @@ fn the_shim_initializes_and_lists_its_tools() {
     let names = |approve| -> Vec<String> {
         tool_list(approve).as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect()
     };
-    assert_eq!(names(false), ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "spawn_agent", "send_agent_message", "team_status", "read_pdf"]);
-    assert_eq!(names(true), ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "spawn_agent", "send_agent_message", "team_status", "read_pdf", "approve"]);
+    assert_eq!(names(false), ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "search_history", "record_lesson", "spawn_agent", "send_agent_message", "team_status", "read_pdf"]);
+    assert_eq!(names(true), ["request_input", "record_decision", "report", "dispatch_work", "complete_work", "workflow_status", "read_decisions", "search_history", "record_lesson", "spawn_agent", "send_agent_message", "team_status", "read_pdf", "approve"]);
     let listed = rpc(json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/list" }), true, &no_call);
     assert_eq!(listed["result"]["tools"][0]["inputSchema"]["required"], json!(["question"]));
 }
@@ -160,7 +160,7 @@ async fn a_link_that_lags_still_passes_every_call_on() {
 fn a_team_without_a_workflow_is_not_offered_the_workflow_tools() {
     let offer = Offer { approve: false, workflow: false };
     let names: Vec<String> = tool_list_for(offer).as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
-    assert_eq!(names, ["request_input", "record_decision", "report", "read_decisions", "spawn_agent", "send_agent_message", "team_status", "read_pdf"]);
+    assert_eq!(names, ["request_input", "record_decision", "report", "read_decisions", "search_history", "record_lesson", "spawn_agent", "send_agent_message", "team_status", "read_pdf"]);
     let call = json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": { "name": "complete_work", "arguments": {} } });
     let r: Value = serde_json::from_str(&handle_rpc_with(&call.to_string(), offer, &no_call).unwrap()).unwrap();
     assert_eq!(r["result"]["isError"], true);

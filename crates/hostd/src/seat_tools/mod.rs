@@ -102,7 +102,7 @@ fn approve_tool() -> Value {
 
 fn known(tool: &str, offer: Offer) -> bool {
     let workflow = matches!(tool, "dispatch_work" | "complete_work" | "workflow_status");
-    matches!(tool, "request_input" | "record_decision" | "report" | "spawn_agent" | "send_agent_message" | "team_status" | "read_decisions" | "read_pdf")
+    matches!(tool, "request_input" | "record_decision" | "report" | "spawn_agent" | "send_agent_message" | "team_status" | "read_decisions" | "read_pdf" | "search_history" | "record_lesson")
         || (offer.workflow && workflow)
         || (offer.approve && tool == "approve")
 }

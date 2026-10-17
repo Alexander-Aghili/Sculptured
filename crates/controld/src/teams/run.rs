@@ -157,7 +157,13 @@ pub(super) async fn start_team(State(st): State<AppState>, Path(id): Path<String
                 _ => e,
             }
         })?;
-        tokio::spawn(reconciler::deliver_jobs(st2.clone(), jobs(&draft), after_seq, build.rig.launch_layers.len()));
+        let (st3, team, layers) = (st2.clone(), id.clone(), build.rig.launch_layers.len());
+        let (jobs, mapped) = (jobs(&draft), draft.clone());
+        // Agents start while the project map is made; their first messages carry it.
+        tokio::spawn(async move {
+            crate::knowledge::refresh(&st3, &team, &mapped).await;
+            reconciler::deliver_jobs(st3, jobs, after_seq, layers).await;
+        });
         crate::analytics::team_started(&st2, &draft);
         Ok(json!({ "rig": build.rig.name, "warnings": build.warnings }))
     })

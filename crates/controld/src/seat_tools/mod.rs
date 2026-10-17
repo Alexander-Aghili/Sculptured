@@ -136,6 +136,8 @@ async fn dispatch(st: &AppState, seat: &str, tool: &str, args: &Value) -> Result
         "report" => records::report(st, seat, args).map(|v| (v, None)),
         "dispatch_work" | "complete_work" | "workflow_status" => crate::workflow::call(st, seat, tool, args).map(|v| (v, None)).map_err(invalid),
         "read_decisions" => crate::decisions::read_tool(st, seat, args).map(|v| (v, None)).map_err(invalid),
+        "search_history" => crate::knowledge::search_history(st, seat, args).map(|v| (v, None)).map_err(invalid),
+        "record_lesson" => crate::knowledge::record_lesson(st, seat, args).map(|v| (v, None)).map_err(invalid),
         other => Err(invalid(format!("unknown tool {:?}", cut(other, 200)))),
     }
 }
