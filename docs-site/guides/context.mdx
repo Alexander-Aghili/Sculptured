@@ -1,9 +1,9 @@
 ---
 title: Context and communication
-description: See what an agent saw and did, who talked to whom, and how sure each piece of evidence is.
+description: Inspect captured context, tool results, messages and usage, with the source of each claim.
 ---
 
-Sculptured records what it can observe about each agent: the messages it read, the tools it called and what they returned, the files it changed and the checks that ran. These views turn that record into pictures. Each picture links back to the raw evidence.
+Sculptured's progress views summarize captured messages, tool calls, file changes and checks. Use them to understand a run, then follow individual entries back to their recorded evidence when you need more detail.
 
 | View | Where | Answers |
 | --- | --- | --- |
@@ -13,9 +13,9 @@ Sculptured records what it can observe about each agent: the messages it read, t
 | **Conversation** | Run board, More | What happened in the team, in order? |
 | **Token use** | Run board, More | How many tokens did each agent report? |
 
-## How sure is each piece?
+## Read the evidence labels
 
-Every view keeps these apart, and labels them.
+Each label identifies how Sculptured obtained the information. It does not assign a general confidence score.
 
 | Label | Meaning | Example |
 | --- | --- | --- |
@@ -71,7 +71,7 @@ On the Run board, open **More → Communications**.
 | **Routes** | Each sender and receiver pair, with messages, payload, and read or failed |
 | **Messages** | Each message, with **Open receiving transcript** |
 
-An arrow on the Design board is a plan. This view shows only captured messages. A planned arrow with no traffic means nothing went along it.
+An arrow on the Design board describes the intended route. This view shows captured messages from the selected history window. An arrow with no recorded traffic has no handoff evidence in that window.
 
 <Info>The numbers come from the loaded history, not necessarily the team's whole lifetime. The time from queued to delivered is not the model's thinking time. Payload sizes are characters captured, not network or compute cost.</Info>
 
@@ -85,7 +85,7 @@ An arrow on the Design board is a plan. This view shows only captured messages. 
 
 ## Raw events
 
-Every view above is built from the **Events** tab of each agent. It lists the recorded events in order, with who recorded each one. When something in a picture looks wrong, read the events.
+The **Events** tab lists the recorded events underlying the progress views, in order and with their sources. Use it to investigate a summary or status that needs closer inspection.
 
 ## Next steps
 

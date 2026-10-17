@@ -3,7 +3,7 @@ title: Questions and approvals
 description: What happens when an agent asks you something, how long it waits, and what it does if nobody answers.
 ---
 
-Agents can stop and ask you a question. A restricted Claude agent can also ask whether a tool may run. Sculptured records each question, shows the agent as **needs you**, and waits. The first of your answer or the timeout wins.
+When an agent needs a decision, Sculptured shows **needs you** and opens a question card. A restricted Claude agent can also request permission to run a tool. Answer on the card before its deadline; if the deadline passes first, the timeout behavior applies.
 
 ```mermaid
 sequenceDiagram
@@ -26,7 +26,7 @@ sequenceDiagram
 
 | Source | What it is |
 | --- | --- |
-| **Agent question** (`request_input`) | The agent asks you something in its own words. It may offer choices and a short header. You may always answer in your own words. |
+| **Agent question** (`request_input`) | The agent asks a question and may offer choices and a short header. The card shows whether it accepts a choice, free text or both. |
 | **The CLI's own question** | A question Claude Code or Codex raises through its own prompt. |
 | **Tool approval** (`approve`) | Only for a Claude agent set to **Restricted**: "Allow Bash to run?", with the tool's input. |
 
@@ -40,14 +40,6 @@ The tools agents use are listed in [Agent tools](/reference/agent-tools).
 - A toast appears when an agent you are not looking at starts needing you. It stays until you click it.
 
 **Answer** opens the agent. Its questions show at the top of its conversation, and the first one takes the focus.
-
-## Answering
-
-Your answer is recorded first and then sent to the agent. The log reads question raised, then answered, then the agent's reply.
-
-- **One answer wins.** If two answers race, or an answer races the timeout, exactly one resolves the question. A second try gets "This question was already answered or withdrawn, so your answer was not sent."
-- **Choices.** An answer must fit the question: one of its choices, or your own words. Otherwise you get "That answer does not fit this question."
-- **Delivery in doubt.** If Sculptured could not confirm that the answer reached the agent, the answer stays recorded and is marked as unconfirmed, and the agent stays in Needs you until that is settled. An answer that certainly did not arrive opens the question again while the agent can still take it.
 
 ## Answer in the app
 
@@ -69,9 +61,17 @@ Each question is a card above the agent's conversation. It shows what the agent 
 
 <Tip>A message you type in the agent's own message box is not an answer. It waits for the agent's current turn to end, and a turn that waits on a question ends only when the question is answered or times out. Answer on the card instead.</Tip>
 
+## How answers are delivered
+
+Your answer is recorded first and then sent to the agent. The log reads question raised, then answered, then the agent's reply.
+
+- **One answer wins.** If two answers race, or an answer races the timeout, exactly one resolves the question. A second try gets "This question was already answered or withdrawn, so your answer was not sent."
+- **Choices.** An answer must fit the question: one of its choices, or your own words. Otherwise you get "That answer does not fit this question."
+- **Delivery in doubt.** If Sculptured could not confirm that the answer reached the agent, the answer stays recorded and is marked as unconfirmed, and the agent stays in Needs you until that is settled. An answer that certainly did not arrive opens the question again while the agent can still take it.
+
 ## When nobody answers
 
-Each question waits **10 minutes** by default. A team can set its own timeout, from 1 to 1440 minutes.
+Each question waits **10 minutes** by default. A team can set a timeout from 1 to 1440 minutes. An unanswered question lets the agent decide; an unanswered tool approval is allowed automatically.
 
 <AccordionGroup>
   <Accordion title="An agent question times out">The agent is told: "No operator answer within 10m. Proceed with your best judgment and state the decision you made." It is asked to call `record_decision` with what it chose and why. That decision is recorded as agent-reported. If the agent says nothing, the decision's source stays unknown.</Accordion>
@@ -81,7 +81,7 @@ Each question waits **10 minutes** by default. A team can set its own timeout, f
 
 ## When a question is withdrawn
 
-A question closes without an answer when nobody can answer it any more. It is marked withdrawn, with the reason:
+A question is marked **withdrawn** when its waiting call can no longer receive an answer. The card records the reason:
 
 - the agent's turn was interrupted, or its process ended;
 - Sculptured itself restarted while the agent waited.
@@ -90,7 +90,7 @@ After a Sculptured restart, the agent's computer sends the waiting call again wh
 
 ## When the computer is offline
 
-Answering never needs the agent's computer. If the computer drops off while an agent waits:
+Sculptured can record your answer while the agent's computer is offline. Delivery waits for the connection to return:
 
 1. The question **stays open**. You can still answer it.
 2. Your answer is kept.

@@ -3,7 +3,7 @@ title: Run a team
 description: Start a team, follow its work on the Run board, and pass work along again when you need to.
 ---
 
-You design a team on the **Design** board and watch it work on the **Run** board. Starting a team launches one Claude Code or Codex agent per card. Each agent gets its Job, and finished work moves along the **hands work to** arrows.
+Start a team from the **Design** board, then follow its work in **Run**. Agents with no incoming handoffs begin with their Jobs. Other agents wait for upstream results before starting their assignments. This guide covers ordinary handoffs; [Workflows](/guides/workflows) explains teams that use stages.
 
 ```mermaid
 flowchart LR
@@ -36,7 +36,7 @@ If something goes wrong, the board says "Could not start:" and lists the issues,
 
 ## The Run board
 
-The Run board shows the agents that are running. Switch between **Graph** and **List** at the top, or press <kbd>l</kbd>. List shows every agent, including stopped and planned ones.
+Use **Graph** to follow the running agents and their connections. Switch to **List** at the top, or press <kbd>l</kbd>, to see every agent, including stopped and planned agents.
 
 <Frame caption="What to look for: each card's status in words, what it last said, its tokens, and the messages observed between agents.">
   ![The Run board in Graph view with three Practice agents: Planner needs you, Builder 1 and Builder 2 are done, with message counts on the arrows](/images/quickstart/run-board.png)
@@ -74,7 +74,7 @@ Each card shows its state as a symbol and a word, so nothing relies on color alo
 Only **hands work to** arrows move work. **Reports to** and **watches** describe intent and send nothing.
 
 - **The first handoff waits for everyone upstream.** An agent that receives from two agents starts when both have a result. Its card shows "starts when they have all finished; their results are passed along".
-- **A finished turn is the result.** When an agent's turn completes after it read its work, its last reply goes to the next agent. A turn that was interrupted or failed does not hand anything over. The agent shows as stuck until a later turn finishes.
+- **The final reply is the handoff.** After an agent completes its assigned work turn, Sculptured sends its final reply to the next agent. Interrupted or failed turns produce no handoff; the agent remains stuck until a later turn completes.
 - **More work moves in waves.** After the first round, each finished work turn sends one message to every agent downstream. Each of them runs once per wave.
 - **A reply to you is not a handoff.** If you chat with an agent, its answer to you stays with you.
 
@@ -98,9 +98,9 @@ If the downstream agents are real Claude or Codex agents, **Hand over again** fi
 
 - Each card and agent pane shows tokens in and out. "tokens unknown" means the CLI has not reported usage yet.
 - If agents have a **token limit**, the Run board shows "Token limits · N reached" once one is hit. An agent at its limit is asked to wrap up and stop.
-- Usage reports can arrive late, so an agent may go a little past a limit.
+- Usage is reported after turns, so an agent can exceed its limit by up to one turn.
 
-See [Limits and usage](/reference/limits) for the numbers.
+See [Limits and usage](/reference/limits) for token accounting, budgets and plan usage holds.
 
 ## Finish or start again
 

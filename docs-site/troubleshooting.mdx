@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Fixes for the problems people run into most, grouped by where they show up.
 ---
 
-Find the message or symptom you see, then open it. Each fix says what causes it and what to do. If nothing here matches, an agent's pane usually says in plain words why it stopped: open the agent and read the top of its pane first.
+Find your symptom below and expand it for the likely cause and next step. For an agent that stopped unexpectedly, first open its pane and read the status notice. It often identifies the missing sign-in, connection problem or limit.
 
 <CardGroup cols={3}>
   <Card title="Connecting a computer" icon="plug" href="#connecting-a-computer">Install, keys, reconnecting.</Card>
@@ -15,7 +15,7 @@ Find the message or symptom you see, then open it. Each fix says what causes it 
 
 <AccordionGroup>
   <Accordion title="“There's no Sculptured build for … yet”">
-    The Computers page offers only the systems the server has a build for, and the installer stops before installing anything if there is none. Today the builds are Linux, Windows and macOS (Apple silicon and Intel). A Mac build appears a few minutes after each update, once GitHub has built it; until then the macOS tab may say there's none. Connect a computer with another system for now.
+    The Computers page offers only the systems the server has a build for, and the installer stops before installing anything if there is none. Build availability can differ by platform while a release is being published. Check the Computers page again after the build finishes, or connect a computer with an available build.
   </Accordion>
   <Accordion title="“Sculptured” Not Opened: Apple could not verify it is free of malware">
     The Mac app isn't signed with an Apple Developer ID yet, so macOS asks once. Click **Done** (not Move to Trash). Open *System Settings → Privacy & Security*, scroll to **Security**, click **Open Anyway** next to *“Sculptured” was blocked*, enter your password and click **Open**. See [Install the Mac app](/connect-a-computer#install-the-mac-app).
@@ -105,7 +105,7 @@ Find the message or symptom you see, then open it. Each fix says what causes it 
     The board couldn't receive live updates for 8 seconds. Sculptured keeps trying in the background, and your agents are not affected. This is usually a dropped network connection, or a network or proxy that blocks live connections. Press **Try again**, or **Open the Design board** in the meantime.
   </Accordion>
   <Accordion title="An agent shows “stale” or “unknown”">
-    Its computer's link was lost, so what you see is the last known state. Agents keep working on the computer while it's offline. When it reconnects, Sculptured catches up. See [When a computer drops off](/guides/offline).
+    Its computer's link was lost, so what you see is the last known state. Agents may keep working if the computer is awake and only its connection was lost. When it reconnects, Sculptured catches up. See [When a computer drops off](/guides/offline).
   </Accordion>
   <Accordion title="An agent is “stuck”">
     It is idle and its handoffs can't go on by themselves. The pane says why: often an upstream agent hasn't produced a result, or its turn was interrupted. Use **Hand over again** to resend the work it is owed, **Resend handoff**, or send it guidance.
@@ -141,9 +141,10 @@ Find the message or symptom you see, then open it. Each fix says what causes it 
   </Accordion>
 </AccordionGroup>
 
-## Still stuck?
+## Gather details for a bug report
 
-- Open the agent's **Visual progress** and transcript: the raw events are the evidence of what happened. See [Context and communication](/guides/context).
+- Note the action you took, the message shown and whether the computer was connected.
+- Open the agent's **Transcript**, **Visual progress** and **Events** to inspect what happened. See [Context and communication](/guides/context).
 - Report a bug on the [Sculptured GitHub repository](https://github.com/Alexander-Aghili/sculptured/issues). Leave out prompts, file contents and keys.
 
 <CardGroup cols={2}>

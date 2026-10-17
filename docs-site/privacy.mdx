@@ -1,15 +1,15 @@
 ---
 title: Privacy
-description: What the hosted beta records about how you use Sculptured, what it never records, and what stays on your computer.
+description: Understand the difference between usage analytics, stored run history and data on your computer.
 ---
 
-The hosted beta records **what you do** in Sculptured, to improve it: which pages and features you use, the shape of the teams you set up, runs, token totals and errors. It never records **what you or your agents say or work on**: no prompts, messages, jobs, agent output, file names or file contents.
+Sculptured stores team designs and run history so you can run agents and review their work. In the hosted beta, that operational data is stored in your account's Sculptured instance. In local mode, it is stored on your computer.
 
-Sculptured running on your own computer, outside the beta, records nothing.
+The hosted beta also collects **usage analytics**: feature use, team structure, run statistics, token totals and errors. Analytics exclude prompts, messages, jobs, agent output, file names and file contents. Self-hosted Sculptured does not collect usage analytics.
 
 <Check>The same list is in the app: open **What we record** from your account. Every event is checked against that list before it is stored; anything else is refused.</Check>
 
-## Never recorded
+## Excluded from analytics
 
 - Prompts, messages and jobs
 - Agent output and transcripts (for analytics)
@@ -18,7 +18,7 @@ Sculptured running on your own computer, outside the beta, records nothing.
 - File contents
 - Check commands and their output
 
-## What is recorded
+## Analytics events
 
 | Event | From | What it says |
 | --- | --- | --- |
@@ -40,9 +40,9 @@ Sculptured running on your own computer, outside the beta, records nothing.
 | `copies.enabled` | Your Sculptured | Agents' own copies were turned on |
 | `plan.held` | Your Sculptured | A start waited because a plan was near its limit |
 
-Events are kept for **180 days**. After that, only daily totals remain.
+Analytics events are kept for **180 days**. After that, only daily totals remain.
 
-## What your account stores to work
+## Data stored to run your teams
 
 Analytics are separate from the data Sculptured needs to run your teams. With an account:
 
@@ -68,7 +68,7 @@ flowchart LR
 | --- | --- | --- |
 | Your teams' designs, including jobs | Your own Sculptured on the server | To show and run your teams. |
 | Messages, agent replies, tool calls and results, questions and answers | Your own Sculptured on the server | So you can watch a run, inspect its evidence and come back to its history. |
-| Your files and repositories | Only on your computer | Agents work there. The server sees only folder listings, Git status and diffs you open. |
+| Your files and repositories | On your computer | Agents work there. Requested folder listings, Git status and diffs can reach the server. File content may also appear in captured tool results and agent replies. |
 | Claude Code and Codex sign-in | Only on your computer | Sculptured never reads or stores them. |
 | Your name, email, sign-in methods, and a password hash if you use a password | The account database | To sign you in. |
 | Your computers: name, operating system, last seen | The account database | For the Computers page. |
@@ -94,6 +94,6 @@ Publishing a block to Community makes its definition public: its agents' roles a
 <CardGroup cols={2}>
   <Card title="Security" icon="lock" href="/security">What the server can and cannot do on your computer.</Card>
   <Card title="Connect a computer" icon="plug" href="/connect-a-computer">Choose which folders agents may use.</Card>
-  <Card title="Run it yourself" icon="server" href="/operations">No account, nothing recorded.</Card>
+  <Card title="Run it yourself" icon="server" href="/operations">Local storage, no usage analytics.</Card>
   <Card title="FAQ" icon="circle-question" href="/faq">Common questions.</Card>
 </CardGroup>

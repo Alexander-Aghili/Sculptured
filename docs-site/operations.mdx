@@ -3,11 +3,11 @@ title: Run it yourself
 description: Build Sculptured from source, run it on your own computer, and back up, upgrade and roll back your data.
 ---
 
-Sculptured is open source (Apache-2.0). You can run the whole thing on one computer, with no account: `sculptured serve` runs the app on port 4410 and starts a local agent runner that drives your Claude Code and Codex agents. Everything stays in `~/.sculptured/`.
+Run Sculptured locally to keep the app, runner and run history on your computer without a Sculptured account. The `sculptured serve` command serves the app on port 4410 and starts the runner. Sculptured stores its data in `~/.sculptured/`; agents work in the project folders you choose. The app and runner are open source under Apache 2.0.
 
 <Tabs>
   <Tab title="On your own computer">
-    One program, one computer, no account. The app, its database and the agents all run on your machine. Nothing is recorded or sent anywhere except what Claude Code and Codex send to their providers.
+    The app, database and agents run on your machine. Team designs and run history are stored locally, with no usage analytics. Claude Code and Codex still send context to their providers.
   </Tab>
   <Tab title="With a Sculptured account">
     The hosted beta runs your Sculptured for you, and your agents run on the computers you connect. See [Connect a computer](/connect-a-computer). You don't need anything on this page.
@@ -28,12 +28,19 @@ flowchart LR
 | You need | Why |
 | --- | --- |
 | Linux or macOS | `sculptured serve` runs on Linux and macOS. On Windows, Sculptured runs only as a connected computer for a Sculptured account. |
-| Rust (stable) and Node.js | To build the program and the web app. |
+| Rust 1.95 or newer and Node.js 24 | To build the program and the web app. |
 | Claude Code or Codex, signed in as your own user | Sculptured uses their existing sign-in and never stores provider credentials. |
 | Git | For agents' own copies of a repository and the Git panel. |
 
 
 ## Build and start
+
+Clone the repository, then run the build steps from its root:
+
+```bash
+git clone https://github.com/Alexander-Aghili/sculptured.git
+cd sculptured
+```
 
 <Steps>
   <Step title="Build the web app">
@@ -62,7 +69,7 @@ flowchart LR
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--port` | `4410` | Port on `127.0.0.1`. |
-| `--data-dir` | `~/.sculptured` | Where everything is kept. Also read from `SCULPTURED_DATA_DIR`. |
+| `--data-dir` | `~/.sculptured` | Where Sculptured stores its data. Also read from `SCULPTURED_DATA_DIR`. |
 | `--web-dir` | `web/dist` | The built web app. |
 | `--claude-program` | found on `PATH` | Full path to Claude Code, if it is not on `PATH`. |
 | `--codex-program` | found on `PATH` | Full path to Codex, if it is not on `PATH`. |

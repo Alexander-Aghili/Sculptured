@@ -1,9 +1,9 @@
 ---
 title: Designing teams of agents
-description: When to split work across agents, which pattern to use, and how to set up each agent so the team stays cheap, bounded and checkable.
+description: Choose roles, define handoffs and give each agent a clear job, a budget and a way to check its work.
 ---
 
-Start with **one agent**. Teams cost more, and a single agent is often enough: Anthropic measured multi-agent systems using about 15× the tokens of a chat. Add agents only when one of the reasons below applies, and give every agent a Job that says how you will know it is done.
+Start with **one agent** and a clear task. Add agents when separate roles, independent work or a second review will help. For each agent, define what it owns, what it passes on and how you will check the result. More agents also mean more coordination and token use.
 
 <CardGroup cols={3}>
   <Card title="Pick a pattern" icon="diagram-project" href="#pick-a-pattern">Four shapes that cover most work.</Card>
@@ -13,25 +13,25 @@ Start with **one agent**. Teams cost more, and a single agent is often enough: A
 
 ## When to split work
 
-Split work for one of four reasons ([CS2680 Agent Design II](https://cs2680.com/slides/5_agent_design_2.pdf), slide 6):
+These four reasons can help you decide whether to split the work:
 
 | Reason | Example |
 | --- | --- |
 | **Specialization** | A researcher, a writer and a reviewer with different instructions or models. |
-| **Isolation** | A reviewer set to **restricted** permissions, so its edits and commands need your approval. |
+| **Isolation** | A reviewer with separate instructions and restricted permissions. See the permission limits below. |
 | **Parallelism** | Independent chapters or components built at the same time. |
 | **Context** | Each agent keeps a small context instead of one agent carrying everything. |
 
-If none applies, keep one agent and write a better Job.
+If none applies, refine the single agent's Job before expanding the team.
 
 ## Pick a pattern
 
 | Pattern | Shape on the board | Use for | Watch |
 | --- | --- | --- | --- |
-| Pipeline with a review loop (slide 11) | Builder → Reviewer ↺ | Most build-and-check work; cheapest to debug | Bound the revision rounds |
-| Supervisor and workers (slide 9) | Lead → Workers → Lead | Separable parts that one agent integrates | The lead's context grows fastest |
-| Independent reviewers (slide 13) | Draft → Reviewer A + B → Editor | Quality over cost | Reviewers must not see each other's verdicts |
-| Dynamic dispatch (slide 16) | Coordinator → spawned specialists → Assembly | The number of pieces is known only at run time | Set spawn, depth and token limits first |
+| Pipeline with a review loop | Builder → Reviewer ↺ | Work that needs implementation and review | Bound the revision rounds |
+| Supervisor and workers | Lead → Workers → Lead | Separable parts that one agent integrates | Keep the lead's context manageable |
+| Independent reviewers | Draft → Reviewer A + B → Editor | Quality over cost | Reviewers must not see each other's verdicts |
+| Dynamic dispatch | Coordinator → spawned specialists → Assembly | The number of pieces is known only at run time | Set spawn, depth and token limits first |
 
 The built-in templates cover several of these: **Builder → Reviewer**, **Planner → 2 Builders**, **Independent reviewers**, **Design and revise** and **Adaptive support team**. The [CS2680 pattern catalog](/guides/pattern-catalog) has a ready-made block for each slide.
 
@@ -50,14 +50,14 @@ Select an agent on the [board](/guides/board) to open its details. These setting
 
 ### Runs on: Claude or Codex
 
-| Choice | What runs | Model menu | Good for |
-| --- | --- | --- | --- |
-| **Claude** | Claude Code, with your own Claude login | Opus, Sonnet, Haiku, or Claude's default | Planning, writing, long multi-file changes |
-| **Codex** | Codex, with your own Codex login | Codex's default, a listed model, or a model id you type | A second opinion; a reviewer from a different vendor than the builder |
+| Choice | What runs | Model selection |
+| --- | --- | --- |
+| **Claude** | Claude Code, with your own sign-in | Choose from the model menu or use Claude's default. |
+| **Codex** | Codex, with your own sign-in | Use the default, select a listed model or enter a model ID. |
 
 You can also set models for the whole team (**Team models**) or for a group (**Group models**). An agent's own choice wins, then its group's, then the team's. **All agents run on** switches every agent at once, and Ctrl+Z undoes it.
 
-<Tip>Mixing vendors helps review: the **Builder → Reviewer** template builds with Claude and reviews with Codex.</Tip>
+<Tip>You can use different providers for the builder and reviewer. Open each agent and set **Runs on** individually.</Tip>
 
 ### Permissions
 
@@ -68,7 +68,7 @@ Under **Advanced** in the agent's details:
 | **unrestricted** (the default) | Runs without permission prompts | Approvals off, no sandbox |
 | **restricted** | Permission prompts come to you as approvals | Asks before untrusted actions |
 
-Sculptured's own tools (asking you a question, reporting, workflow calls) never raise a permission prompt, even for a restricted agent. Use restricted for reviewers and for any agent that should not change files on its own. See [questions and approvals](/guides/questions).
+Sculptured's own tools, including questions, reports and workflow calls, do not raise permission prompts. **Restricted** adds the CLI's approval controls; it does not make an agent read-only. Claude tool approvals are allowed automatically if their timeout expires. Read [Questions and approvals](/guides/questions) before relying on those controls.
 
 ### Token limit
 
@@ -86,7 +86,7 @@ Under **Advanced**, **When it restarts** sets what happens when the agent's sess
 
 ## Write each Job like a task spec
 
-An agent's **Job** is its first message when the team starts. An agent that waits for handed-over work gets its Job together with its first handoff, and you can still change the Job while it waits. Slide 21 lists what a delegated task needs. Copy this into a Job and fill it in:
+An agent's **Job** defines its assignment. An agent that starts immediately receives the Job as its first message. An agent waiting for upstream work receives it with its first handoff; you can still edit the Job while it waits. Use this template:
 
 ```text
 Objective: <what to achieve, in one or two sentences>
@@ -97,12 +97,9 @@ Budget: <rounds or time; the token limit itself is set on the agent>
 Hand on: <who receives your result, and what they need from it>
 ```
 
-1. **Objective:** what to achieve.
-2. **Output:** what it hands on. The next agent receives this agent's last reply of the turn, so ask for a short summary there and put long results in files.
-3. **Done when:** something checkable. Pair it with the agent's **Check** when a command can prove it.
-4. **Boundaries:** files, branches or decisions that are out of scope.
-5. **Budget:** its **token limit**, with or without the agents it spawns.
-6. **Tools and permissions:** restricted for reviewers and anything that should not edit.
+The next agent receives the final reply from the completed work turn. Ask for a concise handoff that includes the result, relevant file paths, checks run and unresolved issues. Keep longer outputs in files.
+
+When completion can be tested by a command, put that command in the agent's **Check** field. Set the actual **Token limit** in the agent's settings; a budget written in the Job is an instruction, not an enforced limit.
 
 An agent with no Job waits: your first message to it becomes its work, and when it finishes, its result is handed on.
 
@@ -121,9 +118,9 @@ On a new project, **Describe it** sends your description to your own Claude Code
 | Lost context at aggregation | The lead summarises away details | Write results to files and pass paths |
 | Loops | Agents message each other without end | Use workflow routes with **Most rounds per item** |
 
-These come from slides 24–25 and 36. An agent saying "done" is a report, not proof: end the team with a step that runs the tests, either an agent **Check** or a workflow check stage.
+Finish with an agent **Check** or a workflow check stage where appropriate. Read the result alongside the agent's report to see what was tested and what still needs review.
 
-<Note>Paraphrased from Juncheng Yang's CS2680 lectures; not an endorsement by the course.</Note>
+<Note>The patterns and task-design guidance draw on Juncheng Yang's [CS2680 Agent Design II](https://cs2680.com/slides/5_agent_design_2.pdf), especially slides 6, 9–16, 21, 24–25 and 36. This guide is not endorsed by the course.</Note>
 
 ## Next steps
 

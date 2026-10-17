@@ -1,9 +1,9 @@
 ---
 title: Control live agents
-description: Send guidance, interrupt a turn, ask an agent to wrap up, or stop it, and read what each state really means.
+description: Message an agent, interrupt its current turn, request a summary or stop its session.
 ---
 
-Open an agent from the Run board to see its pane. The pane shows the agent's work and holds every control for that one agent. Team-wide controls, **Start team** and **Stop team…**, sit at the top of the Run board.
+Open an agent on the **Run** board to read its conversation and control its session. Use its message box for guidance and **Details & controls** for interrupt and stop actions. **Start team** and **Stop team…** at the top of the board apply to the whole team.
 
 ## The agent pane
 
@@ -50,7 +50,7 @@ After a soft stop the pane says "Wrap-up finished; session stopped." When an out
 
 ## Stalled agents
 
-If an agent keeps hitting the same error, the pane may show **Stalled (heuristic)** with the reason. This is a guess from the agent's recent events, not a fact. Nothing happens on its own. You can:
+If an agent keeps hitting the same error, the pane may show **Stalled (heuristic)** with the reason. This is an inference from recent events, labelled as a heuristic. Sculptured does not intervene automatically. You can:
 
 - **Nudge**: interrupt the agent with a message asking it to stop, summarize what it tried, and try a different approach;
 - **Soft stop**: ask it to wrap up.
@@ -95,7 +95,7 @@ A hard stop of a parent stops its descendants first. Helpers that a CLI starts b
 
 ## Text Mode
 
-**Text Mode** expands the whole conversation, transcript and message box, to fill the page. Use it for long reading or writing. **Exit Text Mode** returns to the board.
+**Text Mode** expands the conversation, transcript and message box to fill the page. Use it for long reading or writing. **Exit Text Mode** returns to the board.
 
 ## Next steps
 

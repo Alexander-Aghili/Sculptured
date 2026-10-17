@@ -1,9 +1,9 @@
 ---
 title: Compose on the board
-description: Build a team on the Design board — add agents, connect who hands work to whom, choose folders, and clear everything that blocks Start.
+description: Choose a folder, add agents and connect handoffs on the Design board.
 ---
 
-Every project has two views, chosen with the tabs at the top left: **Design** is the board where you build the team, and **Run** shows it working. Run opens once the team has started. This page covers Design.
+Use the **Design** board to build a team: choose its working folder, add agents, write their jobs and connect their handoffs. The **Run** tab opens after the team starts and shows its activity.
 
 <CardGroup cols={3}>
   <Card title="Add agents" icon="plus" href="#add-agents">Drag, click or right-click to add Claude or Codex.</Card>
@@ -26,6 +26,21 @@ Press **New project** in the Projects sidebar, or press <kbd>n</kbd> anywhere ex
 ## Rename the project
 
 Double-click the project name next to the **Design** and **Run** tabs, or focus it and press <kbd>Enter</kbd> or <kbd>F2</kbd>. Type the new name and press <kbd>Enter</kbd>. <kbd>Esc</kbd> puts the old name back. You can also edit **Team name** in the team details.
+
+## Choose folders
+
+Every agent needs a folder to work in. Set one folder for the whole project and every agent inherits it, unless you give an agent its own.
+
+<Tabs>
+  <Tab title="Hosted (connected computer)">
+    In the team details, **Folder on your computer** takes a full path on the computer that runs the team, for example `/home/you/project` or `C:\Users\you\project`. **Browse…** lists the folders that computer allows. The folder must be inside one of them (`sculptured allow <folder>` adds more). Leave it empty to use the computer's first allowed folder.
+
+    **Run on** picks the computer. **Automatic** uses your only connected computer. With none connected, follow **Connect one**. See [connect a computer](/connect-a-computer).
+  </Tab>
+  <Tab title="Local">
+    In the team details, **Project folder** → **Choose project folder…** opens a folder picker. **Clear project folder** removes it. If some agents use their own folders, **Use project folder for all agents** resets them.
+  </Tab>
+</Tabs>
 
 ## Add agents
 
@@ -53,6 +68,32 @@ The other buttons on the bar:
 - **Full text** shows every card's full Job instead of a preview.
 - **Undo** (<kbd>Ctrl+Z</kbd>) and **Redo** (<kbd>Ctrl+Shift+Z</kbd>).
 
+## Connect work
+
+Drag from an agent's <span>●</span> handle to another agent, or use **Connect to…** under **Hands work to** in its details. Click an arrow to open it: you can change its **Source agent**, **Destination agent** and **Kind**, or drag either end of a selected arrow to another agent.
+
+| Arrow | Drawn | What happens when the team runs |
+| --- | --- | --- |
+| **hands work to** | solid | The receiver starts after the giver. When the giver finishes a turn of work, its last reply is delivered to the receiver as a message. |
+| **reports to** | dashed | Nothing automatic. It describes intent, shown on the board and to the agents. |
+| **watches** | dashed | Nothing automatic. It describes intent. |
+
+```mermaid
+flowchart LR
+  P["Planner"] -- "hands work to" --> B1["Builder 1"]
+  P -- "hands work to" --> B2["Builder 2"]
+  B1 -- "hands work to" --> R["Reviewer"]
+  B2 -- "hands work to" --> R
+```
+
+An agent with two incoming arrows, like Reviewer above, waits until both givers have a result; its first message then carries its Job and both results.
+
+Arrows can form a loop, such as Builder → Reviewer → Builder, if an agent outside the loop provides the initial handoff. Agents do not wait for the returning arrow before starting; work returning along it arrives as **More work**.
+
+Each piece of work can go around an ordinary loop at most three times. At that point the loop stops and shows a notice. **Hand over again** starts another pass. Use a [workflow](/guides/workflows) for named review outcomes and configurable round limits.
+
+<Note>A planned arrow is design intent. It does not prove a message was sent. The Run view shows what was actually handed over.</Note>
+
 ## The Input
 
 The **Input** holds what the project is about: the goal, links and notes. Drag **Input** from the **Edit tools** bar onto the board, click it, or right-click the board and choose **Add the Input here**. It starts out pointing to the agents where the work starts (those nobody hands work to), and its editor opens so you can write it.
@@ -64,7 +105,7 @@ When the team starts, each agent the Input goes to gets it after its own Job. An
 
 ## Groups
 
-A group is a box around agents that share a purpose. **Group** on the bar (or **New group here** in the board's right-click menu) adds an empty group. The other agents stay where they are, outside it: a group holds only the agents you put in it.
+A group organizes agents that share a purpose. Choose **Group** in the toolbar or **New group here** in the board's context menu to add an empty group. Add agents to it using the steps below.
 
 - **Put an agent in:** drag its card into the box, or choose its group under **Group** in its details.
 - **Take it out:** drag the card onto empty board, or right-click it and choose **Take out of its group**.
@@ -88,45 +129,6 @@ A pasted agent keeps its Job, what it runs on, its folder and its settings, gets
 
 Right-click also works on the board (add an agent or group there, paste, fit), on a group (rename, copy, add an agent, ungroup) and on an agent (open, copy, duplicate, what it runs on, delete).
 
-## Connect work
-
-Drag from an agent's <span>●</span> handle to another agent, or use **Connect to…** under **Hands work to** in its details. Click an arrow to open it: you can change its **Source agent**, **Destination agent** and **Kind**, or drag either end of a selected arrow to another agent.
-
-| Arrow | Drawn | What happens when the team runs |
-| --- | --- | --- |
-| **hands work to** | solid | The receiver starts after the giver. When the giver finishes a turn of work, its last reply is delivered to the receiver as a message. |
-| **reports to** | dashed | Nothing automatic. It describes intent, shown on the board and to the agents. |
-| **watches** | dashed | Nothing automatic. It describes intent. |
-
-```mermaid
-flowchart LR
-  P["Planner"] -- "hands work to" --> B1["Builder 1"]
-  P -- "hands work to" --> B2["Builder 2"]
-  B1 -- "hands work to" --> R["Reviewer"]
-  B2 -- "hands work to" --> R
-```
-
-An agent with two incoming arrows, like Reviewer above, waits until both givers have a result; its first message then carries its Job and both results.
-
-Arrows can form a loop, such as Reviewer → CAD → Reviewer, as long as an agent outside the loop hands work into it (that agent is the starting point). An arrow that comes back round a loop is never waited for: work coming back along it arrives as **More work**. One piece of work goes round a loop at most 3 times; then the loop stops and says so, and **Hand over again** sends it round again. For review rounds with outcomes and limits you choose, use a [workflow](/guides/workflows).
-
-<Note>A planned arrow is design intent. It does not prove a message was sent. The Run view shows what was actually handed over.</Note>
-
-## Choose folders
-
-Every agent needs a folder to work in. Set one folder for the whole project and every agent inherits it, unless you give an agent its own.
-
-<Tabs>
-  <Tab title="Hosted (connected computer)">
-    In the team details, **Folder on your computer** takes a full path on the computer that runs the team, for example `/home/you/project` or `C:\Users\you\project`. **Browse…** lists the folders that computer allows. The folder must be inside one of them (`sculptured allow <folder>` adds more). Leave it empty to use the computer's first allowed folder.
-
-    **Run on** picks the computer. **Automatic** uses your only connected computer. With none connected, follow **Connect one**. See [connect a computer](/connect-a-computer).
-  </Tab>
-  <Tab title="Local">
-    In the team details, **Project folder** → **Choose project folder…** opens a folder picker. **Clear project folder** removes it. If some agents use their own folders, **Use project folder for all agents** resets them.
-  </Tab>
-</Tabs>
-
 ## Move around
 
 | Do | Mouse | Keyboard |
@@ -147,7 +149,7 @@ Press <kbd>?</kbd> for the full keymap. On a narrow screen the board becomes a f
 
 Next to **Start team**, a status button reads **Ready**, **Needs setup** or **Running**. Open it to see why. While anything is wrong, **Things to fix** lists each problem; click one to select the agent, group or arrow it belongs to.
 
-Common items:
+Common setup problems and their fixes:
 
 | Message | Fix |
 | --- | --- |

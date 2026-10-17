@@ -1,46 +1,34 @@
 # Sculptured internals
 
-How the system works, for people changing it. Start with the [overview](overview.md); every other page zooms into one part. The diagrams are Mermaid, which renders on GitHub and in the docs site. How the pages are written, and the documentation models they follow ([Diátaxis](https://diataxis.fr/), [C4](https://c4model.com/), [arc42](https://arc42.org/overview), [ARCHITECTURE.md](https://matklad.github.io/2021/02/06/ARCHITECTURE.md.html)), is in [STYLE.md](STYLE.md).
+These pages explain how Sculptured works for contributors changing its code. Start with the [overview](overview.md) for the architecture and code map, then follow the topic relevant to your change. For instructions on using the app, see the [user documentation](../../docs-site/README.md).
 
-```mermaid
-flowchart LR
-  O["Overview"] --> T["Teams: design to stop"]
-  O --> E["Events and storage"]
-  T --> D["Agent drivers"]
-  T --> W["Workflows"]
-  D --> L["Limits and usage"]
-  W --> LO["Local operations"]
-  LO --> DV["Connected computers"]
-  DV --> HP["Host protocol"]
-```
+This repository contains the app, runner and shared types. The hosted gateway and Community server live in separate private repositories; these pages describe their boundaries where they connect to the core.
 
-## Reading order
+## Start here
 
-The hosted service (gateway, accounts, analytics, deployment) and the Community server live in private repositories; these pages cover everything in this one.
+Read these pages to understand how a design becomes a running team and how its activity reaches the UI:
 
-| # | Page | What it covers |
-|---|---|---|
-| 1 | [Overview](overview.md) | What Sculptured is, context and container diagrams for local and hosted mode, the code map, invariants, glossary |
-| 2 | [Teams: design → compile → boot → handoffs → stop](team-lifecycle.md) | The team design, validation, Start team, seat states, handoffs, seat tools, questions, restart and stop |
-| 3 | [Event journal, projections and the SQLite schema](events-and-storage.md) | The append-only journal, projections, the live stream, request ids, restore, every table, migrations |
-| 4 | [Agent drivers](drivers.md) | How Claude Code and Codex are run and their output normalized, sessions, interrupt and stop, fixture CLIs |
-| 5 | [Subagents, limits, plan-usage holds, tokens and costs](limits-and-usage.md) | Runtime subagents and their caps, plan-usage holds, token accounting, where each cost comes from |
-| 6 | [Workflows](workflows.md) | Stages, items, own copies per item, checks, review panels, merges, guards, schedules, the decision log |
-| 7 | [Local operations](local-ops.md) | Folders, git, own copies, checks, CLI sign-in and plan usage: one implementation, run locally or on the user's computer |
-| 8 | [Portable formats](portable-formats.md) | Team files and run files: schemas, export, import, imported runs in History |
-| 9 | [AI team generator](ai-team-generator.md) | *Describe it*: the user's own CLI drafts a team; the sketch, conversion, safety and provenance |
-| 10 | [Connected computers](devices.md) | Pairing, the runner link, folder permissions on the computer, which computer runs a team |
-| 11 | [Host protocol](host-protocol.md) | Reference: every message between Sculptured and a runner |
-| 12 | [Desktop and installers](desktop-and-installers.md) | One-command connect, releases, desktop account mode |
-| 13 | [Testing](testing.md) | The suites, fixture CLIs instead of model calls, the command for each suite |
+1. [Overview and component map](overview.md): local and hosted modes, crate responsibilities and architectural boundaries.
+2. [Team lifecycle](team-lifecycle.md): design validation, compilation, startup, handoffs, questions and shutdown.
+3. [Events and storage](events-and-storage.md): the append-only journal, projections, live updates, SQLite schema and restore behavior.
+4. [Testing](testing.md): test suites, fixture CLIs and commands for validating a change.
 
-## Kinds of page
+## Find a subsystem
 
-Following Diátaxis, each section is one kind:
-- **Explanation** (why it is shaped this way): the opening sections of every page, and all of the overview.
-- **Reference** (exact facts): host protocol, the table lists in events and storage, route tables, "Properties and their tests".
-- **How-to** (steps for one task): the commands in testing, and operating notes in the gateway and deployment pages.
+| Area | Page | What it covers |
+| --- | --- | --- |
+| Agent execution | [Drivers](drivers.md) | CLI protocols, normalized output, sessions, interruption and process shutdown |
+| Resource control | [Limits and usage](limits-and-usage.md) | Managed subagents, token limits, plan usage holds and cost estimates |
+| Work coordination | [Workflows](workflows.md) | Stages, items, reviews, checks, merges, guards and schedules |
+| Files and Git | [Local operations](local-ops.md) | Folder access, working copies, checks, CLI sign-in and operations on connected computers |
+| Import and export | [Portable formats](portable-formats.md) | Team and run schemas, validation, export and imported history |
+| Team generation | [AI team generator](ai-team-generator.md) | How Describe it drafts a team through the user's CLI and converts it into a design |
+| Connected computers | [Devices](devices.md) | Pairing, runner connections, folder policy and computer selection |
+| Runner communication | [Host protocol](host-protocol.md) | Messages exchanged between the server and a runner |
+| Distribution | [Desktop and installers](desktop-and-installers.md) | Connection commands, release artifacts and desktop account mode |
 
-## Keeping pages true
+## Keep the docs aligned with the code
 
-Every page lists its `Sources:`. When you change one of those files, check the page. Built-but-unused code and planned work are labelled as such on the page that owns them, never described as if they work.
+Each page lists its source files. When you change one of those files, review the corresponding explanation, invariants and test references. Label planned work and unused implementations explicitly.
+
+The [style guide](STYLE.md) defines the page structure. It separates explanation, reference and procedures, uses Mermaid diagrams for architecture and runtime behavior, and ties important properties to tests. Link to the page that owns a concept instead of duplicating its explanation.

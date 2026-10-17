@@ -1,126 +1,112 @@
 ---
 title: Quickstart
-description: Sign in, connect your computer and run a first team of agents, in about ten minutes.
+description: Set up Sculptured, create a team and follow its first run.
 ---
 
-This guide takes you from nothing to a running team of Claude Code or Codex agents.
+Start with a small task in a project folder you know. This guide uses a **Builder → Reviewer** team: one agent does the work, then a second reviews the result.
+
+## Set up Sculptured
+
+Choose the setup that matches how you want to run the app. Both lead to the same team creation steps below.
 
 <Tabs>
   <Tab title="Hosted beta">
+    You need a beta invite and a computer with Claude Code or Codex installed. The runner supports Windows on 64-bit Intel or AMD, macOS 11 or later, and Linux; the **Computers** page lists available builds.
 
-## Before you start
+    1. Open your invite link. Enter your name, email and a password of at least 12 characters, then choose **Create account**. For later visits, sign in at **app.usesculptured.com**.
+    2. Open **Computers** in the sidebar. Under **Connect a computer**, select the system of the computer that will run your agents and choose **Copy connect command**.
+    3. Open a terminal on that computer—PowerShell on Windows—paste the command and press Enter.
+    4. Return to **Computers** and wait for **Connected**. Check that Claude Code or Codex is installed and signed in; use the sign-in controls if needed.
 
-- An invite link to the Sculptured beta (the beta is invite-only).
-- A computer running **Windows** (64-bit Intel or AMD), **macOS** 11 or later, or **Linux**. The [Computers page](/connect-a-computer) shows which systems have a build.
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) installed on that computer. You can also sign them in later from Sculptured.
-
-<Steps>
-  <Step title="Create your account">
-    Open your invite link. On **Join the Sculptured beta**, enter your name, email and a password of at least 12 characters, then choose **Create account**. Next time, sign in at **app.usesculptured.com** with your email and password, or with Google or GitHub where they are offered.
-  </Step>
-  <Step title="Connect your computer">
-    In the sidebar, open **Computers**. Under **Connect a computer**, your system is already selected. Choose **Copy connect command**, open a terminal on that computer (PowerShell on Windows), paste the command and press Enter.
-
-    The command installs Sculptured's runner without admin rights, connects it to your account, and keeps it running in the background, even after a restart. Agents may then work anywhere in your home folder. The details are in [Connect a computer](/connect-a-computer).
-
-    Back on the Computers page, your computer shows **Connected** within a few seconds.
-  </Step>
-  <Step title="Create a project">
-    Choose **New project** in the sidebar. In **New project · Start from…**, set **agents run on** to **Claude** or **Codex**, then pick a template, for example **Builder → Reviewer**: one agent builds, then hands the work to a second that reviews it.
-
-    Other templates include **Solo agent**, **Planner → 2 Builders**, **Independent reviewers** and **Blank canvas**. Larger examples, such as the **gstack-style product team** and the **Coding hospital**, are in [Community](/guides/community).
-
-    <Frame caption="What to look for: **agents run on** at the top, then the template cards.">
-      ![The New project page: a choice of Claude or Codex, then template cards such as Solo agent, Builder → Reviewer and Planner → 2 Builders](/images/quickstart/start-from.png)
-    </Frame>
-  </Step>
-  <Step title="Choose the folder">
-    The project opens on its **Design** board. In **Folder on your computer**, type a full path on the computer that will run the team, such as `/home/you/project` or `C:\Users\you\project`, or choose **Browse…**. Leave it empty to use the computer's first allowed folder.
-
-    If you have more than one computer, pick one under **Run on**. With one connected computer, **Automatic** uses it.
-  </Step>
-  <Step title="Check the design">
-    The status in the board's toolbar says **Needs setup** while something is missing and **Ready** when the team can start. Open it to see what to fix. Click an agent to read or edit its **Job**, the first message it gets.
-
-    <Frame caption="What to look for: **Ready** and **Start team** at the top right, and each agent's **Job** on its card.">
-      ![The Design board of a team: a Planner card with its job, connected by arrows to Builder 1 and Builder 2; the toolbar shows Ready and Start team](/images/quickstart/design-board.png)
-    </Frame>
-  </Step>
-  <Step title="Start the team">
-    Choose **Start team** and confirm. Claude Code and Codex agents use your own sign-in and may cost money once started; each agent's token use is shown live under **Token use**, and you can set a token limit per agent (see [Limits and usage](/reference/limits)).
-
-    Sculptured starts each agent on your computer, in order, and opens the **Run** view. Each agent appears with what it is doing now.
-
-    <Frame caption="What to look for: a card marked **needs you** has an **Answer** button. Status is written on every card as well as shown in colour.">
-      ![The Run board in Graph view: the Planner card is red with needs you and an Answer button; Builder 1 and Builder 2 show done](/images/quickstart/run-board.png)
-    </Frame>
-  </Step>
-  <Step title="Watch and steer">
-    Click an agent to open its conversation: its messages, tool calls and files. Type in its composer to send it guidance. Open **Conversation** to follow every update, handoff and question in the team.
-  </Step>
-  <Step title="Answer a question">
-    When an agent needs a decision, it shows **needs you**, and the conversation lists it under **Needs You**. Choose **Answer** next to its name. The question opens as a card above the agent's conversation: pick a choice or type your answer, or choose **Allow** or **Deny** for a tool approval. See [Questions and approvals](/guides/questions).
-
-    <Frame caption="What to look for: the agent's choices as buttons, a box for your own words, and the time it stops waiting.">
-      ![A question card: Planner asks which colour scheme the landing page should use, with buttons Calm blue and Bold orange, a box for your own answer, and when the agent decides on its own](/images/guides/question-card.png)
-    </Frame>
-  </Step>
-  <Step title="Stop the team">
-    Choose **Stop team** in the toolbar and confirm. Every agent stops and its history is kept, so you can read it later or start the team again.
-
-    <Frame caption="On a phone the Run board shows the same cards and the same **Answer** button.">
-      ![The Run board on a phone: the same agent cards, with Answer on the agent that needs you](/images/quickstart/phone.png)
-    </Frame>
-  </Step>
-</Steps>
-
+    The command installs the runner without admin rights and allows agents to start in your home folder. The runner stays in the background and starts again when you log in. See [Connect a computer](/connect-a-computer) for installation details and folder access.
   </Tab>
   <Tab title="Self-hosted">
+    You need Linux or an Apple silicon Mac, Rust 1.95 or newer, Node.js 24 and Git. Install Claude Code or Codex and sign in as the user who will run Sculptured.
 
-## Before you start
-
-- Linux or an Apple silicon Mac.
-- [Rust](https://rustup.rs/) 1.95 or newer, [Node.js](https://nodejs.org/) 24 and Git.
-- Claude Code or Codex installed and signed in as your own user.
-
-<Steps>
-  <Step title="Build and start Sculptured">
     ```bash
     git clone https://github.com/Alexander-Aghili/sculptured.git
     cd sculptured
-    npm --prefix web ci && npm --prefix web run build
+    npm --prefix web ci
+    npm --prefix web run build
     cargo run --release -p sculptured -- serve
     ```
 
-    Open `http://127.0.0.1:4410`. The local runner starts with the server, so there is nothing to connect.
-  </Step>
-  <Step title="Create a project">
-    Choose **New project**, set **agents run on** to **Claude** or **Codex** and pick **Builder → Reviewer**.
-  </Step>
-  <Step title="Choose the project folder">
-    On the **Design** board, choose the **Project folder**. Every agent uses it unless you give one its own folder.
-  </Step>
-  <Step title="Start, watch, answer, stop">
-    When the toolbar says **Ready**, choose **Start team**. Open agents from the **Run** view, answer anything that **needs you**, and choose **Stop team** when you're done.
-  </Step>
-</Steps>
+    Open `http://127.0.0.1:4410`. The server starts a local runner, so you do not need to connect a computer or create an account.
 
-<Warning>The server listens on `127.0.0.1` only. Don't expose port 4410 to a network: anyone who reaches it can control your agents. See [Security](/security).</Warning>
+    <Warning>Keep port 4410 on localhost. Anyone who can reach the local server can control your agents. See [Security](/security).</Warning>
 
+    For backups, upgrades and other server options, see [Run it yourself](/operations).
   </Tab>
 </Tabs>
 
-## Mix Claude and Codex
+## Create your first team
 
-Each agent can run on a different one. Click an agent and change what it runs on to **Claude** or **Codex**; the **Builder → Reviewer** template, for example, has Claude build and Codex review. Stop the team first if it is running.
+<Steps>
+  <Step title="Choose a template">
+    Choose **New project** in the sidebar. Set **agents run on** to **Claude** or **Codex**, then select **Builder → Reviewer**.
 
-If an agent stops at once with a message that Claude Code or Codex **isn't signed in on the computer**, choose **Sign in to Claude Code** (or Codex) on that agent, finish signing in, then choose **Hand over again**. [Troubleshooting](/troubleshooting) covers this and other first-run problems.
+    <Frame caption="Choose an agent provider, then a template.">
+      ![The New project page with the Claude or Codex choice and templates including Solo agent and Builder → Reviewer](/images/quickstart/start-from.png)
+    </Frame>
+  </Step>
+  <Step title="Choose the working folder">
+    The project opens on the **Design** board.
+
+    - **Hosted:** use **Folder on your computer** to enter a full path, such as `/home/you/project` or `C:\Users\you\project`, or choose **Browse…**. Select a computer under **Run on** if more than one is connected. With one connected computer, **Automatic** uses it. An empty folder field uses that computer's first allowed folder.
+    - **Self-hosted:** choose **Project folder**. Agents use this folder unless you give an agent its own.
+  </Step>
+  <Step title="Write the jobs">
+    Open each agent and edit its **Job**. Give the builder a specific task and tell the reviewer what to inspect. Include how the result should be checked.
+
+    For example, ask the builder to fix one reproducible bug and add a regression test. Ask the reviewer to inspect the change, run the relevant tests and report any remaining issues.
+
+    The toolbar shows **Needs setup** while required details are missing. Open it to see what to fix. **Ready** means the team can start; it does not assess the quality of the jobs.
+
+    <Frame caption="The Design board shows each agent's Job and whether the team is ready to start.">
+      ![A Design board with a Planner connected to two builders and Ready and Start team controls in the toolbar](/images/quickstart/design-board.png)
+    </Frame>
+  </Step>
+</Steps>
+
+## Run and review the team
+
+<Steps>
+  <Step title="Start the team">
+    Choose **Start team** and review the confirmation. Agents use your own Claude Code or Codex sign-in and may incur charges or consume plan usage. You can set a per-agent **Token limit** before starting; see [Limits and usage](/reference/limits).
+
+    Once you confirm, Sculptured opens the **Run** view. The builder receives its Job first. When it finishes a work turn, its final reply is passed to the reviewer along with the reviewer's Job.
+
+    <Frame caption="The Run board shows each agent's state. Answer opens an agent's pending question.">
+      ![An example Run board with a Planner marked needs you and an Answer button, alongside two builders marked done](/images/quickstart/run-board.png)
+    </Frame>
+  </Step>
+  <Step title="Follow the work">
+    Open an agent to read its conversation and tool calls. Send guidance through its message box, or open **More → Conversation** to follow updates across the team.
+
+    If an agent shows **needs you**, choose **Answer** and respond on the question card. Use **Allow** or **Deny** for a tool approval. Questions and approvals have timeouts; [Questions and approvals](/guides/questions) explains what happens when they expire.
+
+    <Frame caption="Answer on the question card, using a choice or your own words where offered.">
+      ![A question card asking for a colour scheme, with two choices, a free-text answer box and a timeout](/images/guides/question-card.png)
+    </Frame>
+  </Step>
+  <Step title="Review the result and stop">
+    Read the reviewer's findings and inspect the changes and check results. An agent marked **done** has finished a turn; that alone does not establish that the work is correct.
+
+    Choose **Stop team** and confirm to close the agents' sessions. Sculptured keeps the run history for later review.
+  </Step>
+</Steps>
+
+## If an agent cannot start
+
+If an agent says Claude Code or Codex **isn't signed in on the computer**, use its **Sign in** action and complete the provider's sign-in. Then choose **Hand over again** or **Restart this agent**, as offered. See [Troubleshooting](/troubleshooting) for other startup problems.
+
+To use both providers in one team, stop the team, open an agent and change **Runs on** to **Claude** or **Codex**.
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Concepts" icon="book" href="/concepts">The words Sculptured uses and what each status means.</Card>
-  <Card title="Design a team" icon="diagram-project" href="/guides/agent-design">Pick the right shape for the work.</Card>
-  <Card title="Compose on the board" icon="pen-ruler" href="/guides/board">Add agents, draw handoffs and use Input.</Card>
-  <Card title="Run a team" icon="play" href="/guides/running">Everything the Run view shows.</Card>
+  <Card title="Design a team" icon="diagram-project" href="/guides/agent-design">Choose roles, write jobs and set limits.</Card>
+  <Card title="Compose on the board" icon="pen-ruler" href="/guides/board">Add agents, connect handoffs and supply shared Input.</Card>
+  <Card title="Run a team" icon="play" href="/guides/running">Understand handoffs, restarts and run history.</Card>
+  <Card title="Inspect the evidence" icon="eye" href="/guides/context">Read tool results, checks and reported progress.</Card>
 </CardGroup>

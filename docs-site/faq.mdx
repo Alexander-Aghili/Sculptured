@@ -27,7 +27,7 @@ description: Short answers about what Sculptured is, what it costs to run, where
 
 <AccordionGroup>
   <Accordion title="What does running a team cost?">
-    Your agents use your own Claude or ChatGPT plan, or API key, through Claude Code and Codex. Sculptured shows each turn's tokens and an estimated cost at API prices, with its source. If you use a subscription plan, you are not billed that amount; it shows how much of your plan the work used. Teams use many more tokens than a single agent, so start with one agent and split work only when it helps. See [Designing teams](/guides/agent-design).
+    Your agents use your own Claude or ChatGPT plan, or API key, through Claude Code and Codex. Sculptured shows each turn's tokens and an estimated cost at API prices, with its source. If you use a subscription plan, that estimate is not your bill or a measure of your remaining allowance. Teams use many more tokens than a single agent, so start with one agent and split work only when it helps. See [Designing teams](/guides/agent-design).
   </Accordion>
   <Accordion title="Can a team run away and use my whole plan?">
     You can cap it. Give an agent a **Token limit** to soft-stop it, or a team an output budget to hard-stop it. Helpers agents start have no limit unless you set one on the team (**Most agents, children included**, **Most levels of children**). Sculptured also holds new work when your plan is at 90% of a usage window. See [Limits](/reference/limits).
@@ -50,7 +50,7 @@ description: Short answers about what Sculptured is, what it costs to run, where
     No. The connect command installs the runner as a background service that starts again whenever you log in. You can close the terminal.
   </Accordion>
   <Accordion title="What happens if my laptop sleeps or the Wi-Fi drops?">
-    Agents keep working on the computer. Their tool calls wait for the link to return, open questions stay open, and you can still reply to them. If you stop a team while its computer is offline, it is stopped as soon as the computer reconnects. See [When a computer drops off](/guides/offline).
+    A network interruption does not stop agents on a computer that is still awake. Their calls to Sculptured wait for the connection to return. Sleep pauses the computer and its agents. You can still answer open questions in the app; answers and stop requests reach the runner when it reconnects. See [When a computer drops off](/guides/offline).
   </Accordion>
   <Accordion title="Can agents read my whole computer?">
     Agents start only in folders the computer allows; the installer allows your home folder. Once running, what they can do depends on the computer's access level: **Full** (the default) lets them act as you do, and **Sandboxed** restricts Claude Code to asking first and Codex to writing inside its folder. Choose with `sculptured connect … --sandboxed`. See [Security](/security#access-level).
@@ -85,10 +85,10 @@ description: Short answers about what Sculptured is, what it costs to run, where
 
 <AccordionGroup>
   <Accordion title="What does Sculptured record about me?">
-    In the hosted beta: which pages and features you use, the shape of your teams (counts, not names), runs, token totals and errors. Never your prompts, messages, jobs, agent output, file names or file contents. Running it yourself records nothing. See [Privacy](/privacy).
+    The hosted beta collects usage analytics such as feature use, team counts, run statistics, token totals and errors. Those analytics exclude prompts, jobs, messages, agent output, file names and file contents. Separately, Sculptured stores team designs and run history so the app can work. Self-hosting keeps that data locally and collects no usage analytics. See [Privacy](/privacy).
   </Accordion>
   <Accordion title="Does my code leave my computer?">
-    Your files stay on your computer. The server sees only what you ask to see, such as a folder listing, Git status or a diff, plus your agents' replies and tool calls so you can follow the run. Claude Code and Codex send what agents read to Anthropic or OpenAI, as they always do.
+    Your repositories remain on your computer. In hosted mode, agent replies, tool calls and results reach the server so you can follow the run; these may contain code. The server also receives folder listings, Git status or diffs you request. Claude Code and Codex send context to their providers as they do when used directly.
   </Accordion>
   <Accordion title="Can I take my teams with me?">
     Yes. **Export team file** saves a team as a `.sculptured-team.json` file that you can import into any Sculptured. You can also download a run's history. See [Team files](/guides/team-files).

@@ -3,45 +3,7 @@ title: Concepts
 description: The words Sculptured uses, how the parts connect, and what each status means.
 ---
 
-Sculptured has a small vocabulary. Learn these words and the rest of the docs read easily.
-
-## How the parts connect
-
-<Tabs>
-  <Tab title="Hosted beta">
-
-```mermaid
-flowchart LR
-  B["Your browser"] -- "HTTPS, signed in" --> G["Gateway: app.usesculptured.com"]
-  G -- "your requests only" --> I["Your own Sculptured: board, journal, workflows"]
-  R["Runner on your computer"] -- "connects out through the gateway" --> I
-  I -- "start, message, stop" --> R
-  R --> C["Claude Code"]
-  R --> X["Codex"]
-  C -- "read and edit" --> F["Allowed folders"]
-  X -- "read and edit" --> F
-```
-
-The **gateway** signs you in and starts **your own Sculptured**, one per account, which holds your projects and the record of every run. It has no agents of its own. Your computer's **runner** connects *out* to it, so you don't open any ports. The agents run on your computer, with that computer's Claude Code and Codex sign-ins, in the folders that computer allows.
-
-  </Tab>
-  <Tab title="Self-hosted">
-
-```mermaid
-flowchart LR
-  B["Your browser"] -- "http://127.0.0.1:4410" --> S["sculptured serve: board, journal, workflows"]
-  S -- "start, message, stop" --> R["Local runner"]
-  R --> C["Claude Code"]
-  R --> X["Codex"]
-  C -- "read and edit" --> F["Your folders and Git"]
-  X -- "read and edit" --> F
-  R -- "every event" --> S
-```
-
-`sculptured serve` starts the server and a runner on the same machine. Nothing leaves it except what Claude Code and Codex themselves send to their providers.
-
-  </Tab>
-</Tabs>
+A **project** holds a team's design and run history. Its **agents** work in folders you choose and pass results along the connections you draw. This page explains those parts and the labels you will see as the team runs.
 
 ## Designing
 
@@ -50,11 +12,11 @@ flowchart LR
 | **Project** | One team's design and its history. The sidebar lists your projects. |
 | **Team** | The agents of a project and the connections between them, started and stopped together. |
 | **Agent** | One worker with a name, a **Job** and a **Folder**. It runs on **Claude** (Claude Code) or **Codex**. |
-| **Job** | What the agent should do. It is the agent's first message when the team starts. Write it like a task spec: see [Designing teams](/guides/agent-design). |
+| **Job** | The agent's assignment, delivered when its work begins. An agent waiting for a handoff receives its Job with that handoff. See [Designing teams](/guides/agent-design). |
 | **Folder** | Where the agent works. Agents use the project folder unless you give one its own. On a connected computer it must be inside a folder that computer allows. |
-| **Practice agent** | A scripted stand-in that calls no model. New agents can't be Practice agents any more; a team that already has them keeps them. |
+| **Practice agent** | A scripted stand-in that calls no model. The board's add and switch controls offer Claude and Codex; existing Practice agents remain supported. |
 | **Group** | A box of agents inside a team, with its own color. Save a group to your **Library** to reuse it in other projects: see [Reusable groups](/guides/groups). |
-| **Input** | A block for links, notes, ideas and constraints. A workflow's dispatcher reads it when the team starts. |
+| **Input** | Shared goals, links, notes and constraints. In an ordinary team, selected agents receive it; in a workflow, the dispatcher reads it when the team starts. |
 
 ### Connections
 
@@ -62,7 +24,7 @@ Arrows on the board say how agents relate.
 
 | Arrow | Effect |
 | --- | --- |
-| **hands work to** | When the giver finishes a turn, Sculptured passes its work to the receiver. The giver also starts first. |
+| **hands work to** | When the source agent finishes a work turn, Sculptured passes its final reply to the receiving agent. The source starts first. |
 | **reports to** | Design intent only. It documents the hierarchy; nothing is enforced. |
 | **watches** | Design intent only. Nothing is enforced. |
 
@@ -110,19 +72,16 @@ The server can ask a computer to do something, but the computer has the last wor
 
 ## Evidence and provenance
 
-Sculptured shows *how sure* it is about each fact. These words have exact meanings:
+Progress labels describe where the work stands: **Planned**, **In progress** or **Blocked**, for example. Evidence labels describe how Sculptured obtained a fact. Read them together: an agent can finish a task without its result having been checked.
 
 | Word | Meaning |
 | --- | --- |
-| **Planned** | Part of the design. Nothing has happened yet. |
-| **In progress** | Being worked on now. |
 | **Agent-reported** | The agent said so, for example "done" or "tests pass". A claim, not proof. |
 | **Captured** | Sculptured recorded it directly, such as a tool call and its result. |
 | **Observed** | Seen on disk or in Git, such as a changed file. |
 | **Estimated** | Worked out by a rule of thumb, such as a token count from text length. |
-| **Verified** | A check Sculptured ran passed. |
-| **Blocked** | Can't continue without something, such as an answer or a sign-in. |
-| **Unknown** | Sculptured doesn't know. It never guesses. |
+| **Verified** | A check Sculptured ran passed; the result covers what that check tests. |
+| **Unknown** | No supporting information is available. |
 
 <Note>A file existing, a tool succeeding or an agent saying "done" does not show that the work is correct. Only a check that ran counts as verified.</Note>
 
@@ -133,6 +92,44 @@ Sculptured shows *how sure* it is about each fact. These words have exact meanin
 | **Library** | Your private collection of reusable groups. |
 | **Community** | The shared catalog. A published group is a **block**: a definition only, which never starts agents by itself. |
 | **Team file** | A project exported as JSON (`sculptured.team/v1`). It links to its [JSON Schema](/reference/team-file) so editors can check it. |
+
+## How the parts connect
+
+<Tabs>
+  <Tab title="Hosted beta">
+
+```mermaid
+flowchart LR
+  B["Your browser"] -- "HTTPS, signed in" --> G["Gateway: app.usesculptured.com"]
+  G -- "your requests only" --> I["Your own Sculptured: board, journal, workflows"]
+  R["Runner on your computer"] -- "connects out through the gateway" --> I
+  I -- "start, message, stop" --> R
+  R --> C["Claude Code"]
+  R --> X["Codex"]
+  C -- "read and edit" --> F["Allowed folders"]
+  X -- "read and edit" --> F
+```
+
+The hosted service signs you in and provides a separate Sculptured instance for your account's projects and run history. Your computer's **runner** opens an outbound connection to the service, so you do not need to open an inbound port. Agents run on your computer using its CLI sign-ins and folder permissions.
+
+  </Tab>
+  <Tab title="Self-hosted">
+
+```mermaid
+flowchart LR
+  B["Your browser"] -- "http://127.0.0.1:4410" --> S["sculptured serve: board, journal, workflows"]
+  S -- "start, message, stop" --> R["Local runner"]
+  R --> C["Claude Code"]
+  R --> X["Codex"]
+  C -- "read and edit" --> F["Your folders and Git"]
+  X -- "read and edit" --> F
+  R -- "every event" --> S
+```
+
+`sculptured serve` starts the app server and a runner on the same machine. Team designs and run history are stored locally. Claude Code and Codex still communicate with their providers; see [Privacy](/privacy) for the data flow.
+
+  </Tab>
+</Tabs>
 
 ## Next steps
 

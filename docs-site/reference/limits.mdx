@@ -1,9 +1,9 @@
 ---
-title: Limits
-description: The caps, budgets and timeouts that keep a team from running away, and the exact values Sculptured uses.
+title: Limits and usage
+description: Token limits, agent counts, usage holds and timeouts, with their defaults and enforcement behavior.
 ---
 
-Sculptured has a small set of limits. Some you set on a team, such as an agent's **Token limit**. Sculptured sets no fixed cap on how many subagents an agent may start; a team can set one. Every token count comes from what Claude Code or Codex reported after a turn, so a limit can be passed by up to one turn.
+Use token limits and output budgets to control usage, and team limits to bound the number and depth of managed subagents. Subagent counts have no default cap; set one if your team can create helpers. Token enforcement depends on CLI usage reports, so an agent can exceed a limit by up to one turn.
 
 ```mermaid
 flowchart LR

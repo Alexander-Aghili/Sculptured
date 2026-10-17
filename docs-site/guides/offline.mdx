@@ -1,11 +1,13 @@
 ---
-title: When the computer drops off
+title: Connection interruptions
 description: What keeps going, what waits and what happens on reconnect when the computer running your agents loses its connection mid-run.
 ---
 
-Your agents run on your own computer. Sculptured talks to that computer over one connection. Laptops sleep, Wi-Fi changes, and Sculptured's server restarts for an update. When the connection drops, **the agents keep working on the computer**. Sculptured waits for the computer to come back, then catches up.
+A lost connection to Sculptured does not stop agents on a computer that is still running. The runner keeps their events and sends them when it reconnects. While the connection is down, the app shows the last known activity.
 
-## Three connections
+Sleep and shutdown are different: sleep pauses the agents, and a shutdown ends their processes. Keep the computer awake for uninterrupted work.
+
+## Identify the interruption
 
 | Connection | If it drops | What you see |
 | --- | --- | --- |
@@ -52,8 +54,8 @@ sequenceDiagram
 
 <AccordionGroup>
   <Accordion title="Start a team or send a message">If the connection dropped less than **45 seconds** ago, Sculptured waits for the computer to come back before it gives up. So a team started during a short drop launches as soon as the computer is back. If the computer stays away, or has been gone longer, the action fails and says why: "Sculptured could not reach this agent's host: …". A message that could not be sent is recorded as not delivered.</Accordion>
-  <Accordion title="Stop an agent or the team">Stop works offline. The agent shows *stopping*, with "Stops as soon as its computer reconnects". When the computer returns, Sculptured stops it. If the agent had already ended meanwhile, it records "Its computer reconnected; the agent had already ended".</Accordion>
-  <Accordion title="Answer a question">Always works. Answering never needs the computer.</Accordion>
+  <Accordion title="Stop an agent or the team">Sculptured accepts stop requests while the computer is offline. The agent shows *stopping*, with "Stops as soon as its computer reconnects". When the computer returns, Sculptured stops it. If the agent had already ended meanwhile, it records "Its computer reconnected; the agent had already ended".</Accordion>
+  <Accordion title="Answer a question">Sculptured records your answer while the computer is offline and delivers it when the runner reconnects.</Accordion>
   <Accordion title="Edit the design">Works as usual. Design edits are saved by Sculptured, not on the computer.</Accordion>
 </AccordionGroup>
 
