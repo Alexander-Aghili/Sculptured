@@ -271,6 +271,10 @@ pub struct TeamDraft {
     #[serde(default, skip_serializing_if = "crate::ClaudeSetup::is_default")]
     #[ts(as = "Option<crate::ClaudeSetup>", optional)]
     pub claude_setup: crate::ClaudeSetup,
+    /// Rules between this team's agents and their tools (Advanced). On by default.
+    #[serde(default, skip_serializing_if = "crate::Protection::is_default")]
+    #[ts(as = "Option<crate::Protection>", optional)]
+    pub protection: crate::Protection,
     /// What one run may use (Advanced). Absent = no budget.
     #[serde(default, skip_serializing_if = "crate::RunBudget::is_empty")]
     #[ts(as = "Option<crate::RunBudget>", optional)]

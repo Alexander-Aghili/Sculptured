@@ -5,6 +5,12 @@ description: What changed in Sculptured, newest first.
 
 Changes you can see or use, by date. The open-source core's full history is on [GitHub](https://github.com/Sculptured/Sculptured/commits/main).
 
+## 17 October 2026
+
+### Protections
+
+- **Agents keep their context small, by default.** A whole read of a large file is refused with advice to search it and read only the lines needed; shell output an agent sees is capped; and when an agent's conversation passes 60,000 tokens, it writes its notes and continues in a fresh one. Most of a long run's tokens are agents re-reading their own conversation, so this makes every later step cheaper, on Opus as on any model. Settings are in team **Advanced** → **Protections**; see [Budgets and limits](/guides/budgets#protections-keep-each-agents-context-small). Reinstall the runner from **Computers** to get them.
+
 ## 16 October 2026
 
 ### Big runs stay fast

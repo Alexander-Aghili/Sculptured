@@ -4,6 +4,7 @@ import type { DraftAgent } from "./DraftAgent";
 import type { DraftConnection } from "./DraftConnection";
 import type { DraftGroup } from "./DraftGroup";
 import type { ModelDefaults } from "./ModelDefaults";
+import type { Protection } from "./Protection";
 import type { RunBudget } from "./RunBudget";
 import type { Schedule } from "./Schedule";
 import type { TeamInput } from "./TeamInput";
@@ -35,6 +36,10 @@ limits?: TeamLimits,
  * Which of the person's own Claude Code setup Claude agents load (Advanced).
  */
 claude_setup?: ClaudeSetup, 
+/**
+ * Rules between this team's agents and their tools (Advanced). On by default.
+ */
+protection?: Protection, 
 /**
  * What one run may use (Advanced). Absent = no budget.
  */

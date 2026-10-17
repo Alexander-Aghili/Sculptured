@@ -13,6 +13,7 @@ import { plural } from '../format';
 import { TeamLimitsFields } from './TeamLimitsFields';
 import { BudgetFields } from './BudgetFields';
 import { ClaudeSetupFields } from './ClaudeSetupFields';
+import { ProtectionFields } from './ProtectionFields';
 import { ImproveFromRun } from './ImproveFromRun';
 import type { Edit } from './Panels';
 import '../features.css';
@@ -137,6 +138,7 @@ export function TeamAdvanced({ teamId, draft, flush, edit, locked = false }: Pro
       <div className="ta-body">
         {edit && <BudgetFields draft={draft} edit={edit} locked={locked} />}
         {edit && <ClaudeSetupFields draft={draft} edit={edit} locked={locked} />}
+        {edit && <ProtectionFields draft={draft} edit={edit} locked={locked} />}
         {edit && <TeamLimitsFields draft={draft} edit={edit} locked={locked} />}
         {edit && <ImproveFromRun teamId={teamId} draft={draft} edit={edit} locked={locked} />}
         <p className="ta-hint">See this team as a spec file, or save it to share or keep.</p>

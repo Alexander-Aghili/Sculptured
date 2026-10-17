@@ -68,11 +68,27 @@ impl ClaudeStreamDriver {
         for dir in &spec.add_dirs {
             a.extend(["--add-dir".to_string(), dir.display().to_string()]);
         }
-        if let Some(setup) = &spec.claude_setup {
-            a.extend(setup.claude_args());
-        }
+        a.extend(spec.claude_setup.iter().flat_map(model::ClaudeSetup::claude_args).chain(spec.protection.iter().flat_map(Self::protection_args)));
         a.extend(spec.extra_args.iter().cloned());
         a
+    }
+
+    /// Protections: a PreToolUse hook running `guard`, the shell output cap, and Claude Code's lowest
+    /// compaction threshold as a backstop within long turns (Sculptured's own context ceiling acts
+    /// between turns). Passed with `--settings`, so they apply whatever setting sources load.
+    fn protection_args(p: &crate::ProtectionLaunch) -> Vec<String> {
+        let command = format!("\"{}\" guard", p.guard.display());
+        let settings = json!({
+            "hooks": { "PreToolUse": [{ "matcher": "Read|Bash", "hooks": [{ "type": "command", "command": command, "timeout": 5 }] }] },
+            "bashOutputMaxChars": p.rules.shell_output_chars,
+        });
+        vec!["--settings".into(), settings.to_string(), "--autocompact".into(), "100000".into()]
+    }
+
+    /// The guard's rules, in the environment the hook inherits from the agent's process.
+    pub fn protection_env(spec: &LaunchSpec) -> Option<(&'static str, String)> {
+        let p = spec.protection.as_ref()?;
+        Some(("SCULPTURED_PROTECTION", serde_json::to_string(&p.rules).expect("rules serialize")))
     }
 
     /// `--mcp-config` JSON naming one stdio server, `rig`.
@@ -122,6 +138,9 @@ impl ClaudeStreamDriver {
         if spec.seat_tools.is_some() {
             // A request_input or approve call may wait for the whole question timeout.
             cmd.env("MCP_TOOL_TIMEOUT", crate::MCP_TOOL_TIMEOUT_MS);
+        }
+        if let Some((k, v)) = Self::protection_env(spec) {
+            cmd.env(k, v);
         }
         process::spawn(&mut cmd, &program)
     }

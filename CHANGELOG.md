@@ -5,6 +5,7 @@ All notable changes to Sculptured are listed here. The format follows [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- Protections (team Advanced, on by default): a Claude Code `PreToolUse` hook (`sculptured guard`, passed with `--settings`) refuses whole reads of files over 100 KB (images, PDFs and notebooks excepted) and whole-file shell printers; shell output is capped at 8,000 characters (`bashOutputMaxChars`, with `--autocompact 100000` as a backstop); and an agent whose context passes 60,000 tokens writes its notes between turns and continues in a fresh conversation (Claude and Codex). New `TeamDraft.protection`, `LaunchParams.protection` (runner feature `protection`), events `protection-applied` and `context-ceiling-reached`, and per-call `context-reported` from the Claude and Codex parsers.
 - Upload in the Input: the folder picker can choose files (`GET /api/folders?files=true`, `LocalOp::ListFolder.files`, `FolderListing.files`; names and paths only, no dot-files), and their full paths are added to the Input for the agents to open. An older runner lists folders only, and the picker says so.
 - The team's model setting lists the agents whose own or group model wins over it, with "Use the team models for every agent".
 

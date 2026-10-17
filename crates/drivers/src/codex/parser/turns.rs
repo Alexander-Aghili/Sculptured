@@ -74,6 +74,12 @@ impl CodexParser {
         let ours = self.started.contains(&(thread.clone(), turn.clone()));
         let before = self.seen.insert(thread, total).unwrap_or_default();
         let d = total.since(before);
+        // `last` is the latest model call: its input (cached part included) is the context it read.
+        let last = Totals::from(&p["tokenUsage"]["last"]);
+        if ours && last.input > 0 {
+            out.events.push(DriverEvent::Context { turn_id: Some(turn.clone()), used_tokens: last.input,
+                window_tokens: p["tokenUsage"]["modelContextWindow"].as_u64(), basis: model::ContextBasis::Reported });
+        }
         if ours && d != Totals::default() {
             out.events.push(DriverEvent::Usage {
                 turn_id: Some(turn),

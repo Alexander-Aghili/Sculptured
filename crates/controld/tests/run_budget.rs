@@ -320,3 +320,22 @@ async fn start_can_resume_each_agents_last_conversation_or_start_fresh() {
     let t = &tenures(&s, &a)[2];
     assert!(t.0 != model::TenureCause::Resume && t.1.as_deref() != Some(first.as_str()), "a plain Start begins a new conversation: {t:?}");
 }
+
+/// Protections: an agent past its team's context ceiling writes its notes between turns, then
+/// continues in a fresh conversation.
+#[tokio::test]
+async fn an_agent_past_the_context_ceiling_continues_fresh_from_its_notes() {
+    let s = serve().await;
+    let _runner = claude_runner(&s).await;
+    let dir = tempfile::tempdir_in(s.home.path()).unwrap();
+    // Each call re-reads 70k tokens: past the default 60k ceiling.
+    let id = team(&s, dir.path(), &[("a", "spend:2:70000:20".into())], json!({})).await;
+    start_team(&s, &id).await;
+    let a = seat(&id, "a");
+    let has = |pred: &dyn Fn(&model::EventBody) -> bool| events(&s.st, &a).iter().any(|e| pred(&e.body));
+    wait_long("the ceiling is reached", || has(&|b| matches!(b, model::EventBody::ContextCeilingReached { ceiling: 60_000, .. }))).await;
+    wait_long("the note is asked for", || has(&|b| matches!(b, model::EventBody::MessageQueued { text, .. } if text.contains(".sculptured/notes/a.md")))).await;
+    wait_long("it continues fresh", || has(&|b| matches!(b, model::EventBody::MessageQueued { text, .. } if text.contains("continuing in a fresh conversation")))).await;
+    let fresh = events(&s.st, &a).iter().filter(|e| matches!(e.body, model::EventBody::TenureStarted { .. })).count();
+    assert!(fresh >= 2, "a second, fresh conversation started");
+}

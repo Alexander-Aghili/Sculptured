@@ -2225,6 +2225,7 @@ dependencies = [
  "drivers",
  "hostd",
  "libc",
+ "model",
  "reqwest",
  "rustls",
  "serde",

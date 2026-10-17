@@ -212,6 +212,9 @@ impl Supervisor {
         if self.inner.seat_tools.is_some() {
             f.push(SEAT_TOOLS);
         }
+        if self.guard_program().is_some() {
+            f.push(host_proto::features::PROTECTION);
+        }
         if self.inner.ops.is_some() {
             f.push(host_proto::features::LOCAL_OPS);
             f.push(host_proto::features::USAGE_REPORTS);

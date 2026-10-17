@@ -292,6 +292,7 @@ async fn pass(st: &AppState) {
         tracing::warn!(error = %e, "run budget check failed");
     }
     crate::collaboration::check_agent_limits(st).await;
+    crate::collaboration::context_ceiling::check(st).await;
     let waiting = gate::rigs_waiting(&st.store.lock().unwrap()).unwrap_or_default();
     for rig in waiting {
         if let Err(e) = gate::deliver(st, &rig).await {

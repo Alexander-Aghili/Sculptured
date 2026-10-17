@@ -61,6 +61,15 @@ pub struct LaunchSpec {
     pub add_dirs: Vec<PathBuf>,
     /// Claude: which of the person's own Claude Code setup to load; None = all of it.
     pub claude_setup: Option<model::ClaudeSetup>,
+    /// Claude: guard the agent's tool calls with these rules, run by `guard` (the `sculptured` binary).
+    pub protection: Option<ProtectionLaunch>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProtectionLaunch {
+    pub rules: model::GuardRules,
+    /// The `sculptured` binary; its `guard` subcommand is the hook.
+    pub guard: std::path::PathBuf,
 }
 
 impl LaunchSpec {
@@ -79,6 +88,7 @@ impl LaunchSpec {
             sandboxed: false,
             add_dirs: vec![],
             claude_setup: None,
+            protection: None,
         }
     }
 }

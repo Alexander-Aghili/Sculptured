@@ -63,6 +63,9 @@ pub struct LaunchParams {
     /// Claude agents: which of the person's own Claude Code setup to load. None = all of it (as before).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claude_setup: Option<model::ClaudeSetup>,
+    /// Claude agents: the protections to apply to the agent's tool calls. None = none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protection: Option<model::GuardRules>,
 }
 
 /// How a new tenure gets its native session.
@@ -189,6 +192,8 @@ pub mod features {
     pub const CLAUDE_SETUP: &str = "claude-setup";
     /// Answers `LocalOp::AnalyzeRun` (where a run's tokens went).
     pub const USAGE_REPORTS: &str = "usage-reports";
+    /// Honours `LaunchParams.protection` (guards the agent's tool calls).
+    pub const PROTECTION: &str = "protection";
 }
 
 /// Run the agent in its own git copy (worktree) of the folder, made on the computer that runs it.
@@ -214,6 +219,9 @@ impl LaunchParams {
         }
         if self.claude_setup.is_some() {
             f.push(features::CLAUDE_SETUP);
+        }
+        if self.protection.is_some() {
+            f.push(features::PROTECTION);
         }
         if self.own_copy.is_some() {
             f.push(features::LOCAL_OPS);

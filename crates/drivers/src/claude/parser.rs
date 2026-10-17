@@ -199,7 +199,7 @@ impl ClaudeParser {
         let parent = v["parent_tool_use_id"].as_str().map(str::to_string);
         let turn = self.ensure_turn(out);
         // A native subagent's calls count as they happen too (`modelUsage` at the end includes them).
-        self.message_usage(&v["message"], &turn, out);
+        self.message_usage(&v["message"], &turn, parent.is_none(), out);
         for b in v["message"]["content"].as_array().cloned().unwrap_or_default() {
             match b["type"].as_str().unwrap_or("") {
                 "text" => {
@@ -225,8 +225,13 @@ impl ClaudeParser {
 
     /// `message.usage` is per API message and repeats on every line of that message (output growing),
     /// so each message's largest values are kept and only their growth is reported, while the turn runs.
-    fn message_usage(&mut self, m: &Value, turn: &str, out: &mut Vec<DriverEvent>) {
+    /// The first line of each of the main conversation's calls also reports that call's context size.
+    fn message_usage(&mut self, m: &Value, turn: &str, main: bool, out: &mut Vec<DriverEvent>) {
         let (Some(id), Some(now)) = (m["id"].as_str(), UsageTotals::from_message_usage(&m["usage"])) else { return };
+        if main && !self.messages.contains_key(id) {
+            out.push(DriverEvent::Context { turn_id: Some(turn.to_string()), used_tokens: now.input + now.cache_read + now.cache_write,
+                window_tokens: None, basis: model::ContextBasis::Reported });
+        }
         let was = self.messages.get(id).copied().unwrap_or_default();
         let top = was.max(now);
         let d = top.since(was);

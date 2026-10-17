@@ -180,6 +180,9 @@ fn team_extension(file: &TeamFile) -> m::Extensions {
     if team.decision_log {
         ext.insert("decision_log".into(), Value::Bool(true));
     }
+    if !team.protection.is_default() {
+        ext.insert("protection".into(), json!(team.protection));
+    }
     if !team.claude_setup.is_default() {
         ext.insert("claude_setup".into(), json!(team.claude_setup));
     }

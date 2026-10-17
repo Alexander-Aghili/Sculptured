@@ -30,7 +30,7 @@ fn reviewer() -> DraftAgent {
 }
 
 fn draft() -> TeamDraft {
-    TeamDraft { claude_setup: Default::default(), budget: Default::default(), input: None, schedules: vec![], decision_log: false, limits: Default::default(),
+    TeamDraft { claude_setup: Default::default(), protection: Default::default(), budget: Default::default(), input: None, schedules: vec![], decision_log: false, limits: Default::default(),
         workflow: None,
         folder: None,
         id: "my-team".into(),

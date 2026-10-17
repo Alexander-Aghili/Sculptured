@@ -471,6 +471,37 @@
       },
       "additionalProperties": false
     },
+    "Protection": {
+      "description": "A team's protections (Advanced). On by default.",
+      "type": "object",
+      "properties": {
+        "context_tokens": {
+          "description": "Past this many tokens of context, an agent writes its notes and continues fresh.",
+          "type": "integer",
+          "format": "uint32",
+          "default": 60000,
+          "minimum": 0
+        },
+        "on": {
+          "type": "boolean",
+          "default": true
+        },
+        "read_kb": {
+          "description": "A read with no line range of a file larger than this many KB is refused.",
+          "type": "integer",
+          "format": "uint32",
+          "default": 100,
+          "minimum": 0
+        },
+        "shell_chars": {
+          "description": "The most shell output, in characters, that reaches an agent's context.",
+          "type": "integer",
+          "format": "uint32",
+          "default": 8000,
+          "minimum": 0
+        }
+      }
+    },
     "ResumeBehaviour": {
       "type": "string",
       "enum": [
@@ -669,6 +700,10 @@
         },
         "name": {
           "type": "string"
+        },
+        "protection": {
+          "description": "Rules between this team's agents and their tools (Advanced). On by default.",
+          "$ref": "#/$defs/Protection"
         },
         "revision": {
           "description": "Server-assigned save counter for optimistic concurrency.",

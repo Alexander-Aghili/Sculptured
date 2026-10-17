@@ -104,6 +104,15 @@ pub enum EventBody {
     MessageFailed { message_id: String, reason: String },
     /// controld keeps the message until a slot frees (the run budget's "most agents working at once").
     MessageHeld { message_id: String, reason: String },
+    /// A protection refused one of the agent's tool calls, with the reason the agent read.
+    ProtectionApplied { call_id: String, reason: String },
+    /// The agent's context passed the team's ceiling: it writes its notes and continues fresh.
+    ContextCeilingReached {
+        #[ts(type = "number")]
+        used_tokens: u64,
+        #[ts(type = "number")]
+        ceiling: u64,
+    },
     EventsLost {
         #[ts(type = "number")]
         count: u64,

@@ -51,7 +51,13 @@ pub fn map_event(ctx: &mut PumpCtx, seat: &str, ev: DriverEvent, stop_requested:
             vec![agent(EventBody::ToolCalled { turn_id, call_id, name, input: cap_input(input), parent_call_id })]
         }
         DriverEvent::ToolResult { turn_id, call_id, output, is_error } => {
-            vec![agent(EventBody::ToolResulted { turn_id, call_id, output: truncate(output, MAX_TEXT), is_error })]
+            // A protection's refusal arrives as the call's error, inside the CLI's own wording.
+            let refused = is_error.then(|| output.find(model::protection::MARK).map(|i| output[i..].to_string())).flatten();
+            let mut out = vec![agent(EventBody::ToolResulted { turn_id, call_id: call_id.clone(), output: truncate(output, MAX_TEXT), is_error })];
+            if let Some(reason) = refused {
+                out.push(system(EventBody::ProtectionApplied { call_id, reason: truncate(reason, MAX_TEXT) }));
+            }
+            out
         }
         DriverEvent::Usage { turn_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, in_turn } => {
             vec![agent(EventBody::UsageReported { turn_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost, in_turn })]

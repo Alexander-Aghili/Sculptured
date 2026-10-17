@@ -1,6 +1,6 @@
 # Protections: a fast rule layer between each agent and its tools
 
-Status: proposed, 17 October 2026.
+Status: built, 17 October 2026.
 
 ## Why
 

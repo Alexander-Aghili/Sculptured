@@ -72,3 +72,13 @@ fn result_reconciles_to_model_usage_exactly() {
     let sum = got.iter().fold([0; 4], |a, (u, _)| [a[0] + u[0], a[1] + u[1], a[2] + u[2], a[3] + u[3]]);
     assert_eq!(sum, [10, 40, 3000, 50], "the turn's total is modelUsage's, as before");
 }
+
+#[test]
+fn each_model_call_of_the_main_conversation_reports_its_context_once() {
+    let mut p = ClaudeParser::default();
+    p.on_sent("m".into());
+    let contexts = |events: Vec<DriverEvent>| events.into_iter().filter_map(|e| match e { DriverEvent::Context { used_tokens, .. } => Some(used_tokens), _ => None }).collect::<Vec<_>>();
+    assert_eq!(contexts(p.parse_line(&assistant("msg_1", [5, 10, 40_000, 2_000], None))), [42_005]);
+    assert_eq!(contexts(p.parse_line(&assistant("msg_1", [5, 30, 40_000, 2_000], None))), Vec::<u64>::new(), "the same call again: no new reading");
+    assert_eq!(contexts(p.parse_line(&assistant("msg_2", [1, 1, 9_000, 0], Some("toolu_sub")))), Vec::<u64>::new(), "a subagent's call is not this agent's context");
+}

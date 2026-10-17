@@ -60,7 +60,12 @@ fn fitted_params(
     let claude_setup = (seat.runtime == Runtime::ClaudeCode)
         .then(|| st.store.lock().unwrap().draft(rig).ok().flatten().map(|d| d.claude_setup).unwrap_or_default())
         .filter(|s| !(s.global && s.project));
+    // Claude agents' tool calls are guarded by the team's protections (on unless turned off).
+    let protection = (seat.runtime == Runtime::ClaudeCode)
+        .then(|| st.store.lock().unwrap().draft(rig).ok().flatten().map(|d| d.protection).unwrap_or_default())
+        .and_then(|p| p.guard_rules());
     let mut params = LaunchParams {
+        protection,
         claude_setup,
         cwd,
         model: seat.model.clone(),

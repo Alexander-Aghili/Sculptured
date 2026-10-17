@@ -102,6 +102,10 @@ fn drop_features(params: &mut LaunchParams, missing: &[&str]) -> Vec<&'static st
                 params.claude_setup = None;
                 lost.push("the setting that leaves out your own Claude Code plugins, skills and hooks");
             }
+            features::PROTECTION => {
+                params.protection = None;
+                lost.push("Sculptured's protections (reinstall the runner from Computers to get them)");
+            }
             _ => {}
         }
     }

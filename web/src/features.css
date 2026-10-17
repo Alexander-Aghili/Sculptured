@@ -195,3 +195,5 @@ a.pg-line-link:hover .pg-text { color: var(--accent); }
 
 .fld-row { display:grid; grid-template-columns:minmax(7em, max-content) 1fr; gap:8px; align-items:center; font-size:13px; }
 .fld-pair { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.ta-number { display:grid; grid-template-columns:1fr 7rem auto; gap:8px; align-items:center; font-size:13px; }
+.ta-number input { width:100%; }

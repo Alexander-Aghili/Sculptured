@@ -94,3 +94,20 @@ fn extra_folders_are_passed_with_add_dir() {
     let i = a.iter().position(|x| x == "--add-dir").expect("--add-dir");
     assert_eq!(a[i + 1], "/x/items");
 }
+
+#[test]
+fn protections_add_the_guard_hook_the_output_cap_and_a_compaction_backstop() {
+    let mut s = spec();
+    assert!(after(&ClaudeStreamDriver::args(&s, None, "s1"), "--settings").is_none(), "no protections, no settings");
+    s.protection = Some(drivers::ProtectionLaunch { rules: model::GuardRules { max_read_bytes: 102_400, shell_output_chars: 8000 }, guard: "/opt/My Apps/sculptured".into() });
+    let a = ClaudeStreamDriver::args(&s, None, "s1");
+    let settings: Value = serde_json::from_str(after(&a, "--settings").expect("--settings")).unwrap();
+    assert_eq!(settings["bashOutputMaxChars"], 8000);
+    let hook = &settings["hooks"]["PreToolUse"][0];
+    assert_eq!(hook["matcher"], "Read|Bash");
+    assert_eq!(hook["hooks"][0]["command"], r#""/opt/My Apps/sculptured" guard"#);
+    assert_eq!(after(&a, "--autocompact"), Some("100000"));
+    let env = ClaudeStreamDriver::protection_env(&s).expect("rules travel in the environment");
+    assert_eq!(env.0, "SCULPTURED_PROTECTION");
+    assert_eq!(serde_json::from_str::<model::GuardRules>(&env.1).unwrap().max_read_bytes, 102_400);
+}

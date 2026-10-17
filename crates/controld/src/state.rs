@@ -31,6 +31,8 @@ pub struct AppState {
     /// Handoff messages being sent right now (recorded, send not finished). One that is
     /// still queued and not in here was lost between recording and sending.
     pub handoffs_in_flight: Arc<Mutex<HashSet<String>>>,
+    /// Agents asked for their notes at the context ceiling: seat → the event seq when asked.
+    pub context_asked: Arc<Mutex<HashMap<String, i64>>>,
     /// `request_input` and `approve` calls waiting for the operator, by question id (Task 6 fills, Task 3 resolves).
     pub seat_waits: Arc<Mutex<HashMap<String, crate::seat_tools::SeatWait>>>,
     /// Cancels a team's start in flight (Task 9's Cancel start).
@@ -66,6 +68,7 @@ impl AppState {
             home: std::env::var_os("HOME").filter(|h| !h.is_empty()).map(|h| Arc::new(PathBuf::from(h))),
             handoffs_started: Arc::default(),
             handoffs_in_flight: Arc::default(),
+            context_asked: Arc::default(),
             seat_waits: Arc::default(),
             boot_cancel: Arc::default(),
             background_started: Arc::default(),

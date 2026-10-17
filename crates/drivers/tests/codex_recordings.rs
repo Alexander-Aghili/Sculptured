@@ -49,7 +49,7 @@ fn is_warning(e: &DriverEvent) -> bool {
 /// turn), for tests of the protocol flow.
 fn replay(name: &str) -> (Vec<DriverEvent>, Vec<Value>, CodexParser) {
     let (mut events, replies, p) = replay_all(name);
-    events.retain(|e| !is_warning(e) && !matches!(e, DriverEvent::PlanUsage(_)));
+    events.retain(|e| !is_warning(e) && !matches!(e, DriverEvent::PlanUsage(_) | DriverEvent::Context { .. }));
     (events, replies, p)
 }
 
@@ -836,4 +836,11 @@ fn codex_usage_arrives_during_the_turn() {
     let during: Vec<_> = k[..ended].iter().enumerate().filter(|&(_, &x)| x == "usage").map(|(i, _)| i).collect();
     assert!(during.len() >= 2, "{k:?}");
     assert!(k[during[0]..ended].iter().any(|&x| x != "usage"), "work happens between the reports: {k:?}");
+}
+
+#[test]
+fn each_model_call_reports_the_context_it_read_and_the_window() {
+    let (events, _, _) = replay_all("codex-basic");
+    let ctx: Vec<(u64, Option<u64>)> = events.iter().filter_map(|e| match e { DriverEvent::Context { used_tokens, window_tokens, .. } => Some((*used_tokens, *window_tokens)), _ => None }).collect();
+    assert!(!ctx.is_empty() && ctx.iter().all(|(used, window)| *used > 0 && window.is_some()), "{ctx:?}");
 }

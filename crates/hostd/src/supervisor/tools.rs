@@ -106,6 +106,15 @@ impl Supervisor {
     /// The seat-tools launch for token `t`, recorded as a live grant. A driver that passes the config
     /// as a file gets a unique one, so a late cleanup of an earlier process never deletes this one's
     /// (Codex passes it over stdin).
+    /// The program whose `guard` subcommand checks an agent's tool calls: the seat-tools shim (the
+    /// `sculptured` binary), else this process when it is that binary. None: protections can't run here.
+    pub(super) fn guard_program(&self) -> Option<PathBuf> {
+        if let Some(host) = &self.inner.seat_tools {
+            return Some(host.shim.clone());
+        }
+        std::env::current_exe().ok().filter(|p| p.file_stem().is_some_and(|n| n == "sculptured"))
+    }
+
     pub(super) fn grant_tools(&self, seat: &str, as_file: bool, p: &SeatToolsParams, t: &str) -> Result<Option<SeatToolsLaunch>, String> {
         let Some(host) = &self.inner.seat_tools else { return Ok(None) };
         let config_file = if as_file {

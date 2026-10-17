@@ -95,6 +95,18 @@ Every Claude agent starts with your own Claude Code setup unless the team leaves
 
 Sculptured's own agent tools load either way. The setting takes effect the next time an agent starts.
 
+## Protections: keep each agent's context small
+
+Most of a long run's tokens are agents re-reading their own conversation on every step, so a conversation that grows large makes every later step expensive, on any model. Team **Advanced** → **Protections** keeps it small. It is on by default.
+
+| Protection | Default | What the agent sees |
+|---|---|---|
+| **Refuse reading a whole file larger than** | 100 KB | The read is refused with the file's size and the advice to search it with `grep -n` and read only the lines it needs. Images, PDFs and notebooks are never refused. |
+| **Shell output an agent sees, at most** | 8,000 characters | Longer output is saved to a file; the agent gets its path and a short preview. |
+| **Continue an agent fresh from its notes at** | 60,000 tokens of context | Between turns, the agent is asked to write its notes (`.sculptured/notes/<agent>.md`), then continues in a fresh conversation from them. A turn is never interrupted. |
+
+Claude agents get all three; Codex agents get the context limit only. Every refusal and every fresh continue shows in the agent's conversation. An agent on a computer whose runner predates protections runs without them, and its page says so: reinstall the runner from **Computers**.
+
 ## Keeping a large team within a small budget
 
 A team of two dozen agents that reads hundreds of PDF pages can use a whole 5-hour window in half an hour. To stay within a third of it:

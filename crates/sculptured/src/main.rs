@@ -1,6 +1,7 @@
 //! `sculptured serve` runs controld and supervises a local hostd child process.
 //! `sculptured hostd` runs the host runtime; controld normally starts it.
 mod connect;
+mod guard;
 mod runners;
 mod web_cache;
 use axum::Router;
@@ -110,6 +111,10 @@ enum Cmd {
 }
 
 fn main() -> ExitCode {
+    // Claude Code runs this hook before every guarded tool call: answer before anything else starts.
+    if std::env::args_os().nth(1).is_some_and(|a| a == "guard") {
+        return guard::run();
+    }
     migrate_legacy_environment();
     let cli = Cli::parse();
     // `hostd` has read its token from the environment by now. Remove it so no agent

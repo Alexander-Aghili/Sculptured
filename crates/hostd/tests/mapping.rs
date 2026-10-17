@@ -297,3 +297,12 @@ fn context_is_a_protocol_record_of_the_agent() {
         }]
     );
 }
+
+#[test]
+fn a_protection_refusal_is_recorded_as_such_and_other_errors_are_not() {
+    let result = |output: &str| DriverEvent::ToolResult { turn_id: None, call_id: "c1".into(), output: output.into(), is_error: true };
+    let out = bodies(map_event(&mut ctx(true), "dev.a@r", result("PreToolUse:Read hook error: Sculptured protection: big.csv is 293 KB…"), false));
+    assert!(matches!(&out[1], EventBody::ProtectionApplied { call_id, reason } if call_id == "c1" && reason.starts_with("Sculptured protection: big.csv")), "{out:?}");
+    let plain = bodies(map_event(&mut ctx(true), "dev.a@r", result("No such file"), false));
+    assert_eq!(plain.len(), 1, "an ordinary error is only the tool's result");
+}
