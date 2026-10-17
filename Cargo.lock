@@ -413,7 +413,7 @@ dependencies = [
  "interpreter",
  "jsonschema",
  "localops",
- "madl",
+ "madl 0.1.0 (git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=ec8f0af1e0a523e616a39211bf6ce9387303ccf0)",
  "model",
  "reqwest",
  "rigspec",
@@ -1445,12 +1445,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "madl"
+version = "0.1.0"
+source = "git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=ec8f0af1e0a523e616a39211bf6ce9387303ccf0#ec8f0af1e0a523e616a39211bf6ce9387303ccf0"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_yaml_ng",
+ "thiserror",
+ "ts-rs",
+]
+
+[[package]]
 name = "mais"
 version = "0.1.0"
 source = "git+https://github.com/Alexander-Aghili/Multi-Agent-Investigative-Systems?rev=73485f76897d0e81d053b402fb6c8fe79ea78c44#73485f76897d0e81d053b402fb6c8fe79ea78c44"
 dependencies = [
  "chrono",
- "madl",
+ "madl 0.1.0 (git+https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language?rev=ea9c2dd849ab41367b0cccbba86d613dadcf276d)",
  "regex",
  "schemars",
  "serde",

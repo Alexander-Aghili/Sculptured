@@ -91,9 +91,25 @@ impl Options {
     }
 }
 
-pub(super) const ABOUT: &str = "You design teams of AI agents for Sculptured. Agents are Claude Code or Codex sessions. \
+/// Rules of thumb from multi-agent research (Kim et al. 2025, McEntire 2026, Anthropic, Cognition, Yang's
+/// CS2680): heuristics the design assistants follow, not laws.
+macro_rules! design_rules {
+    () => {
+        "Rules of thumb (heuristics from multi-agent research, not laws): \
+Use one agent unless the work splits into parts that are truly independent, need different permissions, or would not fit in one agent's context; every extra agent adds planning, messages and merging. \
+Split along the work's real dependencies, not along job titles. \
+When the parts barely depend on each other, give every agent the same goal and the context it needs; when they depend heavily on each other, make one agent own the decisions that cross between them rather than adding more messages. \
+Settle shared interfaces and file formats first, before the parts are built. \
+Judge work with checks and tests, not with another agent's approval: agents with the same context share the same blind spots, so a reviewer should try to refute the work, and tests are best written without seeing the implementation. \
+Prefer a few clear connections to everyone talking to everyone. \
+Give each agent a clear area of files it writes, so no two agents write the same files."
+    };
+}
+pub(super) use design_rules;
+
+pub(super) const ABOUT: &str = concat!("You design teams of AI agents for Sculptured. Agents are Claude Code or Codex sessions. \
 An arrow \"hands-work-to\" means the first agent's finished work is sent to the second; \"reports-to\" and \"watches\" record intent only. \
-Each agent's job is the first message it receives: write it as a direct, specific instruction.";
+Each agent's job is the first message it receives: write it as a direct, specific instruction.\n\n", design_rules!());
 
 fn questions_prompt(prompt: &str, o: &Options) -> String {
     format!("{ABOUT}\n\nThe user wants this team:\n{prompt}\n\n{}\n\nBefore designing it, ask 2 to 4 short questions whose answers would most change the design. Give each 2 to 4 likely answers.", o.sentences())

@@ -61,6 +61,14 @@ pub struct AgentAdvanced {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub check: Option<String>,
+    /// What this agent reads and writes, and what else it changes (MADL `data_access`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub data_access: Option<crate::DataAccess>,
+    /// The decisions this agent owns (MADL `authority`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub authority: Option<crate::Authority>,
 }
 
 /// Limits a person set on a team's spawned agents. None = no limit; Sculptured sets none of its own.

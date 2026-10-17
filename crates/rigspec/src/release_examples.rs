@@ -18,7 +18,7 @@ pub fn template(id: &str, team: &str, name: &str, practice: bool) -> Option<Team
         folder: None,
         x,
         y,
-        advanced: AgentAdvanced {
+        advanced: AgentAdvanced { data_access: None, authority: None,
             permission: PermissionPosture::Restricted,
             ..AgentAdvanced::default()
         },

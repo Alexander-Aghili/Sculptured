@@ -64,6 +64,10 @@ impl Cx<'_> {
             },
             token_limit,
             check: a.checks.first().map(|c| c.command.clone()),
+            data_access: a.data_access.as_ref().map(|d| model::DataAccess {
+                reads: d.reads.clone(), writes: d.writes.clone(), side_effects: d.side_effects.clone(), rationale: d.rationale.clone(),
+            }),
+            authority: a.authority.as_ref().map(|x| model::Authority { domains: x.domains.clone(), scope: x.scope.clone(), rationale: x.rationale.clone() }),
         }
     }
 

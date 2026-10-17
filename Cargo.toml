@@ -21,7 +21,7 @@ signing = { path = "crates/signing" }
 localops = { path = "crates/localops" }
 interpreter = { path = "crates/interpreter" }
 mais = { git = "https://github.com/Alexander-Aghili/Multi-Agent-Investigative-Systems", rev = "73485f76897d0e81d053b402fb6c8fe79ea78c44" }
-madl = { git = "https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language", rev = "ea9c2dd849ab41367b0cccbba86d613dadcf276d" }
+madl = { git = "https://github.com/Sculptured/Multi-Agent-Descriptor-Language", rev = "ec8f0af1e0a523e616a39211bf6ce9387303ccf0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 schemars = "1"

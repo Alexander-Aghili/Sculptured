@@ -52,7 +52,7 @@ impl Protection {
 
     /// What a runner needs to guard an agent's calls; None when protections are off.
     pub fn guard_rules(&self) -> Option<GuardRules> {
-        self.on.then(|| GuardRules { max_read_bytes: u64::from(self.read_kb) * 1024, shell_output_chars: self.shell_chars })
+        self.on.then(|| GuardRules { max_read_bytes: u64::from(self.read_kb) * 1024, shell_output_chars: self.shell_chars, ..GuardRules::default() })
     }
 
     /// The context ceiling in tokens; None when protections are off.
@@ -62,10 +62,16 @@ impl Protection {
 }
 
 /// The rules a runner applies to one agent's tool calls (sent with its launch).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GuardRules {
     pub max_read_bytes: u64,
     pub shell_output_chars: u32,
+    /// The agent's data contract: paths relative to its folder, or absolute (a folder covers what is
+    /// inside it). Empty = no limit.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reads: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub writes: Vec<String>,
 }
 
 /// Files read as a whole by nature (an image cannot be read in pieces): never refused.
@@ -85,13 +91,19 @@ pub fn decide(rules: &GuardRules, hook: &Value, size: &dyn Fn(&Path) -> Option<u
         let whole = p.extension().and_then(|e| e.to_str()).is_some_and(|e| WHOLE.contains(&e.to_ascii_lowercase().as_str()));
         size(&p).filter(|n| !whole && *n > rules.max_read_bytes)
     };
+    let absolute = |file: &str| Some(if Path::new(file).is_absolute() { PathBuf::from(file) } else { cwd.clone()?.join(file) });
     match hook.get("tool_name")?.as_str()? {
+        "Write" | "Edit" | "MultiEdit" | "NotebookEdit" => {
+            let file = input.get("file_path").or_else(|| input.get("notebook_path"))?.as_str()?;
+            outside(&absolute(file)?, &rules.writes, &[], cwd.as_deref()).then(|| contract_reason(file, "writes", &rules.writes))
+        }
         "Read" => {
-            if input.get("limit").is_some_and(|l| !l.is_null()) {
-                return None;
-            }
             let file = input.get("file_path")?.as_str()?;
-            big(file).map(|n| reason(file, n))
+            if outside(&absolute(file)?, &rules.reads, &rules.writes, cwd.as_deref()) {
+                return Some(contract_reason(file, "reads", &rules.reads));
+            }
+            let ranged = input.get("limit").is_some_and(|l| !l.is_null());
+            if ranged { None } else { big(file).map(|n| reason(file, n)) }
         }
         "Bash" | "shell" | "exec_command" => {
             let command = input.get("command").and_then(command_text)?;
@@ -99,6 +111,32 @@ pub fn decide(rules: &GuardRules, hook: &Value, size: &dyn Fn(&Path) -> Option<u
         }
         _ => None,
     }
+}
+
+/// True when `allowed` is a contract (not empty) and `path` is in none of it, nor in `also`, nor in the
+/// agent's own `.sculptured/` folder (its notes).
+fn outside(path: &Path, allowed: &[String], also: &[String], cwd: Option<&Path>) -> bool {
+    if allowed.is_empty() {
+        return false;
+    }
+    let within = |root: &str| {
+        let root = root.trim_start_matches("./").trim_end_matches("/**").trim_end_matches("/*").trim_end_matches('/');
+        let root = match (Path::new(root).is_absolute(), cwd) {
+            (true, _) => PathBuf::from(root),
+            (false, Some(c)) => c.join(root),
+            (false, None) => return false,
+        };
+        path.starts_with(root)
+    };
+    let notes = cwd.is_some_and(|c| path.starts_with(c.join(".sculptured")));
+    !(notes || allowed.iter().chain(also).any(|r| within(r)))
+}
+
+fn contract_reason(file: &str, what: &str, allowed: &[String]) -> String {
+    format!(
+        "{MARK} {file} is outside what this agent {what} ({}). Stay within its data contract; for other files, ask the agent whose work they are.",
+        allowed.join(", ")
+    )
 }
 
 /// A shell command as text (Codex sends an argv list).
@@ -182,6 +220,35 @@ mod tests {
         assert_eq!(call("Bash", json!({ "command": "grep -n wing big.csv" })), None);
         assert_eq!(call("Bash", json!({ "command": "cat small.rs" })), None);
         assert_eq!(call("Bash", json!({ "command": "cat a.csv b.csv" })), None, "unclear: let it through");
+    }
+
+    fn contract() -> GuardRules {
+        GuardRules { reads: vec!["manuals".into()], writes: vec!["/work/cad/wings/".into()], ..rules() }
+    }
+
+    fn with(rules: &GuardRules, tool: &str, input: Value) -> Option<String> {
+        decide(rules, &json!({ "tool_name": tool, "tool_input": input, "cwd": "/work" }), &sizes)
+    }
+
+    #[test]
+    fn writes_outside_the_agents_contract_are_refused_and_its_notes_always_pass() {
+        let c = contract();
+        let r = with(&c, "Write", json!({ "file_path": "/work/cad/fuselage/frame.step" })).expect("refused");
+        assert!(r.starts_with(MARK) && r.contains("frame.step") && r.contains("/work/cad/wings"), "{r}");
+        assert!(with(&c, "Edit", json!({ "file_path": "cad/fuselage/x.py" })).is_some(), "relative to cwd");
+        assert!(with(&c, "NotebookEdit", json!({ "notebook_path": "/work/other.ipynb" })).is_some());
+        assert_eq!(with(&c, "Write", json!({ "file_path": "/work/cad/wings/spar.step" })), None);
+        assert_eq!(with(&c, "Write", json!({ "file_path": "/work/.sculptured/notes/wings.md" })), None, "its notes");
+        assert_eq!(with(&rules(), "Write", json!({ "file_path": "/anywhere/x" })), None, "no contract: no limit");
+    }
+
+    #[test]
+    fn reads_outside_the_agents_contract_are_refused_but_its_own_writes_can_be_read() {
+        let c = contract();
+        assert!(with(&c, "Read", json!({ "file_path": "/work/secrets/keys.txt", "limit": 10 })).is_some());
+        assert_eq!(with(&c, "Read", json!({ "file_path": "/work/manuals/ch1.txt" })), None);
+        assert!(with(&c, "Read", json!({ "file_path": "/work/manualsx/ch1.txt" })).is_some(), "a sibling with the same prefix is outside");
+        assert_eq!(with(&c, "Read", json!({ "file_path": "/work/cad/wings/spar.step" })), None);
     }
 
     #[test]

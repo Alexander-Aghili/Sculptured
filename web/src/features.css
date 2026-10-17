@@ -197,3 +197,5 @@ a.pg-line-link:hover .pg-text { color: var(--accent); }
 .fld-pair { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 .ta-number { display:grid; grid-template-columns:1fr 7rem auto; gap:8px; align-items:center; font-size:13px; }
 .ta-number input { width:100%; }
+.fld-contract { display:grid; gap:8px; border:0; padding:0; margin:8px 0; }
+.fld-contract .fld { display:grid; gap:4px; font-size:13px; }

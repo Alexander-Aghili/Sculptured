@@ -49,12 +49,14 @@ pub(super) async fn assistant(State(st): State<AppState>, Path(team): Path<Strin
     respond(propose(&st, &team, req).await)
 }
 
-const ABOUT_MADL: &str = "You change the design of a team of AI agents in Sculptured. The design is a MADL (Multi-Agent Descriptor Language) document in YAML. \
+const ABOUT_MADL: &str = concat!("You change the design of a team of AI agents in Sculptured. The design is a MADL (Multi-Agent Descriptor Language) document in YAML. \
 Sculptured runs: agents (`runtime: claude-code` or `codex`); groups (`groups:` on an agent lists the one group it is in); connections of kind `handoff` (the agent's finished work is sent to the other), `report` and `watch`; \
 one input (the brief the starting agents receive); each agent's `instructions` (its job: the first message it receives, written as a direct, specific instruction); `model` (`provider/model`); \
-`checks` (a shell command run after each turn); and token budgets (`settings.restrictions.budget.tokens`). \
+`checks` (a shell command run after each turn); token budgets (`settings.restrictions.budget.tokens`); \
+`data_access` (`reads`, `writes`, `side_effects`, `rationale`: what the agent reads and writes, relative to its folder; writes outside it are refused) and \
+`authority` (`domains`: the decisions it owns; `scope`: a group id or `system` when its decisions reach across that group or the whole team). \
 Keep the id of everything that still exists; give new things short, new ids (lowercase letters, digits and hyphens). \
-Do not add channels, communication rules, people (`runtime: human`), steps or tools: Sculptured does not use them yet.";
+Do not add channels, communication rules, people (`runtime: human`), steps or tools: Sculptured does not use them yet.\n\n", super::design_rules!());
 
 /// The CLI takes at most 32 KB of prompt.
 const PROMPT_LIMIT: usize = 31 * 1024;

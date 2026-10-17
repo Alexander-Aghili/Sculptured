@@ -140,4 +140,5 @@ async fn a_proposal_keeps_the_saved_budget_and_agent_limits() {
     assert_eq!(p["draft"]["agents"][0]["advanced"]["turn_limit"], json!({ "hard": 12 }));
     let prompt = std::fs::read_to_string(d.path().join("prompts")).unwrap();
     assert!(prompt.contains("max_working: 3"), "the CLI sees the budget it designs within: {prompt}");
+    assert!(prompt.contains("Split along the work's real dependencies") && prompt.contains("`data_access`") && prompt.contains("`scope`"), "the assistant knows the design rules and contracts");
 }

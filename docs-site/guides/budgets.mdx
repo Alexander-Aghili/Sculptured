@@ -107,6 +107,19 @@ Most of a long run's tokens are agents re-reading their own conversation on ever
 
 Claude agents get all three; Codex agents get the context limit only. Every refusal and every fresh continue shows in the agent's conversation. An agent on a computer whose runner predates protections runs without them, and its page says so: reinstall the runner from **Computers**.
 
+## Contracts: what each agent reads, writes and decides
+
+An agent's **Advanced** settings include its **Contract**. Every line is optional:
+
+| Field | What it does |
+|---|---|
+| **Reads** / **Writes** | Files and folders, one per line, relative to the agent's folder. With protections on, Claude agents' `Read`, `Write` and `Edit` calls outside them are refused with the reason. Shell commands are not checked. The agent's own notes folder is always allowed. |
+| **Other effects** | Effects beyond its files, in plain words ("sends email", "pushes to main"), told to the agent |
+| **Decides** | Decisions the agent owns. Every agent is told who decides what, and asks the owner before deciding within its domain |
+| **Its decisions reach** | Its own work, a group, or the whole team. A decision belongs to the agent whose reach contains its consequences, so a choice that crosses groups goes to that owner instead of being agreed between two agents who are each only locally right |
+
+Contracts travel in MADL files as `data_access` and `authority`. MADL also warns when two agents may write the same paths or own the same decision.
+
 ## Keeping a large team within a small budget
 
 A team of two dozen agents that reads hundreds of PDF pages can use a whole 5-hour window in half an hour. To stay within a third of it:

@@ -55,15 +55,7 @@ fn fitted_params(
             (None, vec![dir.display().to_string()])
         }
     };
-    // Claude agents load only the parts of the person's own Claude Code setup the team allows;
-    // with all of it allowed nothing is sent, as before.
-    let claude_setup = (seat.runtime == Runtime::ClaudeCode)
-        .then(|| st.store.lock().unwrap().draft(rig).ok().flatten().map(|d| d.claude_setup).unwrap_or_default())
-        .filter(|s| !(s.global && s.project));
-    // Claude agents' tool calls are guarded by the team's protections (on unless turned off).
-    let protection = (seat.runtime == Runtime::ClaudeCode)
-        .then(|| st.store.lock().unwrap().draft(rig).ok().flatten().map(|d| d.protection).unwrap_or_default())
-        .and_then(|p| p.guard_rules());
+    let (claude_setup, protection) = claude_settings(st, rig, seat);
     let mut params = LaunchParams {
         protection,
         claude_setup,
@@ -160,4 +152,27 @@ pub async fn relaunch(
     })?;
     crate::reconciler::wait_settled(st, &[seat.to_string()]).await;
     crate::reconciler::lifecycle(st, seat).ok_or_else(|| ApiError::internal(format!("agent {seat} has no lifecycle")))
+}
+
+/// The agent's data contract added to its protections. Relative paths stay relative: the guard reads
+/// them against the folder the agent actually works in (its own copy, on a connected computer).
+fn with_contract(mut rules: model::GuardRules, agent: Option<&model::DraftAgent>) -> model::GuardRules {
+    let Some(c) = agent.and_then(|a| a.advanced.data_access.as_ref()) else { return rules };
+    let clean = |p: &String| p.trim().to_string();
+    rules.reads = c.reads.iter().map(clean).filter(|p| !p.is_empty()).collect();
+    rules.writes = c.writes.iter().map(clean).filter(|p| !p.is_empty()).collect();
+    rules
+}
+
+/// Claude agents only: the part of the person's own Claude Code setup the team allows (None when all of
+/// it is, as before), and the team's protections with the agent's contract (on unless turned off).
+fn claude_settings(st: &AppState, rig: &str, seat: &CompiledSeat) -> (Option<model::ClaudeSetup>, Option<model::GuardRules>) {
+    if seat.runtime != Runtime::ClaudeCode {
+        return (None, None);
+    }
+    let draft = st.store.lock().unwrap().draft(rig).ok().flatten();
+    let setup = draft.as_ref().map(|d| d.claude_setup).unwrap_or_default();
+    let protection = draft.as_ref().map(|d| d.protection).unwrap_or_default().guard_rules()
+        .map(|rules| with_contract(rules, draft.as_ref().and_then(|d| d.agent_for_seat(&seat.id))));
+    ((!(setup.global && setup.project)).then_some(setup), protection)
 }

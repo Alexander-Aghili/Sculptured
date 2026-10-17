@@ -5,6 +5,8 @@ pub mod cap;
 mod caps;
 mod budget;
 pub mod protection;
+pub mod contract;
+pub use contract::{Authority, DataAccess};
 pub use protection::{GuardRules, Protection};
 pub use budget::{ClaudeSetup, ContinueMode, PlanBudget, PlanPause, RunBudget, SoftHard, SOFT_SHARE};
 mod draft;

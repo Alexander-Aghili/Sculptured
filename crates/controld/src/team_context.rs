@@ -64,7 +64,37 @@ pub(crate) fn briefing(d: &TeamDraft, seat: &str) -> Option<String> {
     lines.push(EFFICIENCY.into());
     lines.push("Use downstream jobs to decide your handoff: when another agent owns implementation, provide its plan and inputs instead of doing that agent's work. Respect project-wide constraints stated in the jobs (such as output folders or no publishing) throughout the team. Ask the operator about conflicting instructions.".into());
     lines.extend(team_lines(d, me));
+    lines.extend(contract_lines(d, me));
     Some(lines.join("\n\n"))
+}
+
+/// Who decides what in the team (MADL `authority`), and `me`'s own data contract (`data_access`).
+fn contract_lines(d: &TeamDraft, me: &DraftAgent) -> Vec<String> {
+    let mut out = Vec::new();
+    let owners: Vec<String> = d.agents.iter()
+        .flat_map(|a| a.advanced.authority.iter().flat_map(|x| x.domains.iter()).map(move |dom| format!("{}: {} [{}]", dom.trim(), a.name, a.id)))
+        .collect();
+    if !owners.is_empty() {
+        out.push(format!("Who decides what: {}. Within another agent's domain, ask it (send_agent_message) before you decide.", owners.join("; ")));
+    }
+    // A decision belongs to the agent whose scope contains its consequences (McEntire, "The Swarm Needs a General").
+    let scoped: Vec<String> = d.agents.iter().filter_map(|a| {
+        let scope = a.advanced.authority.as_ref()?.scope.as_deref()?;
+        let reach = if scope == "system" { "the whole team".to_string() } else { format!("the {} group", d.groups.iter().find(|g| g.id == scope).map_or(scope, |g| g.label.trim())) };
+        Some(format!("{} [{}] owns decisions whose consequences reach across {reach}", a.name, a.id))
+    }).collect();
+    if !scoped.is_empty() {
+        out.push(format!("{}. Settle what stays inside your own work directly with the agents involved; when a decision's consequences cross into another group's work, take it to that owner instead of agreeing it between yourselves.", scoped.join("; ")));
+    }
+    if let Some(c) = me.advanced.data_access.as_ref().filter(|c| !(c.reads.is_empty() && c.writes.is_empty() && c.side_effects.is_empty())) {
+        let mut parts = Vec::new();
+        if !c.reads.is_empty() { parts.push(format!("you read {}", c.reads.join(", "))); }
+        if !c.writes.is_empty() { parts.push(format!("you write {}", c.writes.join(", "))); }
+        if !c.side_effects.is_empty() { parts.push(format!("other effects: {}", c.side_effects.join(", "))); }
+        let why = c.rationale.as_deref().map(|r| format!(" Why: {}", r.trim())).unwrap_or_default();
+        out.push(format!("Your data contract: {}.{why} Stay within it: Sculptured refuses file reads and writes outside it where it can tell.", parts.join("; ")));
+    }
+    out
 }
 
 /// Whether the seat's current conversation already holds the briefing: a message went to it since the
@@ -158,6 +188,20 @@ mod tests {
         }
         assert!(briefing(&d, "missing").is_none());
         assert!(!briefing(&d, &d.seat_id(&d.agents[0].id).unwrap()).unwrap().contains("Your group"));
+    }
+
+    #[test]
+    fn agents_learn_who_decides_what_and_their_own_data_contract() {
+        let mut d = rigspec::templates::template("builder-reviewer", "project", "My project", false).unwrap();
+        let (builder, reviewer) = (d.agents[0].id.clone(), d.agents[1].id.clone());
+        d.agents[0].advanced.authority = Some(model::Authority { domains: vec!["wing geometry".into()], scope: Some("system".into()), rationale: None });
+        d.agents[0].advanced.data_access = Some(model::DataAccess { reads: vec!["manuals/".into()], writes: vec!["cad/wings/".into()], side_effects: vec!["none".into()], rationale: None });
+        let to_reviewer = briefing(&d, &d.seat_id(&reviewer).unwrap()).unwrap();
+        assert!(to_reviewer.contains("Who decides what: wing geometry: Builder [builder]."), "{to_reviewer}");
+        assert!(to_reviewer.contains("Builder [builder] owns decisions whose consequences reach across the whole team"), "{to_reviewer}");
+        assert!(!to_reviewer.contains("Your data contract"), "only the agent's own contract");
+        let to_builder = briefing(&d, &d.seat_id(&builder).unwrap()).unwrap();
+        assert!(to_builder.contains("Your data contract: you read manuals/; you write cad/wings/; other effects: none."), "{to_builder}");
     }
 
     #[test]

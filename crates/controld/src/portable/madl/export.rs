@@ -82,6 +82,10 @@ fn agent(team: &TeamDraft, a: &DraftAgent, own_copies: bool) -> m::Agent {
         workspace,
         checks: a.advanced.check.iter().map(|c| m::Check { command: c.clone(), after: Some(m::CheckWhen::EachTurn), timeout_s: None }).collect(),
         settings: budget(a),
+        data_access: a.advanced.data_access.as_ref().map(|d| m::DataAccess {
+            reads: d.reads.clone(), writes: d.writes.clone(), side_effects: d.side_effects.clone(), rationale: d.rationale.clone(),
+        }),
+        authority: a.advanced.authority.as_ref().map(|x| m::Authority { domains: x.domains.clone(), scope: x.scope.clone(), rationale: x.rationale.clone() }),
         extensions: agent_extension(a, in_group.is_none()),
         ..Default::default()
     }

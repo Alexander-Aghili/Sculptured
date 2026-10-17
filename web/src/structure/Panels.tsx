@@ -1,4 +1,5 @@
 import type { TeamOrigin } from '../generated/TeamOrigin';
+import { ContractFields } from './ContractFields';
 import { SaveGroupButton } from '../groups/SaveGroupButton';
 import { ProjectFolder } from './ProjectFolder';
 import { effectiveFolder, folderForAll } from '../draft/folders';
@@ -292,6 +293,7 @@ export function AgentPanel({ draft, agentId, issues, edit, locked, onSelect, nam
             <option value="restricted">restricted</option>
           </select>
         </Field>
+        <ContractFields draft={draft} agent={a} edit={edit} locked={locked} />
         <p className="fld-meta">
           {WORDS.internalId}: <code>{a.id}</code> · address <code>{seatIdFor(draft, a.id)}</code>
         </p>

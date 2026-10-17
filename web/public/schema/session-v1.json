@@ -227,11 +227,33 @@
     "AgentAdvanced": {
       "type": "object",
       "properties": {
+        "authority": {
+          "description": "The decisions this agent owns (MADL `authority`).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Authority"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "check": {
           "description": "A shell command Sculptured runs in the agent's folder after each turn it finishes (exit 0 =\npassed). None = no check.",
           "type": [
             "string",
             "null"
+          ]
+        },
+        "data_access": {
+          "description": "What this agent reads and writes, and what else it changes (MADL `data_access`).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataAccess"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "minute_limit": {
@@ -365,6 +387,32 @@
           ]
         }
       ]
+    },
+    "Authority": {
+      "description": "The decisions an agent owns, in plain words.",
+      "type": "object",
+      "properties": {
+        "domains": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "description": "How far its decisions reach: a group id, or `system` for the whole team. None: its own work.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     },
     "BoardPosition": {
       "type": "object",
@@ -522,6 +570,37 @@
           "const": "openai-list-prices"
         }
       ]
+    },
+    "DataAccess": {
+      "description": "Paths relative to the agent's folder; a trailing `/` or `/**` covers a folder.",
+      "type": "object",
+      "properties": {
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "side_effects": {
+          "description": "Effects beyond its files, in plain words.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     },
     "DecisionSource": {
       "oneOf": [

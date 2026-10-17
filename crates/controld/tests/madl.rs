@@ -126,3 +126,17 @@ async fn the_api_exports_madl_and_imports_it_as_a_new_team() {
     let (status, refused) = call(&s.router, "POST", "/api/teams/import-madl", json!({ "request_id": rid(), "text": "madl: draft\nsystem: { id: s }\n" })).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{refused}");
 }
+
+#[test]
+fn contracts_and_protections_round_trip_through_madl() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/teams/gstack-roles.sculptured-team.json")).unwrap();
+    let mut file: TeamFile = serde_json::from_str(&text).unwrap();
+    file.team.revision = 0;
+    file.team.protection = model::Protection { on: true, read_kb: 200, shell_chars: 4000, context_tokens: 80_000 };
+    let a = &mut file.team.agents[0].advanced;
+    a.data_access = Some(model::DataAccess { reads: vec!["manuals/".into()], writes: vec!["cad/wings/".into()], side_effects: vec!["none".into()], rationale: Some("Only the wing team changes wing geometry.".into()) });
+    a.authority = Some(model::Authority { domains: vec!["wing geometry".into()], scope: Some("system".into()), rationale: None });
+    round_trip(&file);
+    let yaml = serde_yaml_ng::to_string(&to_madl(&file)).unwrap();
+    assert!(yaml.contains("data_access:") && yaml.contains("authority:"), "standard MADL fields, not an extension: {yaml}");
+}

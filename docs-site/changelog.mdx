@@ -7,6 +7,11 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 17 October 2026
 
+### Contracts: who reads, writes and decides what
+
+- **Give each agent a contract** under its **Advanced** settings: the files it reads and writes, other effects, the decisions it owns, and how far those decisions reach. Every agent is told who decides what; with protections on, Claude agents' file reads and writes outside their contract are refused. Ideas from Pact and from McEntire's "The Swarm Needs a General". See [Budgets and limits](/guides/budgets#contracts-what-each-agent-reads-writes-and-decides).
+- **The design assistant designs with research-based rules of thumb:** one agent unless the work truly splits, split along real dependencies, one owner for decisions that cross groups, and tests rather than another agent's approval.
+
 ### Protections
 
 - **Agents keep their context small, by default.** A whole read of a large file is refused with advice to search it and read only the lines needed; shell output an agent sees is capped; and when an agent's conversation passes 60,000 tokens, it writes its notes and continues in a fresh one. Most of a long run's tokens are agents re-reading their own conversation, so this makes every later step cheaper, on Opus as on any model. Settings are in team **Advanced** → **Protections**; see [Budgets and limits](/guides/budgets#protections-keep-each-agents-context-small). Reinstall the runner from **Computers** to get them.

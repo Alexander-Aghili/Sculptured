@@ -121,7 +121,7 @@ impl Supervisor {
         spec.sandboxed = self.inner.policy.as_ref().is_some_and(|pol| pol.sandboxed());
         spec.usage_baseline = p.usage_baseline;
         spec.claude_setup = p.claude_setup;
-        spec.protection = p.protection.and_then(|rules| self.guard_program().map(|guard| drivers::ProtectionLaunch { rules, guard }));
+        spec.protection = p.protection.clone().and_then(|rules| self.guard_program().map(|guard| drivers::ProtectionLaunch { rules, guard }));
         spec.add_dirs = self.add_dirs(p)?;
         if let (Some(tools), Some(t)) = (&p.seat_tools, token) {
             spec.seat_tools = self.grant_tools(&req.seat, req.drv.seat_tools_config_file(), tools, t)?;
