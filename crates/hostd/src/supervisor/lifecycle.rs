@@ -126,6 +126,15 @@ impl Supervisor {
         if let (Some(tools), Some(t)) = (&p.seat_tools, token) {
             spec.seat_tools = self.grant_tools(&req.seat, req.drv.seat_tools_config_file(), tools, t)?;
         }
+        if !p.skills.is_empty() {
+            if req.drv.name() == "claude-stream" {
+                spec.plugin_dirs.extend(self.skills_plugin(&req.seat, &p.skills)?);
+            } else if let Some(t) = spec.seat_tools.as_mut() {
+                // Other CLIs read a skill with `read_skill` when its description applies.
+                t.env.push((host_proto::seat_tools::SKILLS_ENV.to_string(), "1".to_string()));
+            }
+        }
+        spec.mcp_servers = self.integrations(&req.seat, &p.integrations);
         Ok(spec)
     }
 

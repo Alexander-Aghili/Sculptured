@@ -86,6 +86,8 @@ fn agent(team: &TeamDraft, a: &DraftAgent, own_copies: bool) -> m::Agent {
             reads: d.reads.clone(), writes: d.writes.clone(), side_effects: d.side_effects.clone(), rationale: d.rationale.clone(),
         }),
         authority: a.advanced.authority.as_ref().map(|x| m::Authority { domains: x.domains.clone(), scope: x.scope.clone(), rationale: x.rationale.clone() }),
+        // Embedded, so the file carries the agent's skills wherever it goes.
+        skills: a.advanced.skills.iter().map(|s| m::SkillRef::Embedded(m::EmbeddedSkill { name: s.name.clone(), description: s.description.clone(), body: s.body.clone() })).collect(),
         extensions: agent_extension(a, in_group.is_none()),
         ..Default::default()
     }
@@ -129,6 +131,9 @@ fn agent_extension(a: &DraftAgent, hidden_group: bool) -> m::Extensions {
     }
     if let Some(g) = a.group_id.as_ref().filter(|_| hidden_group) {
         ext.insert("group_id".into(), json!(g));
+    }
+    if !a.advanced.integrations.is_empty() {
+        ext.insert("integrations".into(), json!(a.advanced.integrations));
     }
     wrap(ext)
 }

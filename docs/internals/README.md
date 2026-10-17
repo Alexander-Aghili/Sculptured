@@ -21,6 +21,7 @@ Read these pages to understand how a design becomes a running team and how its a
 | Resource control | [Limits and usage](limits-and-usage.md) | Managed subagents, token limits, plan usage holds and cost estimates |
 | Agent efficiency | [Protections and contracts](protections.md) | The tool-call guard, shell output cap, context ceiling, and what each agent reads, writes and decides |
 | What agents know | [Knowledge](knowledge.md) | The generated project map, lessons, history search and the Knowledge view |
+| Agent skills | [Skills and integrations](skills-and-integrations.md) | Skills per agent, how each CLI loads them, and tools on the agent's computer such as Kindex |
 | Work coordination | [Workflows](workflows.md) | Stages, items, reviews, checks, merges, guards and schedules |
 | Files and Git | [Local operations](local-ops.md) | Folder access, working copies, checks, CLI sign-in and operations on connected computers |
 | Import and export | [Portable formats](portable-formats.md) | Team and run schemas, validation, export and imported history |

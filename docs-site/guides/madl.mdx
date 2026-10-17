@@ -31,6 +31,7 @@ A team exported from Sculptured and imported again comes back unchanged.
 | Token, turn and time limits | `settings.restrictions.budget`, as `{ soft, hard }` |
 | Run budgets | `system.budget` |
 | Contracts: what an agent reads, writes and decides | `data_access` and `authority` |
+| Skills | `skills`, embedded as `{ name, description, body }` |
 | Checks | `checks` |
 | Schedules | `policies.schedules` |
 | Positions on the board | `layout` |
@@ -45,7 +46,7 @@ MADL can describe more than Sculptured runs today. Importing keeps what Sculptur
 - **People** (`runtime: human`) are not board agents; people answer agents' questions from the app.
 - **Other runtimes**, such as CAMEL or CrewAI, are imported as Claude Code agents.
 - **Delegate** and **review** connections become **hands work to**; **ask** and **approve** connections are not kept.
-- **Channels**, communication rules, steps outside a workflow, tools, skills and placement are not kept yet.
+- **Channels**, communication rules, steps outside a workflow, tools and placement are not kept yet. Skills named only by a path or name are listed under **Not imported**, because the file does not carry them; embedded skills are kept.
 
 A file that is not valid MADL is refused with each error and where it is. A MADL file that refers to other files (`$ref`) can't be uploaded as it is. Join it into one file first with `madl expand`:
 

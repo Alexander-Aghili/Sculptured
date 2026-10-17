@@ -77,6 +77,9 @@ fn check_agents(d: &TeamDraft, out: &mut Vec<DraftIssue>) {
         }
         check_agent_name(a, &mut names, out);
         check_agent_place(d, a, out);
+        for problem in model::skill::skills_problems(&a.advanced.skills) {
+            out.push(issue(Agent, &a.id, Error, "skill-invalid", format!("{}: {problem}", display_name(a))));
+        }
     }
 }
 

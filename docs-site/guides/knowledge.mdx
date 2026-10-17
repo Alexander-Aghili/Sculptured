@@ -25,6 +25,14 @@ When something cost an agent a wrong turn that others could avoid, it records a 
 
 A lesson starts as **reported**. When you agree with it, **Confirm** it: agents then see it marked as confirmed. **Hide** removes it from what agents are told.
 
+## Constraints
+
+A **constraint** is a rule every agent must follow in this project, such as "never use float for money". Agents record one with `record_lesson` and `kind: constraint`. Constraints come first in every briefing, marked as rules.
+
+## Lessons kept with the project
+
+When you **Confirm** a lesson or constraint, Sculptured also keeps it with the project, in `.sculptured/lessons.md` in each folder the team works in. Every later team in that folder is told the kept lessons at its start, so what one team learned is not lost when it ends. The file is plain text: delete a line to drop that lesson. To keep knowledge across projects and sessions as well, give agents [Kindex](/guides/skills#tools-on-the-agents-computer-kindex).
+
 ## The Knowledge view
 
 On the Run board, **More** → **Knowledge** shows the lessons and your decisions, and the latest project map with who worked where. When agents recorded lessons since you last looked, **More** shows a quiet count. It never interrupts a run.

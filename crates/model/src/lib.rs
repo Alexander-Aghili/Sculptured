@@ -6,6 +6,8 @@ mod caps;
 mod budget;
 pub mod protection;
 pub mod contract;
+pub mod skill;
+pub use skill::Skill;
 pub use contract::{Authority, DataAccess};
 pub use protection::{GuardRules, Protection};
 pub use budget::{ClaudeSetup, ContinueMode, PlanBudget, PlanPause, RunBudget, SoftHard, SOFT_SHARE};
@@ -28,7 +30,7 @@ pub use question::{
 };
 pub use report::{cap_findings, Finding, ReportVerdict, MAX_FINDING, MAX_FINDINGS};
 pub use caps::Caps;
-pub use draft::{Schedule, TeamLimits, TokenCount, TokenLimit, 
+pub use draft::{Integration, Schedule, TeamLimits, TokenCount, TokenLimit, 
     AgentAdvanced, AgentKind, ConnectionKind, DraftAgent, DraftConnection, DraftGroup, DraftIssue, ElementKind,
     ElementRef, IssueSeverity, ModelDefaults, PermissionPosture, ResumeBehaviour, TeamDraft, TeamInput, DEFAULT_GROUP_ID,
 };

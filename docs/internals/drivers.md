@@ -59,6 +59,8 @@ flowchart LR
 | `--add-dir <dir>` | each extra folder (a team's items folder) |
 | `--setting-sources <list>`, and `--strict-mcp-config` without `user` | the team leaves out part of the person's own Claude Code setup (`ClaudeSetup::claude_args`) |
 | `--settings <hook JSON> --autocompact 100000` | protections are on ([Protections](protections.md)); the agent's environment also gets `SCULPTURED_PROTECTION` |
+| `--plugin-dir <dir>` | the agent has skills: the runner's per-agent plugin folder ([Skills](skills-and-integrations.md)) |
+| a second `--mcp-config <JSON>` | the agent has integrations (Kindex's `kin-mcp`) |
 
 - The seat-tools config is written to a 0600 file when hostd names one, so the seat token never appears in `/proc/<pid>/cmdline`. `MCP_TOOL_TIMEOUT` is set to 86 700 000 ms so Sculptured's own question timeout always fires first.
 - A message is one stdin line: `{"type":"user","message":{"role":"user","content":[{"type":"text","text":…}]}}`.

@@ -48,6 +48,10 @@ async fn a_start_maps_the_folder_and_agents_get_the_map_lessons_and_a_history_se
     assert_eq!(status, StatusCode::OK);
     let (_, view) = call(&s.router, "GET", &format!("/api/teams/{id}/knowledge"), json!(null)).await;
     assert!(view["entries"].as_array().unwrap().iter().any(|e| e["text"] == "Check the map first." && e["confirmed_ms"].is_number()));
+    // A confirmed lesson is kept with the project, for later teams in this folder.
+    let kept = dir.path().join(".sculptured/lessons.md");
+    wait_for("the lesson is kept with the project", || std::fs::read_to_string(&kept).is_ok_and(|t| t.contains("- Check the map first."))).await;
+    assert!(localops::map::build(dir.path()).unwrap().kept.contains(&"Check the map first.".to_string()));
 }
 
 #[tokio::test]
@@ -71,13 +75,15 @@ async fn a_lesson_recorded_mid_run_reaches_running_teammates_with_their_next_mes
     let replied = |who: &str| events(&s.st, who).iter().any(|e| matches!(&e.body, model::EventBody::TurnEnded { .. }));
     wait_for("both first turns end", || replied(&a) && replied(&b)).await;
     controld::knowledge::record_lesson(&s.st, &a, &json!({ "lesson": "Money helpers live in money.py." })).unwrap();
+    controld::knowledge::record_lesson(&s.st, &a, &json!({ "lesson": "Never use float for money.", "kind": "constraint" })).unwrap();
+    assert!(controld::knowledge::record_lesson(&s.st, &a, &json!({ "lesson": "x", "kind": "rule" })).is_err());
     for who in [&a, &b] {
         let (status, body) = call(&s.router, "POST", &format!("/api/seats/{who}/send"), json!({ "request_id": rid(), "text": "next step", "intent": "inform" })).await;
         assert_eq!(status, StatusCode::OK, "{body}");
         wait_for("the second message is queued", || sent(who).len() == 2).await;
     }
     let to_b = sent(&b).pop().unwrap();
-    assert!(to_b.contains("New lesson from your team since your last message") && to_b.contains("Money helpers live in money.py. (Scout)") && to_b.ends_with("next step"), "{to_b}");
+    assert!(to_b.contains("New lessons from your team since your last message") && to_b.contains("Money helpers live in money.py. (Scout)") && to_b.contains("[constraint] Never use float for money. (Scout)") && to_b.ends_with("next step"), "{to_b}");
     assert!(!to_b.contains("Project map, generated"), "the briefing itself is not repeated: {to_b}");
     assert_eq!(sent(&a).pop().unwrap(), "next step", "an agent is not told its own lesson back");
     // A search leaves out the asking agent's current turn: its message and its own calls.

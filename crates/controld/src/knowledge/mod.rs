@@ -13,6 +13,7 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use axum::Router;
 use localops::map::ProjectMap;
+use crate::store::DecisionEntry;
 use model::TeamDraft;
 use rusqlite::params;
 use serde_json::{json, Value};
@@ -92,14 +93,24 @@ pub(crate) fn briefing_lines(st: &AppState, team: &str, seat: &str, d: &TeamDraf
     let mut out = Vec::new();
     let home = st.home.as_deref().cloned().unwrap_or_default();
     let folder = d.agent_for_seat(seat).and_then(|a| d.effective_folder(a)).map(|f| crate::launch::cwd_for(st, &home, f));
-    if let Some((f, map, _)) = folder.and_then(|f| maps(st, team).into_iter().find(|(m, ..)| *m == f)) {
-        out.push(outline(&map, &workers(st, team, d, &f)));
+    let map = folder.and_then(|f| maps(st, team).into_iter().find(|(m, ..)| *m == f));
+    if let Some((f, map, _)) = &map {
+        out.push(outline(map, &workers(st, team, d, f)));
     }
-    let lessons: Vec<String> = st.store.lock().unwrap().decisions(team, None, 50, false).unwrap_or_default().into_iter()
-        .filter(|e| e.source == "lesson").take(BRIEFING_LESSONS)
-        .map(|e| format!("{}{} ({})", if e.confirmed_ms.is_some() { "[confirmed] " } else { "" }, e.text.trim(), e.author)).collect();
+    let entries = st.store.lock().unwrap().decisions(team, None, 50, false).unwrap_or_default();
+    let line = |e: &DecisionEntry| format!("{}{} ({})", if e.confirmed_ms.is_some() { "[confirmed] " } else { "" }, e.text.trim(), e.author);
+    let constraints: Vec<String> = entries.iter().filter(|e| e.source == "constraint").take(BRIEFING_LESSONS).map(line).collect();
+    if !constraints.is_empty() {
+        out.push(format!("Constraints this team's agents found (follow them):\n- {}", constraints.join("\n- ")));
+    }
+    let lessons: Vec<String> = entries.iter().filter(|e| e.source == "lesson").take(BRIEFING_LESSONS).map(line).collect();
     if !lessons.is_empty() {
         out.push(format!("Lessons this team's agents recorded, newest first:\n- {}", lessons.join("\n- ")));
+    }
+    // Kept with the project by earlier teams; this team's own entries are listed above already.
+    let kept: Vec<&String> = map.as_ref().map(|(_, m, _)| m.kept.iter().filter(|k| !entries.iter().any(|e| k.ends_with(e.text.trim()))).collect()).unwrap_or_default();
+    if !kept.is_empty() {
+        out.push(format!("Kept with this project from earlier work (confirmed by a person; [constraint] ones are rules):\n- {}", kept.iter().map(|k| k.as_str()).collect::<Vec<_>>().join("\n- ")));
     }
     out.push("Before building something, check whether it already exists: the project map, then search_history (what the team's agents, including finished ones, wrote, ran and decided). When something cost you a wrong turn that others could avoid, record it with record_lesson.".into());
     out
@@ -112,9 +123,9 @@ pub(crate) fn new_lessons(st: &AppState, team: &str, seat: &str, d: &TeamDraft) 
     let store = st.store.lock().unwrap();
     let since = store.latest_of_types(&model::Subject::Seat(seat.to_string()), &["message-queued"], 1).ok()?.first()?.at_ms;
     let fresh: Vec<String> = store.decisions(team, None, 50, false).ok()?.into_iter()
-        .filter(|e| e.source == "lesson" && e.at_ms > since && me.as_ref() != Some(&e.author))
+        .filter(|e| (e.source == "lesson" || e.source == "constraint") && e.at_ms > since && me.as_ref() != Some(&e.author))
         .take(BRIEFING_LESSONS)
-        .map(|e| format!("{} ({})", e.text.trim(), e.author))
+        .map(|e| format!("{}{} ({})", if e.source == "constraint" { "[constraint] " } else { "" }, e.text.trim(), e.author))
         .collect();
     (!fresh.is_empty()).then(|| format!("New lesson{} from your team since your last message:\n- {}", if fresh.len() == 1 { "" } else { "s" }, fresh.join("\n- ")))
 }
@@ -146,8 +157,31 @@ async fn view(State(st): State<AppState>, Path(id): Path<String>) -> Response {
     respond(entries.map(|e| json!({ "maps": maps, "entries": e })).map_err(ApiError::from))
 }
 
+/// A confirmed lesson or constraint is also kept with the project, in each folder the team works in,
+/// so later teams there are told it. A runner that cannot keep it leaves it with this team only.
+fn keep_in_project(st: &AppState, team: &str, entry: &str) {
+    let store = st.store.lock().unwrap();
+    let found = store.decisions(team, None, 500, true).unwrap_or_default().into_iter().find(|e| e.id == entry);
+    let Some(e) = found.filter(|e| e.source == "lesson" || e.source == "constraint") else { return };
+    let Some(d) = store.draft(team).ok().flatten() else { return };
+    drop(store);
+    let text = format!("{}{}", if e.source == "constraint" { "[constraint] " } else { "" }, e.text.trim());
+    let (st, team, folders) = (st.clone(), team.to_string(), folders(st, &d));
+    tokio::spawn(async move {
+        for path in folders {
+            let op = localops::LocalOp::KeepLesson { path: path.clone(), text: text.clone() };
+            if let Err(e) = crate::ops::run(&st, crate::ops::Target::Team(&team), op).await {
+                tracing::info!(%team, %path, error = %e.message, "lesson not kept with the project");
+            }
+        }
+    });
+}
+
 async fn confirm(State(st): State<AppState>, Path((id, entry)): Path<(String, String)>) -> Response {
     let done = st.store.lock().unwrap().confirm_decision(&id, &entry);
+    if matches!(done, Ok(true)) {
+        keep_in_project(&st, &id, &entry);
+    }
     respond(match done {
         Ok(true) => Ok(json!({ "confirmed": entry })),
         Ok(false) => Err(ApiError::not_found("No such entry")),

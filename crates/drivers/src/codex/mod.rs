@@ -100,6 +100,13 @@ impl CodexAppServerDriver {
             p["config"]["features.multi_agent"] = json!(false);
             p["config"]["features.multi_agent_v2"] = json!(false);
         }
+        for s in &spec.mcp_servers {
+            if !p["config"].is_object() {
+                p["config"] = json!({});
+            }
+            p["config"][format!("mcp_servers.{}.command", s.name)] = json!(s.program.display().to_string());
+            p["config"][format!("mcp_servers.{}.args", s.name)] = json!(s.args);
+        }
         p
     }
 
@@ -161,5 +168,13 @@ mod sandbox_tests {
         assert_eq!(CodexAppServerDriver::thread_params(&spec)["sandbox"], "danger-full-access");
         spec.sandboxed = true;
         assert_eq!(CodexAppServerDriver::thread_params(&spec)["sandbox"], "workspace-write");
+    }
+
+    #[test]
+    fn an_integration_is_started_as_a_codex_mcp_server() {
+        let mut spec = LaunchSpec::new("dev.a@r".parse().unwrap(), "/w".into());
+        spec.mcp_servers = vec![crate::McpServer { name: "kindex".into(), program: "/usr/bin/kin-mcp".into(), args: vec![] }];
+        let p = CodexAppServerDriver::thread_params(&spec);
+        assert_eq!(p["config"]["mcp_servers.kindex.command"], "/usr/bin/kin-mcp");
     }
 }

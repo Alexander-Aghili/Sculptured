@@ -56,7 +56,10 @@ fn fitted_params(
         }
     };
     let (claude_setup, protection) = claude_settings(st, rig, seat);
+    let (skills, integrations) = agent_extras(st, rig, seat);
     let mut params = LaunchParams {
+        skills,
+        integrations,
         protection,
         claude_setup,
         cwd,
@@ -162,6 +165,16 @@ fn with_contract(mut rules: model::GuardRules, agent: Option<&model::DraftAgent>
     rules.reads = c.reads.iter().map(clean).filter(|p| !p.is_empty()).collect();
     rules.writes = c.writes.iter().map(clean).filter(|p| !p.is_empty()).collect();
     rules
+}
+
+/// The agent's skills and integrations, for agents of a real CLI.
+fn agent_extras(st: &AppState, rig: &str, seat: &CompiledSeat) -> (Vec<model::Skill>, Vec<String>) {
+    if !matches!(seat.runtime, Runtime::ClaudeCode | Runtime::Codex) {
+        return (vec![], vec![]);
+    }
+    let draft = st.store.lock().unwrap().draft(rig).ok().flatten();
+    let Some(a) = draft.as_ref().and_then(|d| d.agent_for_seat(&seat.id)) else { return (vec![], vec![]) };
+    (a.advanced.skills.clone(), a.advanced.integrations.iter().map(|i| i.name().to_string()).collect())
 }
 
 /// Claude agents only: the part of the person's own Claude Code setup the team allows (None when all of

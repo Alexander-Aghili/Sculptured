@@ -76,9 +76,14 @@ pub fn record_lesson(st: &AppState, seat: &str, args: &Value) -> Result<Value, S
     let team = crate::seat_ids::rig_of(seat).ok_or("Unknown agent.")?;
     let lesson = args.get("lesson").and_then(Value::as_str).map(str::trim).filter(|l| !l.is_empty()).ok_or("Say the lesson.")?;
     let lesson: String = lesson.chars().take(LESSON_CHARS).collect();
+    let source = match args.get("kind").and_then(Value::as_str) {
+        Some("constraint") => "constraint",
+        Some("lesson") | None => "lesson",
+        Some(other) => return Err(format!("kind is lesson or constraint, not {other:?}.")),
+    };
     let store = st.store.lock().unwrap();
     let author = store.draft(team).ok().flatten().and_then(|d| d.agent_for_seat(seat).map(|a| a.name.clone())).unwrap_or_else(|| seat.to_string());
-    store.add_decision(team, &author, &lesson, "lesson").map_err(|e| e.to_string())?;
+    store.add_decision(team, &author, &lesson, source).map_err(|e| e.to_string())?;
     Ok(json!({ "text": "Recorded. Teammates already working are told it with their next message, and every later agent of this team in its briefing." }))
 }
 

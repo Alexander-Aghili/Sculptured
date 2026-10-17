@@ -138,6 +138,7 @@ async fn dispatch(st: &AppState, seat: &str, tool: &str, args: &Value) -> Result
         "read_decisions" => crate::decisions::read_tool(st, seat, args).map(|v| (v, None)).map_err(invalid),
         "search_history" => crate::knowledge::search_history(st, seat, args).map(|v| (v, None)).map_err(invalid),
         "record_lesson" => crate::knowledge::record_lesson(st, seat, args).map(|v| (v, None)).map_err(invalid),
+        "read_skill" => crate::skills::read_skill(st, seat, args).map(|v| (v, None)).map_err(invalid),
         other => Err(invalid(format!("unknown tool {:?}", cut(other, 200)))),
     }
 }

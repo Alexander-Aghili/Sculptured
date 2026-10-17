@@ -69,6 +69,31 @@ pub struct AgentAdvanced {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub authority: Option<crate::Authority>,
+    /// This agent's skills; only their names and descriptions are in its context until it uses one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::Skill>>", optional)]
+    pub skills: Vec<crate::Skill>,
+    /// Tools installed on the agent's computer that it is also given.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<Integration>>", optional)]
+    pub integrations: Vec<Integration>,
+}
+
+/// A tool on the agent's computer that Sculptured can give an agent. The runner finds it there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum Integration {
+    /// Kindex (github.com/wandercom/kindex): a knowledge graph that persists across sessions and teams.
+    Kindex,
+}
+
+impl Integration {
+    pub fn name(self) -> &'static str {
+        match self {
+            Integration::Kindex => "kindex",
+        }
+    }
 }
 
 /// Limits a person set on a team's spawned agents. None = no limit; Sculptured sets none of its own.

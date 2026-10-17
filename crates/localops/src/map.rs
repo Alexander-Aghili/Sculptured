@@ -27,6 +27,37 @@ pub struct ProjectMap {
     pub truncated: bool,
     /// Where the full map was written (relative to `root`).
     pub file: String,
+    /// Lessons people confirmed in earlier teams, kept in `.sculptured/lessons.md` in this folder.
+    #[serde(default)]
+    pub kept: Vec<String>,
+}
+
+/// Confirmed lessons kept with the project, one `- ` line each, so later teams start knowing them.
+pub const LESSONS_FILE: &str = ".sculptured/lessons.md";
+const LESSONS_HEADER: &str = "# Lessons kept with this project\n\nConfirmed by a person in Sculptured. Every agent that works in this folder is told them. Delete a line to drop it.\n\n";
+/// Kept lessons read into a briefing, at most.
+const MAX_KEPT: usize = 30;
+
+fn kept(root: &Path) -> Vec<String> {
+    let text = std::fs::read_to_string(root.join(LESSONS_FILE)).unwrap_or_default();
+    text.lines().filter_map(|l| l.strip_prefix("- ")).map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).take(MAX_KEPT).collect()
+}
+
+/// Adds `text` to the folder's kept lessons unless it is there already.
+pub fn keep_lesson(root: &Path, text: &str) -> Result<bool, LocalError> {
+    let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if !root.is_dir() || line.is_empty() {
+        return Err(LocalError::not_found("folder_missing", format!("{} is not a folder", root.display())));
+    }
+    let file = root.join(LESSONS_FILE);
+    let old = std::fs::read_to_string(&file).unwrap_or_default();
+    if old.lines().any(|l| l.strip_prefix("- ").is_some_and(|l| l.trim() == line)) {
+        return Ok(false);
+    }
+    let next = format!("{}- {line}\n", if old.is_empty() { LESSONS_HEADER.to_string() } else if old.ends_with('\n') { old } else { format!("{old}\n") });
+    std::fs::create_dir_all(root.join(".sculptured")).and_then(|()| std::fs::write(&file, next))
+        .map_err(|e| LocalError::conflict("lesson_not_kept", format!("could not keep the lesson: {e}")))?;
+    Ok(true)
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -133,7 +164,7 @@ pub fn build(root: &Path) -> Result<ProjectMap, LocalError> {
     }
     let mut docs_left = MAX_DOCS;
     let areas: Vec<Area> = by_area.into_iter().take(MAX_AREAS).map(|(path, fs)| area(root, path, &fs, &mut docs_left)).collect();
-    let map = ProjectMap { root: root.display().to_string(), files: files.len() as u32, areas, truncated: truncated || files.len() > MAX_FILES, file: ".sculptured/map.md".into() };
+    let map = ProjectMap { root: root.display().to_string(), files: files.len() as u32, areas, truncated: truncated || files.len() > MAX_FILES, file: ".sculptured/map.md".into(), kept: kept(root) };
     let dir = root.join(".sculptured");
     std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(dir.join("map.md"), markdown(&map)))
         .map_err(|e| LocalError::conflict("map_not_written", format!("could not write the project map: {e}")))?;
@@ -207,5 +238,14 @@ mod tests {
         assert_eq!(titles, [("Wing parts", 1, 4), ("Spar", 5, 11), ("Rib", 12, 13)]);
         let written = std::fs::read_to_string(root.join(".sculptured/map.md")).unwrap();
         assert!(written.contains("## cad/wings") && written.contains("Spar (lines 5–11)"), "{written}");
+    }
+
+    #[test]
+    fn a_kept_lesson_is_written_once_and_read_back_by_the_next_map() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(keep_lesson(dir.path(), "Money helpers   live in money.py.").unwrap());
+        assert!(!keep_lesson(dir.path(), "Money helpers live in money.py.").unwrap(), "the same lesson is not kept twice");
+        assert!(keep_lesson(dir.path(), "[constraint] Never use float for money.").unwrap());
+        assert_eq!(build(dir.path()).unwrap().kept, ["Money helpers live in money.py.", "[constraint] Never use float for money."]);
     }
 }

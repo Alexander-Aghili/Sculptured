@@ -41,7 +41,7 @@ At a start, `teams/run.rs` runs `knowledge::refresh` before sending the agents t
 | Message | Gets |
 |---|---|
 | First message of a conversation (`briefing_lines`) | The map outline for the agent's folder (at most 25 areas, those someone worked on first, then by size, each with "worked on by …"), the 8 newest lessons (`[confirmed]` marks those a person confirmed), and a line saying to check the map, then `search_history`, before building, and to `record_lesson` after a wrong turn |
-| Later messages (`new_lessons`) | Lessons teammates recorded since the agent's previous message, if any. Its own lessons are not repeated back to it |
+| Later messages (`new_lessons`) | Lessons and constraints teammates recorded since the agent's previous message, if any. Its own are not repeated back to it |
 
 **Who worked where** (`workers`) comes from the team's recorded `Write`, `Edit`, `MultiEdit` and `NotebookEdit` calls (last 5,000), mapped to areas. It is observed tool input, not a claim by the agent.
 
@@ -52,7 +52,12 @@ Both are seat tools, served by controld through the runner's seat-tools socket (
 | Tool | Input | Does |
 |---|---|---|
 | `search_history` | `query` (3+ characters), `agent?` | Searches the team's `agent-text`, `tool-called`, `tool-resulted` and `message-queued` events, newest first, case-insensitive (SQL `LIKE`, at most 200 candidate rows). Returns at most 8 hits: agent, time, what it was (wrote, ran, got back, was told) and about 160 characters either side of the match. It leaves out the asking agent's current turn and any `search_history` calls |
-| `record_lesson` | `lesson` (at most 400 characters kept) | Adds a `team_decisions` entry with source `lesson` and the agent's name as author |
+| `record_lesson` | `lesson` (at most 400 characters kept), `kind?` (`lesson` or `constraint`) | Adds a `team_decisions` entry with source `lesson` or `constraint` and the agent's name as author |
+
+## 4a. Constraints and lessons kept with the project
+
+- **Constraints** (source `constraint`) are rules; `briefing_lines` lists them first, as "follow them", then lessons.
+- **Kept with the project.** `POST …/confirm` on a lesson or constraint runs `keep_in_project`: a `keep-lesson` op per team folder appends `- <text>` (constraints prefixed `[constraint]`) to `<folder>/.sculptured/lessons.md`, once. `localops::map::build` reads that file back into `ProjectMap.kept` (at most 30 lines), and the briefing lists kept lines this team does not already have under "Kept with this project from earlier work". The file is plain text the person can edit. A runner without `keep-lesson` answers `unknown_op` and the lesson stays with the team.
 
 ## 5. The Knowledge view
 

@@ -111,3 +111,17 @@ fn protections_add_the_guard_hook_the_output_cap_and_a_compaction_backstop() {
     assert_eq!(env.0, "SCULPTURED_PROTECTION");
     assert_eq!(serde_json::from_str::<model::GuardRules>(&env.1).unwrap().max_read_bytes, 102_400);
 }
+
+#[test]
+fn skills_load_as_a_plugin_folder_and_integrations_as_an_mcp_server() {
+    let mut s = spec();
+    s.seat_tools = Some(tools(false));
+    s.plugin_dirs = vec!["/data/skills/dev.a@r".into()];
+    s.mcp_servers = vec![drivers::McpServer { name: "kindex".into(), program: "/home/u/.local/bin/kin-mcp".into(), args: vec![] }];
+    let a = ClaudeStreamDriver::args(&s, None, "s1");
+    assert_eq!(after(&a, "--plugin-dir"), Some("/data/skills/dev.a@r"));
+    let configs: Vec<&String> = a.iter().zip(a.iter().skip(1)).filter(|(f, _)| *f == "--mcp-config").map(|(_, v)| v).collect();
+    assert_eq!(configs.len(), 2, "Sculptured's own tools and the integration: {a:?}");
+    let extra: Value = serde_json::from_str(configs[1]).unwrap();
+    assert_eq!(extra["mcpServers"]["kindex"]["command"], "/home/u/.local/bin/kin-mcp");
+}

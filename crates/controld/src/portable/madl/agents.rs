@@ -68,7 +68,21 @@ impl Cx<'_> {
                 reads: d.reads.clone(), writes: d.writes.clone(), side_effects: d.side_effects.clone(), rationale: d.rationale.clone(),
             }),
             authority: a.authority.as_ref().map(|x| model::Authority { domains: x.domains.clone(), scope: x.scope.clone(), rationale: x.rationale.clone() }),
+            skills: self.skills(at, a),
+            integrations: ext.get("integrations").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default(),
         }
+    }
+
+    /// Embedded skills are kept; a skill named by path or name is not, since the file does not carry it.
+    fn skills(&mut self, at: &str, a: &m::Agent) -> Vec<model::Skill> {
+        let mut out = Vec::new();
+        for (i, s) in a.skills.iter().enumerate() {
+            match s {
+                m::SkillRef::Embedded(e) => out.push(model::Skill { name: e.name.clone(), description: e.description.clone(), body: e.body.clone() }),
+                m::SkillRef::Ref(r) => self.drop(format!("{at}/skills/{i}"), format!("The skill {r:?} is named, not included in the file; add it to the agent with Load from file")),
+            }
+        }
+        out
     }
 
     fn model(&mut self, at: &str, r: &AgentSettings) -> Option<String> {
@@ -87,7 +101,6 @@ impl Cx<'_> {
     fn unkept_agent_parts(&mut self, at: &str, a: &m::Agent) {
         let parts = [
             ("tools", !a.tools.is_empty()),
-            ("skills", !a.skills.is_empty()),
             ("context", !a.context.is_empty()),
             ("outputs", !a.outputs.is_empty()),
             ("placement", a.placement.is_some()),

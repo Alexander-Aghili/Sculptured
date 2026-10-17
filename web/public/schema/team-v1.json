@@ -63,6 +63,13 @@
             }
           ]
         },
+        "integrations": {
+          "description": "Tools installed on the agent's computer that it is also given.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Integration"
+          }
+        },
         "minute_limit": {
           "description": "Minutes this agent may spend working in one run (its children's included).",
           "anyOf": [
@@ -88,6 +95,13 @@
         "resume": {
           "$ref": "#/$defs/ResumeBehaviour",
           "default": "resume-if-possible"
+        },
+        "skills": {
+          "description": "This agent's skills; only their names and descriptions are in its context until it uses one.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Skill"
+          }
         },
         "token_limit": {
           "description": "Tokens this agent may use in one run; reaching it soft-stops the agent. None = no limit.",
@@ -425,6 +439,16 @@
         "every_minutes"
       ]
     },
+    "Integration": {
+      "description": "A tool on the agent's computer that Sculptured can give an agent. The runner finds it there.",
+      "oneOf": [
+        {
+          "description": "Kindex (github.com/wandercom/kindex): a knowledge graph that persists across sessions and teams.",
+          "type": "string",
+          "const": "kindex"
+        }
+      ]
+    },
     "Join": {
       "description": "How a review panel decides: every reviewer, or the first approval.",
       "type": "string",
@@ -656,6 +680,28 @@
         "agent",
         "every_minutes",
         "message"
+      ]
+    },
+    "Skill": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "description": "The instructions, in Markdown.",
+          "type": "string"
+        },
+        "description": {
+          "description": "When to use it: what the agent sees until it loads the skill.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Lowercase letters, digits and hyphens.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "body"
       ]
     },
     "SoftHard": {

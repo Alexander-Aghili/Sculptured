@@ -106,6 +106,14 @@ fn drop_features(params: &mut LaunchParams, missing: &[&str]) -> Vec<&'static st
                 params.protection = None;
                 lost.push("Sculptured's protections (reinstall the runner from Computers to get them)");
             }
+            features::SKILLS => {
+                params.skills.clear();
+                lost.push("its skills");
+            }
+            features::INTEGRATIONS => {
+                params.integrations.clear();
+                lost.push("the tools on its computer it was given, such as Kindex");
+            }
             _ => {}
         }
     }

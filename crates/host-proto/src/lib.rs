@@ -66,6 +66,12 @@ pub struct LaunchParams {
     /// Claude agents: the protections to apply to the agent's tool calls. None = none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protection: Option<model::GuardRules>,
+    /// The agent's skills. Claude Code loads them natively; other CLIs read one with `read_skill`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skills: Vec<model::Skill>,
+    /// Tools on the agent's computer it is given (by name, such as `kindex`); the runner finds them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub integrations: Vec<String>,
 }
 
 /// How a new tenure gets its native session.
@@ -194,6 +200,10 @@ pub mod features {
     pub const USAGE_REPORTS: &str = "usage-reports";
     /// Honours `LaunchParams.protection` (guards the agent's tool calls).
     pub const PROTECTION: &str = "protection";
+    /// Honours `LaunchParams.skills`.
+    pub const SKILLS: &str = "skills";
+    /// Honours `LaunchParams.integrations`.
+    pub const INTEGRATIONS: &str = "integrations";
 }
 
 /// Run the agent in its own git copy (worktree) of the folder, made on the computer that runs it.
@@ -222,6 +232,12 @@ impl LaunchParams {
         }
         if self.protection.is_some() {
             f.push(features::PROTECTION);
+        }
+        if !self.skills.is_empty() {
+            f.push(features::SKILLS);
+        }
+        if !self.integrations.is_empty() {
+            f.push(features::INTEGRATIONS);
         }
         if self.own_copy.is_some() {
             f.push(features::LOCAL_OPS);
@@ -269,6 +285,8 @@ pub mod seat_tools {
     pub const APPROVE_ENV: &str = "SCULPTURED_SEAT_APPROVE";
     /// "0": the team has no dynamic workflow, so its tools are not offered.
     pub const WORKFLOW_ENV: &str = "SCULPTURED_SEAT_WORKFLOW";
+    /// "1": the agent has skills it reads with `read_skill` (its CLI cannot load them natively).
+    pub const SKILLS_ENV: &str = "SCULPTURED_SEAT_SKILLS";
 
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     pub struct ToolRequest {

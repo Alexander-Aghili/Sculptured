@@ -28,11 +28,13 @@ const DEFAULT_PROTOCOL: &str = "2025-06-18";
 pub struct Offer {
     pub approve: bool,
     pub workflow: bool,
+    /// `read_skill`, for an agent whose CLI cannot load its skills natively.
+    pub skills: bool,
 }
 
 /// The tools an agent sees; `approve` only when launched with it (a restricted Claude agent).
 pub fn tool_list(approve: bool) -> Value {
-    tool_list_for(Offer { approve, workflow: true })
+    tool_list_for(Offer { approve, workflow: true, skills: false })
 }
 
 pub fn tool_list_for(offer: Offer) -> Value {
@@ -42,10 +44,21 @@ pub fn tool_list_for(offer: Offer) -> Value {
     tools.extend(workflow::tools().into_iter().filter(|t| offer.workflow || !workflow_only(t)));
     tools.extend(collaboration::tools());
     tools.push(pdf::tool());
+    if offer.skills {
+        tools.push(read_skill_tool());
+    }
     if approve {
         tools.push(approve_tool());
     }
     Value::Array(tools)
+}
+
+fn read_skill_tool() -> Value {
+    json!({
+        "name": "read_skill",
+        "description": "Load one of your skills (listed in your briefing with when to use each) and follow its instructions. Load a skill only when its description applies to what you are doing.",
+        "inputSchema": { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] }
+    })
 }
 
 fn request_input_tool() -> Value {
@@ -105,6 +118,7 @@ fn known(tool: &str, offer: Offer) -> bool {
     matches!(tool, "request_input" | "record_decision" | "report" | "spawn_agent" | "send_agent_message" | "team_status" | "read_decisions" | "read_pdf" | "search_history" | "record_lesson")
         || (offer.workflow && workflow)
         || (offer.approve && tool == "approve")
+        || (offer.skills && tool == "read_skill")
 }
 
 fn reply(id: Value, result: Value) -> String {
@@ -121,7 +135,7 @@ fn tool_result(text: String, is_error: bool) -> Value {
 
 /// One JSON-RPC line in, at most one line out (notifications get none). `call` makes a tool call.
 pub fn handle_rpc(line: &str, approve: bool, call: &dyn Fn(&str, Value) -> Result<Value, String>) -> Option<String> {
-    handle_rpc_with(line, Offer { approve, workflow: true }, call)
+    handle_rpc_with(line, Offer { approve, workflow: true, skills: false }, call)
 }
 
 pub fn handle_rpc_with(line: &str, offer: Offer, call: &dyn Fn(&str, Value) -> Result<Value, String>) -> Option<String> {
@@ -164,7 +178,11 @@ pub fn run_shim() -> Result<(), String> {
     let token = std::env::var(TOKEN_ENV).map_err(|_| format!("{TOKEN_ENV} is not set"))?;
     let approve = std::env::var(APPROVE_ENV).is_ok_and(|v| v == "1");
     // Teams without a workflow are told so by the launch; when it says nothing, the tools are offered.
-    let offer = Offer { approve, workflow: std::env::var(host_proto::seat_tools::WORKFLOW_ENV).map_or(true, |v| v != "0") };
+    let offer = Offer {
+        approve,
+        workflow: std::env::var(host_proto::seat_tools::WORKFLOW_ENV).map_or(true, |v| v != "0"),
+        skills: std::env::var(host_proto::seat_tools::SKILLS_ENV).is_ok_and(|v| v == "1"),
+    };
     let out = Arc::new(Mutex::new(std::io::stdout()));
     for line in std::io::stdin().lock().lines() {
         let line = line.map_err(|e| format!("cannot read from the agent: {e}"))?;

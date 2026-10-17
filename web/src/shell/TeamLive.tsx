@@ -36,7 +36,7 @@ import { CommunicationDashboard } from '../collaboration/CommunicationDashboard'
 import { UsageDashboard } from '../collaboration/UsageDashboard';
 import { WhereTokensWent } from '../collaboration/WhereTokensWent';
 import { KnowledgeView } from '../collaboration/KnowledgeView';
-import { seenAt } from '../knowledge';
+import { isLearned, seenAt } from '../knowledge';
 import { DeploymentHistoryView } from '../collaboration/DeploymentHistoryView';
 import { SubtreeControls } from '../collaboration/SubtreeControls';
 import { BudgetStatus } from '../collaboration/BudgetStatus';
@@ -92,7 +92,7 @@ export function TeamLive(p: Props) {
   const knowledgeButton = useRef<HTMLButtonElement>(null);
   // Lessons agents recorded since this browser last opened Knowledge: a quiet count, never a prompt.
   const lessons = usePolled(() => api.decisions(rig), 120000, [rig, knowledgeOpen]);
-  const newLessons = knowledgeOpen ? 0 : (lessons.data ?? []).filter((e) => e.source === 'lesson' && e.at_ms > seenAt(rig)).length;
+  const newLessons = knowledgeOpen ? 0 : (lessons.data ?? []).filter((e) => isLearned(e) && e.at_ms > seenAt(rig)).length;
   const tokensButton=useRef<HTMLButtonElement>(null);
   const analyticsButton=useRef<HTMLButtonElement>(null);
   const [confirmStop, setConfirmStop] = useState(false);

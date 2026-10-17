@@ -156,6 +156,7 @@ impl RunnerPolicy {
             Op::AnalyzeRun { .. } if !caps.usage_reports => return off("Reports of where tokens went", "usage-reports"),
             Op::AnalyzeRun { .. } => op.clone(),
             Op::ProjectMap { path } => Op::ProjectMap { path: p(&path)? },
+            Op::KeepLesson { path, text } => Op::KeepLesson { path: p(&path)?, text },
         })
     }
 

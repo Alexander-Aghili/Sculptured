@@ -63,6 +63,18 @@ pub struct LaunchSpec {
     pub claude_setup: Option<model::ClaudeSetup>,
     /// Claude: guard the agent's tool calls with these rules, run by `guard` (the `sculptured` binary).
     pub protection: Option<ProtectionLaunch>,
+    /// Claude: plugin folders loaded for this session only (the agent's skills).
+    pub plugin_dirs: Vec<PathBuf>,
+    /// More MCP servers on this computer the agent is given (integrations such as Kindex).
+    pub mcp_servers: Vec<McpServer>,
+}
+
+/// A local MCP server started over stdio for one agent.
+#[derive(Clone, Debug, PartialEq)]
+pub struct McpServer {
+    pub name: String,
+    pub program: PathBuf,
+    pub args: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -89,6 +101,8 @@ impl LaunchSpec {
             add_dirs: vec![],
             claude_setup: None,
             protection: None,
+            plugin_dirs: vec![],
+            mcp_servers: vec![],
         }
     }
 }

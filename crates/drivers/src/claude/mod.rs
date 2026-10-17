@@ -68,6 +68,15 @@ impl ClaudeStreamDriver {
         for dir in &spec.add_dirs {
             a.extend(["--add-dir".to_string(), dir.display().to_string()]);
         }
+        for dir in &spec.plugin_dirs {
+            a.extend(["--plugin-dir".to_string(), dir.display().to_string()]);
+        }
+        if !spec.mcp_servers.is_empty() {
+            let servers: serde_json::Map<String, Value> = spec.mcp_servers.iter()
+                .map(|s| (s.name.clone(), json!({ "type": "stdio", "command": s.program.display().to_string(), "args": s.args })))
+                .collect();
+            a.extend(["--mcp-config".to_string(), json!({ "mcpServers": servers }).to_string()]);
+        }
         a.extend(spec.claude_setup.iter().flat_map(model::ClaudeSetup::claude_args).chain(spec.protection.iter().flat_map(Self::protection_args)));
         a.extend(spec.extra_args.iter().cloned());
         a

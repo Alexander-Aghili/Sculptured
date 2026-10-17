@@ -1,0 +1,114 @@
+import { useEffect, useRef, useState } from 'react';
+import type { DraftAgent } from '../generated/DraftAgent';
+import type { Integration } from '../generated/Integration';
+import type { Skill } from '../generated/Skill';
+import type { TeamDraft } from '../generated/TeamDraft';
+import { setAdvanced } from '../draft/edits';
+import { Btn } from '../shell/ui';
+import '../shell/text-mode.css';
+import type { Edit } from './Panels';
+import { parseSkillMd, skillProblems } from './skills';
+
+const EMPTY: Skill = { name: '', description: '', body: '' };
+
+/** The full-size window where one skill is written or changed. */
+function SkillEditor({ initial, others, onSave, onClose }: { initial: Skill; others: Skill[]; onSave: (s: Skill) => void; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [s, setS] = useState(initial);
+  const [tried, setTried] = useState(false);
+  useEffect(() => { dialog.current?.showModal(); }, []);
+  const problems = skillProblems(s, others);
+  const save = () => { setTried(true); if (problems.length === 0) onSave({ ...s, description: s.description.trim() }); };
+  return (
+    <dialog ref={dialog} className="text-mode skill-editor" aria-label={initial.name ? `Skill ${initial.name}` : 'New skill'} onKeyDown={(e) => e.stopPropagation()} onCancel={(e) => { e.preventDefault(); onClose(); }}>
+      <header>
+        <div><h2>{initial.name ? `Skill: ${initial.name}` : 'New skill'}</h2><small>Only the name and description stay in the agent's context until it uses the skill.</small></div>
+        <div className="fld-actions"><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" onClick={save}>Save skill</Btn></div>
+      </header>
+      <label className="fld"><span>Name</span>
+        <input className="fld-input mono" value={s.name} placeholder="money-rules" maxLength={64} onChange={(e) => setS({ ...s, name: e.target.value })} />
+      </label>
+      <label className="fld"><span>When to use it</span>
+        <input className="fld-input" value={s.description} placeholder="Use when handling amounts of money." maxLength={1024} onChange={(e) => setS({ ...s, description: e.target.value })} />
+      </label>
+      <label className="fld skill-body"><span>Instructions (Markdown)</span>
+        <textarea className="text-mode-editor" value={s.body} onChange={(e) => setS({ ...s, body: e.target.value })} />
+      </label>
+      {tried && problems.length > 0 && <ul role="alert" className="fld-error">{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
+    </dialog>
+  );
+}
+
+function SkillList({ skills, locked, onEdit, onRemove }: { skills: Skill[]; locked: boolean; onEdit: (at: number) => void; onRemove: (at: number) => void }) {
+  if (skills.length === 0) return <p className="fld-hint muted">No skills. A skill is instructions the agent loads only when it needs them, so they cost nothing until then.</p>;
+  return (
+    <ul className="skill-list">
+      {skills.map((s, i) => (
+        <li key={s.name}>
+          <span><code>{s.name}</code> <span className="muted">{s.description}</span></span>
+          <span className="fld-actions">
+            <Btn size="sm" disabled={locked} onClick={() => onEdit(i)}>Edit</Btn>
+            <Btn size="sm" disabled={locked} aria-label={`Remove skill ${s.name}`} onClick={() => onRemove(i)}>Remove</Btn>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Load from file: a SKILL.md split into a skill, which then opens in the editor. */
+function useSkillFile(onLoaded: (s: Skill) => void) {
+  const [error, setError] = useState<string | null>(null);
+  const file = useRef<HTMLInputElement>(null);
+  const load = async (f: File | undefined) => {
+    if (!f) return;
+    const parsed = parseSkillMd(await f.text());
+    setError(typeof parsed === 'string' ? `${f.name}: ${parsed}` : null);
+    if (typeof parsed !== 'string') onLoaded(parsed);
+  };
+  const input = <input ref={file} type="file" accept=".md,text/markdown" hidden aria-label="SKILL.md file" onChange={(e) => { void load(e.target.files?.[0]); e.target.value = ''; }} />;
+  return { error, input, open: () => file.current?.click() };
+}
+
+/** The agent's skills: a list, Add skill, Load from file. Skills belong to this agent only. */
+export function SkillFields({ agent, edit, locked }: { agent: DraftAgent; edit: Edit; locked: boolean }) {
+  const skills = agent.advanced.skills ?? [];
+  const [editing, setEditing] = useState<{ at: number; skill: Skill } | null>(null);
+  const picker = useSkillFile((skill) => setEditing({ at: -1, skill }));
+  const set = (next: Skill[]) => edit((d: TeamDraft) => setAdvanced(d, agent.id, { skills: next.length ? next : undefined }), `skills:${agent.id}`);
+  const save = (s: Skill) => {
+    const next = [...skills];
+    if (editing && editing.at >= 0) next[editing.at] = s; else next.push(s);
+    set(next);
+    setEditing(null);
+  };
+  return (
+    <fieldset className="fld-skills">
+      <legend className="fld-label">Skills</legend>
+      <SkillList skills={skills} locked={locked} onEdit={(at) => setEditing({ at, skill: skills[at] })} onRemove={(at) => set(skills.filter((_, j) => j !== at))} />
+      <div className="fld-actions">
+        <Btn size="sm" icon="plus" disabled={locked} onClick={() => setEditing({ at: -1, skill: EMPTY })}>Add skill</Btn>
+        <Btn size="sm" disabled={locked} onClick={picker.open}>Load from file</Btn>
+        {picker.input}
+      </div>
+      {picker.error && <p role="alert" className="fld-error">{picker.error}</p>}
+      {editing && <SkillEditor initial={editing.skill} others={skills.filter((_, j) => j !== editing.at)} onSave={save} onClose={() => setEditing(null)} />}
+    </fieldset>
+  );
+}
+
+/** Tools on the agent's computer it is also given (Advanced). */
+export function IntegrationFields({ agent, edit, locked }: { agent: DraftAgent; edit: Edit; locked: boolean }) {
+  const on = (agent.advanced.integrations ?? []).includes('kindex');
+  const toggle = (checked: boolean) => edit((d: TeamDraft) => {
+    const rest = (agent.advanced.integrations ?? []).filter((i: Integration) => i !== 'kindex');
+    const next: Integration[] = checked ? [...rest, 'kindex'] : rest;
+    return setAdvanced(d, agent.id, { integrations: next.length ? next : undefined });
+  }, `integrations:${agent.id}`);
+  return (
+    <label className="fld fld-check">
+      <span><input type="checkbox" checked={on} disabled={locked} onChange={(e) => toggle(e.target.checked)} /> Kindex memory</span>
+      <span className="fld-hint muted">Gives this agent Kindex, a knowledge graph on its computer that outlasts this team. Install it there first: <code>pip install 'kindex[mcp]'</code>. Without it the agent starts anyway and its page says so.</span>
+    </label>
+  );
+}

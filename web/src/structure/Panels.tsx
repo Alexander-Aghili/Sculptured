@@ -1,5 +1,6 @@
 import type { TeamOrigin } from '../generated/TeamOrigin';
 import { ContractFields } from './ContractFields';
+import { IntegrationFields, SkillFields } from './SkillFields';
 import { SaveGroupButton } from '../groups/SaveGroupButton';
 import { ProjectFolder } from './ProjectFolder';
 import { effectiveFolder, folderForAll } from '../draft/folders';
@@ -264,6 +265,7 @@ export function AgentPanel({ draft, agentId, issues, edit, locked, onSelect, nam
         />
         <p className="fld-hint muted">A command Sculptured runs in this agent's folder after each turn it finishes. Exit 0 shows “check passed”; anything else “check failed”, with its output. Runs as you, with your permissions.</p>
       </Field>
+      <SkillFields agent={a} edit={edit} locked={locked} />
       <details className="fld-advanced" data-advanced>
         <summary>{WORDS.advanced}</summary>
         <Field label="When it restarts" htmlFor={`${ids}-resume`}>
@@ -294,6 +296,7 @@ export function AgentPanel({ draft, agentId, issues, edit, locked, onSelect, nam
           </select>
         </Field>
         <ContractFields draft={draft} agent={a} edit={edit} locked={locked} />
+        <IntegrationFields agent={a} edit={edit} locked={locked} />
         <p className="fld-meta">
           {WORDS.internalId}: <code>{a.id}</code> · address <code>{seatIdFor(draft, a.id)}</code>
         </p>

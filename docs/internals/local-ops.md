@@ -109,6 +109,7 @@ Path fields are resolved by the runner, as described in [Connected computers §4
 | `item-merge` | `project, team, task, into?` | A workflow merge stage (`workflow/stage_merge.rs`) | `copies` | `project` (whole repository) | 120 s |
 | `run-check` | `cwd, item?, command, timeout_s` | Workflow check stages and guards (`workflow/stage_checks.rs`, `workflow/guard.rs`) | `checks` | `cwd` | the check's timeout + 30 s |
 | `project-map` | `path` | Every team start (`knowledge::refresh`, [Knowledge](knowledge.md)) | – | `path` | 30 s (controld waits 20 s) |
+| `keep-lesson` | `path, text` | Confirming a lesson (`knowledge::keep_in_project`) | – | `path` | 15 s |
 
 Timeouts are set in `ops::timeout_for`. A runner from before `analyze-run` answers `unknown_op`; controld turns that into `runner_without_reports` (reinstall the runner). Copies get 120 s because creating or merging a worktree in a large repository can take that long.
 

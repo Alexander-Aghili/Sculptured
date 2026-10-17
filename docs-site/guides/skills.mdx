@@ -1,0 +1,36 @@
+---
+title: Skills and tools on the agent's computer
+description: Give an agent skills it loads only when it needs them, and tools installed on its computer, such as Kindex.
+---
+
+A **skill** is a set of instructions an agent loads only when it needs them: how your project handles money, how to write a release note, which checks to run before a merge. Until the agent uses a skill, only its name and one-line description sit in the agent's context, so a skill costs almost nothing until it matters.
+
+## Give an agent a skill
+
+<Steps>
+  <Step title="Open the agent">Select the agent on the Design board. Its panel has a **Skills** section.</Step>
+  <Step title="Add a skill">Choose **Add skill**. A full-size window opens with three fields: **Name** (lowercase letters, digits and hyphens, such as `money-rules`), **When to use it** (the description the agent sees until it loads the skill) and **Instructions**, in Markdown.</Step>
+  <Step title="Or load one">Choose **Load from file** and pick a `SKILL.md`. Its frontmatter gives the name and description; the rest becomes the instructions. Check them, then **Save skill**.</Step>
+</Steps>
+
+Skills belong to the agent: copying the agent copies its skills, and a team file or MADL file carries them with it.
+
+## How each CLI gets them
+
+| Agent | How it gets its skills |
+| --- | --- |
+| Claude Code | Natively. The runner writes them as a plugin in its own data folder and passes it for that session only. Nothing is written into your project. Claude loads a skill when its description applies. |
+| Codex | Its briefing lists each skill's name and description, and it loads one with the `read_skill` tool when it applies. |
+
+An agent on a computer whose runner predates skills runs without them, and its page says so: reinstall the runner from **Computers**.
+
+## Tools on the agent's computer: Kindex
+
+[Kindex](https://github.com/wandercom/kindex) is a knowledge graph that lives on the agent's computer and outlasts any one team: decisions, constraints and discoveries that agents search and add to across sessions. Sculptured's own [Knowledge](/guides/knowledge) covers one team's work; Kindex keeps knowledge for later work in the project.
+
+<Steps>
+  <Step title="Install it on the agent's computer">Run `pip install 'kindex[mcp]'` (or `uv tool install 'kindex[mcp]'`) on the computer that runs the agent.</Step>
+  <Step title="Turn it on for the agent">In the agent's **Advanced** settings, tick **Kindex memory**.</Step>
+</Steps>
+
+At its next start the agent gets Kindex's tools next to Sculptured's, and its briefing says what Kindex is for. The runner finds `kin-mcp` on that computer itself; Sculptured never sends it a command to run. If Kindex is not installed there, the agent starts anyway and its page says how to install it. Kindex's own question and learning features call a model and cost usage; its search and storage do not.

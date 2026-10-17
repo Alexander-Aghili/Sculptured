@@ -142,11 +142,13 @@ There is one version number, `PROTOCOL_VERSION = 1`, and it must match exactly. 
 | `claude-setup` | Honours `LaunchParams.claude_setup` (leaves out the person's own Claude Code setup) | `LaunchParams.claude_setup` set |
 | `usage-reports` | Answers `LocalOp::AnalyzeRun` | `analyze-run` |
 | `protection` | Honours `LaunchParams.protection` ([Protections](protections.md)) | `LaunchParams.protection` set |
+| `skills` | Honours `LaunchParams.skills` ([Skills](skills-and-integrations.md)) | `LaunchParams.skills` not empty |
+| `integrations` | Honours `LaunchParams.integrations` | `LaunchParams.integrations` not empty |
 
-- **Advertised:** hostd always sends `posture`, `restart`, `answer`, `usage-baseline` and `claude-setup`. It adds `seat-tools` when it serves the seat-tools socket, `protection` when it can name the guard program, and `local-ops` and `usage-reports` when it has an ops context (`Supervisor::features`).
+- **Advertised:** hostd always sends `posture`, `restart`, `answer`, `usage-baseline` and `claude-setup`. It adds `seat-tools` when it serves the seat-tools socket, `protection` when it can name the guard program, `skills` when it serves the seat-tools socket, `integrations` always, and `local-ops` and `usage-reports` when it has an ops context (`Supervisor::features`).
 - **Required:** `HostCommand::required_features` and `LaunchParams::required_features` compute what a message needs.
 - **Checked before sending:** `HostRegistry::command_checked` refuses a command the host cannot do (`OlderRunner`) and never sends it. `HostRegistry::op` answers `OlderRunner` for a host without `local-ops`.
-- **Fitting a launch:** `hosts::fit_params` refuses a restricted launch on a runner without `posture`, because posture is safety-critical. It *drops* `seat_tools`, `usage_baseline`, `claude_setup` and `protection` instead and records a `FeaturesDropped` event on the agent that names what was lost and how to update the runner.
+- **Fitting a launch:** `hosts::fit_params` refuses a restricted launch on a runner without `posture`, because posture is safety-critical. It *drops* `seat_tools`, `usage_baseline`, `claude_setup`, `protection`, `skills` and `integrations` instead and records a `FeaturesDropped` event on the agent that names what was lost and how to update the runner.
 - **Old messages still decode:** the new fields use `#[serde(default)]`. An M1 Hello (no `features`, `launching_seats` or `policy`) and an M1 launch (no `posture`) decode, the latter as `unrestricted`.
 - **Why this matters:** a hostd outlives controld restarts by design, because it owns the agents. A newer controld therefore often talks to an older runner.
 

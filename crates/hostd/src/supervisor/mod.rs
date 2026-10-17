@@ -1,5 +1,6 @@
 mod lifecycle;
 mod tools;
+mod extras;
 
 use crate::journal::Journal;
 use crate::mapping::Mapped;
@@ -215,6 +216,10 @@ impl Supervisor {
         if self.guard_program().is_some() {
             f.push(host_proto::features::PROTECTION);
         }
+        if self.inner.seat_tools.is_some() {
+            f.push(host_proto::features::SKILLS);
+        }
+        f.push(host_proto::features::INTEGRATIONS);
         if self.inner.ops.is_some() {
             f.push(host_proto::features::LOCAL_OPS);
             f.push(host_proto::features::USAGE_REPORTS);

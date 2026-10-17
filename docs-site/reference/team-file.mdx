@@ -106,6 +106,8 @@ erDiagram
 | `minute_limit` | [SoftHard](#softhard) of minutes | | Minutes it may spend working in one run, its children's included. |
 | `data_access` | [DataAccess](#dataaccess) | | What it reads, writes and changes beyond its files. |
 | `authority` | [Authority](#authority) | | The decisions it owns. |
+| `skills` | list of `{ name, description, body }` | | Its [skills](/guides/skills). `name`: lowercase letters, digits and hyphens, at most 64; `description`: when to use it, at most 1,024 characters. |
+| `integrations` | list of `kindex` | | Tools on its computer it is also given. |
 
 ### TokenLimit
 

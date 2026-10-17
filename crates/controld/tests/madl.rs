@@ -140,3 +140,16 @@ fn contracts_and_protections_round_trip_through_madl() {
     let yaml = serde_yaml_ng::to_string(&to_madl(&file)).unwrap();
     assert!(yaml.contains("data_access:") && yaml.contains("authority:"), "standard MADL fields, not an extension: {yaml}");
 }
+
+#[test]
+fn skills_travel_embedded_and_integrations_round_trip_through_madl() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/teams/gstack-roles.sculptured-team.json")).unwrap();
+    let mut file: TeamFile = serde_json::from_str(&text).unwrap();
+    file.team.revision = 0;
+    let a = &mut file.team.agents[0].advanced;
+    a.skills = vec![model::Skill { name: "money-rules".into(), description: "Use when handling amounts of money.".into(), body: "Decimal only.\n".into() }];
+    a.integrations = vec![model::Integration::Kindex];
+    round_trip(&file);
+    let yaml = serde_yaml_ng::to_string(&to_madl(&file)).unwrap();
+    assert!(yaml.contains("name: money-rules") && yaml.contains("body:"), "the skill is embedded in standard MADL: {yaml}");
+}

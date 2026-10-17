@@ -71,6 +71,8 @@ pub enum LocalOp {
     AnalyzeRun { sessions: Vec<analyze::RunSession>, export: String },
     /// The project map of a folder (`map`), also written to its `.sculptured/map.md`.
     ProjectMap { path: String },
+    /// Keeps a confirmed lesson in the folder's `.sculptured/lessons.md`.
+    KeepLesson { path: String, text: String },
 }
 
 /// A work item of a team, named rather than given as a path: the computer finds its copy itself.
@@ -151,6 +153,7 @@ pub async fn execute(cx: &Context, op: LocalOp) -> Result<serde_json::Value, Loc
         LocalOp::Generate { cli, model, prompt, schema } => generate::run(&cx, &cli, model.as_deref(), &prompt, &schema).await,
         LocalOp::AnalyzeRun { sessions, export } => blocking(move || analyze::run(&cx, &sessions, &export)).await,
         LocalOp::ProjectMap { path } => blocking(move || Ok(json(map::build(Path::new(&path))?))).await,
+        LocalOp::KeepLesson { path, text } => blocking(move || Ok(serde_json::json!({ "kept": map::keep_lesson(Path::new(&path), &text)? }))).await,
     }
 }
 

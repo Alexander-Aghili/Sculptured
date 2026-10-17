@@ -30,6 +30,7 @@ pub fn timeout_for(op: &LocalOp) -> Duration {
         LocalOp::Generate { .. } => 310,
         LocalOp::AnalyzeRun { .. } => 60,
         LocalOp::ProjectMap { .. } => 30,
+        LocalOp::KeepLesson { .. } => 15,
         LocalOp::CliLogin { .. } => 20,
         LocalOp::CopyPrepare { .. } | LocalOp::CopiesRead { .. } | LocalOp::CopyMerge { .. } | LocalOp::CopyRemove { .. } => 120,
         LocalOp::ItemCopyPrepare { .. } | LocalOp::ItemMerge { .. } => 120,

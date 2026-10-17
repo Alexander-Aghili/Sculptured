@@ -2,7 +2,10 @@ import type { DecisionEntry } from './generated/DecisionEntry';
 
 export type MapSection = { title: string; line: number; end: number };
 export type MapArea = { path: string; files: number; kinds: [string, number][]; about?: string | null; docs: { file: string; sections: MapSection[] }[] };
-export type ProjectMap = { root: string; files: number; areas: MapArea[]; truncated: boolean; file: string };
+export type ProjectMap = { root: string; files: number; areas: MapArea[]; truncated: boolean; file: string; kept?: string[] };
+
+/** What agents record: a lesson (a tip) or a constraint (a rule every agent follows). */
+export const isLearned = (e: DecisionEntry) => e.source === 'lesson' || e.source === 'constraint';
 export type Knowledge = {
   maps: { folder: string; at_ms: number; map: ProjectMap; workers: Record<string, string[]> }[];
   entries: DecisionEntry[];
@@ -20,4 +23,4 @@ export function markSeen(rig: string, at = Date.now()) {
 }
 
 /** Lessons agents recorded since the view was last opened. */
-export const newLessons = (k: Knowledge | null | undefined, since: number) => (k?.entries ?? []).filter((e) => e.source === 'lesson' && e.at_ms > since).length;
+export const newLessons = (k: Knowledge | null | undefined, since: number) => (k?.entries ?? []).filter((e) => isLearned(e) && e.at_ms > since).length;

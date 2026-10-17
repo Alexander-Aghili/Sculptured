@@ -413,7 +413,7 @@ dependencies = [
  "interpreter",
  "jsonschema",
  "localops",
- "madl 0.1.0 (git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=ec8f0af1e0a523e616a39211bf6ce9387303ccf0)",
+ "madl 0.1.0 (git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=662ce9aee0f2f6416b3680f49bf3403bf04a12c5)",
  "model",
  "reqwest",
  "rigspec",
@@ -1433,7 +1433,7 @@ dependencies = [
 [[package]]
 name = "madl"
 version = "0.1.0"
-source = "git+https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language?rev=ea9c2dd849ab41367b0cccbba86d613dadcf276d#ea9c2dd849ab41367b0cccbba86d613dadcf276d"
+source = "git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=662ce9aee0f2f6416b3680f49bf3403bf04a12c5#662ce9aee0f2f6416b3680f49bf3403bf04a12c5"
 dependencies = [
  "schemars",
  "serde",
@@ -1447,7 +1447,7 @@ dependencies = [
 [[package]]
 name = "madl"
 version = "0.1.0"
-source = "git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=ec8f0af1e0a523e616a39211bf6ce9387303ccf0#ec8f0af1e0a523e616a39211bf6ce9387303ccf0"
+source = "git+https://github.com/Alexander-Aghili/Multi-Agent-Descriptor-Language?rev=ea9c2dd849ab41367b0cccbba86d613dadcf276d#ea9c2dd849ab41367b0cccbba86d613dadcf276d"
 dependencies = [
  "schemars",
  "serde",

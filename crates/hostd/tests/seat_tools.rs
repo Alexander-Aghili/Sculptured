@@ -158,7 +158,7 @@ async fn a_link_that_lags_still_passes_every_call_on() {
 
 #[test]
 fn a_team_without_a_workflow_is_not_offered_the_workflow_tools() {
-    let offer = Offer { approve: false, workflow: false };
+    let offer = Offer { approve: false, workflow: false, skills: false };
     let names: Vec<String> = tool_list_for(offer).as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
     assert_eq!(names, ["request_input", "record_decision", "report", "read_decisions", "search_history", "record_lesson", "spawn_agent", "send_agent_message", "team_status", "read_pdf"]);
     let call = json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": { "name": "complete_work", "arguments": {} } });
