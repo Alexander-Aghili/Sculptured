@@ -39,6 +39,7 @@ pub mod state;
 pub mod decisions;
 pub mod knowledge;
 pub mod skills;
+pub mod claims;
 pub mod schedules;
 pub mod run_reports;
 pub mod recent;

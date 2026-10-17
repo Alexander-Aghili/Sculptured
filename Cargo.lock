@@ -413,8 +413,9 @@ dependencies = [
  "interpreter",
  "jsonschema",
  "localops",
- "madl 0.1.0 (git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=662ce9aee0f2f6416b3680f49bf3403bf04a12c5)",
+ "madl 0.1.0 (git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=69bae1ce770933b19bf41955dd86ee3a7e01a408)",
  "model",
+ "regex",
  "reqwest",
  "rigspec",
  "rusqlite",
@@ -630,7 +631,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1433,7 +1434,7 @@ dependencies = [
 [[package]]
 name = "madl"
 version = "0.1.0"
-source = "git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=662ce9aee0f2f6416b3680f49bf3403bf04a12c5#662ce9aee0f2f6416b3680f49bf3403bf04a12c5"
+source = "git+https://github.com/Sculptured/Multi-Agent-Descriptor-Language?rev=69bae1ce770933b19bf41955dd86ee3a7e01a408#69bae1ce770933b19bf41955dd86ee3a7e01a408"
 dependencies = [
  "schemars",
  "serde",
@@ -1544,6 +1545,7 @@ dependencies = [
 name = "model"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "schemars",
  "serde",
  "serde_json",
@@ -2092,7 +2094,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2148,7 +2150,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2591,7 +2593,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3210,7 +3212,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

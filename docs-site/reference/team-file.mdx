@@ -79,6 +79,7 @@ erDiagram
 | `budget` | [RunBudget](#runbudget) | no | no budget | What one run may use. |
 | `protection` | [Protection](#protection) | no | on, with the defaults below | Rules that keep each agent's context small. |
 | `claude_setup` | [ClaudeSetup](#claudesetup) | no | `{ "global": false, "project": true }` | Which of your own Claude Code setup Claude agents load. |
+| `safety` | list of `{ name, tool_pattern, conditions, reason }` | no | | [Safety rules](/guides/budgets#safety-rules), in Signet-Eval's format. |
 
 ## DraftAgent
 
@@ -107,7 +108,7 @@ erDiagram
 | `data_access` | [DataAccess](#dataaccess) | | What it reads, writes and changes beyond its files. |
 | `authority` | [Authority](#authority) | | The decisions it owns. |
 | `skills` | list of `{ name, description, body }` | | Its [skills](/guides/skills). `name`: lowercase letters, digits and hyphens, at most 64; `description`: when to use it, at most 1,024 characters. |
-| `integrations` | list of `kindex` | | Tools on its computer it is also given. |
+| `integrations` | list of `kindex`, `signet` | | Tools on its computer it is also given. `signet` brings `kindex`. |
 
 ### TokenLimit
 
@@ -135,6 +136,7 @@ Paths are relative to the agent's folder; a trailing `/` covers a folder. See [C
 | `reads` | string[] | Files and folders it reads. Empty: anything. |
 | `writes` | string[] | Files and folders it changes. With protections on, Claude agents' reads and writes outside these are refused. |
 | `side_effects` | string[] | Effects beyond its files, in plain words. |
+| `shared` | list of `{ name, value, file }` | Values other agents rely on, checked in `file` at every start. |
 | `rationale` | string | Why. |
 
 ### Authority
@@ -251,6 +253,7 @@ A workflow moves a batch of items through stages. The dispatcher agent creates t
 | `agent` | agent id | no | The agent for an `agent` stage. Empty for the other kinds. |
 | `workers` | agent ids | no | More interchangeable agents for items at this stage, up to 8 in all. |
 | `reviewers` | agent ids | no | A review panel of 2 to 6 agents who all take the same item, instead of `agent`. |
+| `personas` | map of agent id to `red-team`, `adversarial`, `simplifier`, `user`, `expert`, `good-friend` or `ownership` | no | The angle each panel reviewer takes. |
 | `join` | `all` or `any` | no | How a panel decides: every reviewer, or the first approval. |
 | `priority` | outcome names | no | Which panel outcome wins, worst first. Default: `blocked`, then any outcome other than `approved`, then `approved`. |
 | `max_rounds` | integer or null | no | How often one item may enter this stage, 1 to 20. |

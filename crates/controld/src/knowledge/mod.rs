@@ -42,8 +42,14 @@ fn folders(st: &AppState, d: &TeamDraft) -> BTreeSet<String> {
 /// Maps every folder the team works in, on the agents' computer, and keeps them. Never fails a start:
 /// a folder that cannot be mapped (an older runner, a missing folder) is skipped.
 pub async fn refresh(st: &AppState, team: &str, d: &TeamDraft) {
+    let home = st.home.as_deref().cloned().unwrap_or_default();
     for folder in folders(st, d) {
-        let op = localops::LocalOp::ProjectMap { path: folder.clone() };
+        // The shared values of the agents working in this folder, checked in its files.
+        let shared = d.agents.iter()
+            .filter(|a| d.effective_folder(a).map(|f| crate::launch::cwd_for(st, &home, f)).as_deref() == Some(folder.as_str()))
+            .flat_map(|a| a.advanced.data_access.iter().flat_map(|c| c.shared.clone()))
+            .collect();
+        let op = localops::LocalOp::ProjectMap { path: folder.clone(), shared };
         match tokio::time::timeout(MAP_WAIT, crate::ops::run(st, crate::ops::Target::Team(team), op)).await {
             Ok(Ok(map)) => {
                 let saved = st.store.lock().unwrap().connection().execute(
@@ -96,6 +102,9 @@ pub(crate) fn briefing_lines(st: &AppState, team: &str, seat: &str, d: &TeamDraf
     let map = folder.and_then(|f| maps(st, team).into_iter().find(|(m, ..)| *m == f));
     if let Some((f, map, _)) = &map {
         out.push(outline(map, &workers(st, team, d, f)));
+        if !map.shared.is_empty() {
+            out.push(shared_lines(map));
+        }
     }
     let entries = st.store.lock().unwrap().decisions(team, None, 50, false).unwrap_or_default();
     let line = |e: &DecisionEntry| format!("{}{} ({})", if e.confirmed_ms.is_some() { "[confirmed] " } else { "" }, e.text.trim(), e.author);
@@ -128,6 +137,16 @@ pub(crate) fn new_lessons(st: &AppState, team: &str, seat: &str, d: &TeamDraft) 
         .map(|e| format!("{}{} ({})", if e.source == "constraint" { "[constraint] " } else { "" }, e.text.trim(), e.author))
         .collect();
     (!fresh.is_empty()).then(|| format!("New lesson{} from your team since your last message:\n- {}", if fresh.len() == 1 { "" } else { "s" }, fresh.join("\n- ")))
+}
+
+/// The contracts' shared values as found at this start: what agents can rely on, and what not.
+fn shared_lines(map: &ProjectMap) -> String {
+    let lines: Vec<String> = map.shared.iter().map(|c| match (c.status.as_str(), c.line) {
+        ("found", Some(l)) => format!("- {} = {} ({} line {l})", c.name, c.value, c.file),
+        ("missing", _) => format!("- NOT FOUND: {} = {} should be in {}, which does not contain it. Tell the agent whose contract lists it before relying on either value.", c.name, c.value, c.file),
+        _ => format!("- NOT FOUND: {} = {} should be in {}, which does not exist.", c.name, c.value, c.file),
+    }).collect();
+    format!("Values shared between agents, checked in their files at this start (use exactly these):\n{}", lines.join("\n"))
 }
 
 fn outline(map: &ProjectMap, who: &BTreeMap<String, BTreeSet<String>>) -> String {

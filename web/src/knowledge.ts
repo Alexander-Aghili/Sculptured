@@ -2,7 +2,8 @@ import type { DecisionEntry } from './generated/DecisionEntry';
 
 export type MapSection = { title: string; line: number; end: number };
 export type MapArea = { path: string; files: number; kinds: [string, number][]; about?: string | null; docs: { file: string; sections: MapSection[] }[] };
-export type ProjectMap = { root: string; files: number; areas: MapArea[]; truncated: boolean; file: string; kept?: string[] };
+export type SharedCheck = { name: string; value: string; file: string; status: 'found' | 'missing' | 'no-file'; line?: number };
+export type ProjectMap = { root: string; files: number; areas: MapArea[]; truncated: boolean; file: string; kept?: string[]; shared?: SharedCheck[] };
 
 /** What agents record: a lesson (a tip) or a constraint (a rule every agent follows). */
 export const isLearned = (e: DecisionEntry) => e.source === 'lesson' || e.source === 'constraint';

@@ -76,8 +76,20 @@ pub fn close_panel(w: &Workflow, t: &mut WorkflowTask) -> Result<(), String> {
     let Some(decided) = panel_outcome(s, &t.reviews) else { return Ok(()) };
     let votes = t.reviews.iter().filter_map(|r| Some((r.agent.clone(), r.outcome.clone()?))).collect();
     let result = t.reviews.iter().filter_map(|r| Some(format!("— {}: {}", r.agent, r.result.as_ref()?))).collect::<Vec<_>>().join("\n");
+    let result = match split_note(s, &t.reviews) { Some(note) => format!("{note}\n{result}"), None => result };
     let step = WorkflowStep { assignment: uuid::Uuid::new_v4().to_string(), stage: t.stage.clone(), agent: "panel".into(), outcome: decided, result, at_ms: model::now_ms(), votes, panel: std::mem::take(&mut t.reviews), ..Default::default() };
     advance(w, t, step)
+}
+
+/// When reviewers voted differently: who voted what (and from which angle), since a split shows risks
+/// one reviewer saw and another did not. Derived from the votes alone (an idea from Advocate).
+pub fn split_note(s: &WorkflowStage, reviews: &[model::Review]) -> Option<String> {
+    let mut by: std::collections::BTreeMap<&str, Vec<String>> = std::collections::BTreeMap::new();
+    for r in reviews {
+        let who = s.personas.get(&r.agent).map_or(r.agent.clone(), |p| format!("{} ({})", r.agent, p.label().to_lowercase()));
+        by.entry(r.outcome.as_deref()?).or_default().push(who);
+    }
+    (by.len() > 1).then(|| format!("Reviewers disagree: {}. Read why before acting on the outcome.", by.iter().map(|(v, who)| format!("{} voted {v}", who.join(", "))).collect::<Vec<_>>().join("; ")))
 }
 
 /// A reviewer answering after its panel already decided: recorded on that step, never acted on.

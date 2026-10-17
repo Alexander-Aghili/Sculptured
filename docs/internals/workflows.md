@@ -241,6 +241,10 @@ An assignment's id is its message id. `Store::assignment_usage` sums the `usage-
 
 Every workflow `POST` checks `start_seq` against the running batch. A request from an earlier run gets "This is an earlier run. Reload the workflow."
 
+## Review angles and split votes
+
+`WorkflowStage.personas` maps panel reviewers to a `ReviewPersona` (ideas from Advocate). `assignment::panel_note` adds that persona's brief to the reviewer's assignment. When the votes differ, `engine::split_note` starts the panel's result with who voted what, derived from the votes alone. Test: `workflow/tests.rs::a_panel_reviewer_is_told_its_angle_and_a_split_vote_is_named`.
+
 ## Architecture invariants
 
 - A team has either a workflow or ordinary connections, never both.

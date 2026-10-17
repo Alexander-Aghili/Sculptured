@@ -135,6 +135,9 @@ fn agent_extension(a: &DraftAgent, hidden_group: bool) -> m::Extensions {
     if !a.advanced.integrations.is_empty() {
         ext.insert("integrations".into(), json!(a.advanced.integrations));
     }
+    if let Some(shared) = a.advanced.data_access.as_ref().map(|d| &d.shared).filter(|s| !s.is_empty()) {
+        ext.insert("shared_values".into(), json!(shared));
+    }
     wrap(ext)
 }
 
@@ -191,6 +194,9 @@ fn team_extension(file: &TeamFile) -> m::Extensions {
     }
     if !team.protection.is_default() {
         ext.insert("protection".into(), json!(team.protection));
+    }
+    if !team.safety.is_empty() {
+        ext.insert("safety".into(), json!(team.safety));
     }
     if !team.claude_setup.is_default() {
         ext.insert("claude_setup".into(), json!(team.claude_setup));

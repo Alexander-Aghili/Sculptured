@@ -26,6 +26,7 @@ flowchart LR
 - `Integration` is a closed list (`kindex`). The wire carries names; the runner resolves each one itself (`Supervisor::integrations`): `kindex` → `kin-mcp` on `PATH`, `~/.local/bin` or `~/.cargo/bin`. The server never sends a program path, so connected-computer policy (no program, env or args from the server) still holds.
 - Found: a `drivers::McpServer` added to the launch (Claude: a second `--mcp-config`; Codex: `mcp_servers.kindex.command/args` in the thread config). Missing: the agent starts without it and the runner records `FeaturesDropped` with install steps.
 - Agents given Kindex are told in their briefing what it is for, next to Sculptured's own `record_lesson`.
+- `signet` (Claude only) resolves `signet-eval` and becomes a tool hook, not an MCP server; it brings `kindex`. See [Protections](protections.md).
 
 ## 3. Files
 

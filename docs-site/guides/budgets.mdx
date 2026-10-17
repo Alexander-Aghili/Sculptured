@@ -107,6 +107,15 @@ Most of a long run's tokens are agents re-reading their own conversation on ever
 
 Claude agents get all three; Codex agents get the context limit only. Every refusal and every fresh continue shows in the agent's conversation. An agent on a computer whose runner predates protections runs without them, and its page says so: reinstall the runner from **Computers**.
 
+### Safety rules
+
+Under **Protections**, **Safety rules** refuse tool calls you name, for every Claude agent of the team, with the reason you give. Add a ready-made one, such as no recursive deletes, no reading `.env` or private keys, no force-push, no piping downloads into a shell, no disk formatting, or write your own:
+
+- **Tools**: a regular expression over the tool's name (`Bash`, `Write`, `Read`, …); `.*` for all.
+- **Conditions**: one per line, all must hold, in [Signet-Eval](https://github.com/wandercom/signet-eval)'s format: `contains(parameters, 'DROP TABLE')`, `matches(file_path, '\.env$')`, `param_contains(command, 'sudo')`, `any_of(…)`, `param_eq`, `param_ne`, `not(…)`, `or(A || B)`. `parameters` is the whole call; a field name is one part of it.
+
+Sculptured's own guard checks them, with no model call. A rule that cannot be read is shown as a problem on the board and never blocks an agent. For Signet-Eval's own checks as well (its vault, spending limits and locked self-protection), give an agent **Signet-Eval policy checks**; see [Skills and tools](/guides/skills#signet-eval).
+
 ## Contracts: what each agent reads, writes and decides
 
 An agent's **Advanced** settings include its **Contract**. Every line is optional:
@@ -116,6 +125,7 @@ An agent's **Advanced** settings include its **Contract**. Every line is optiona
 | **Reads** / **Writes** | Files and folders, one per line, relative to the agent's folder. With protections on, Claude agents' `Read`, `Write` and `Edit` calls outside them are refused with the reason. Shell commands are not checked. The agent's own notes folder is always allowed. |
 | **Other effects** | Effects beyond its files, in plain words ("sends email", "pushes to main"), told to the agent |
 | **Decides** | Decisions the agent owns. Every agent is told who decides what, and asks the owner before deciding within its domain |
+| **Values it shares** | Values other agents rely on, such as a port, an endpoint or a field name, one per line as `name = exact value @ file`. Every start checks each file still contains its value; agents are told what was found, and a value not found is flagged so nobody builds on it. An idea from Constrain. |
 | **Its decisions reach** | Its own work, a group, or the whole team. A decision belongs to the agent whose reach contains its consequences, so a choice that crosses groups goes to that owner instead of being agreed between two agents who are each only locally right |
 
 Contracts travel in MADL files as `data_access` and `authority`. MADL also warns when two agents may write the same paths or own the same decision.

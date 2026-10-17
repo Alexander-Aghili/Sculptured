@@ -52,6 +52,9 @@ fn check_team(d: &TeamDraft, out: &mut Vec<DraftIssue>) {
     if d.agents.is_empty() {
         out.push(issue(Team, &d.id, Error, "team-empty", "Add at least one agent to start the team"));
     }
+    for problem in d.safety.iter().flat_map(model::SafetyRule::problems) {
+        out.push(issue(Team, &d.id, Error, "safety-rule-invalid", problem));
+    }
 }
 
 fn check_groups(d: &TeamDraft, out: &mut Vec<DraftIssue>) {

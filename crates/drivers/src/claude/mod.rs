@@ -77,7 +77,7 @@ impl ClaudeStreamDriver {
                 .collect();
             a.extend(["--mcp-config".to_string(), json!({ "mcpServers": servers }).to_string()]);
         }
-        a.extend(spec.claude_setup.iter().flat_map(model::ClaudeSetup::claude_args).chain(spec.protection.iter().flat_map(Self::protection_args)));
+        a.extend(spec.claude_setup.iter().flat_map(model::ClaudeSetup::claude_args).chain(Self::protection_args(spec.protection.as_ref(), &spec.tool_hooks)));
         a.extend(spec.extra_args.iter().cloned());
         a
     }
@@ -85,13 +85,20 @@ impl ClaudeStreamDriver {
     /// Protections: a PreToolUse hook running `guard`, the shell output cap, and Claude Code's lowest
     /// compaction threshold as a backstop within long turns (Sculptured's own context ceiling acts
     /// between turns). Passed with `--settings`, so they apply whatever setting sources load.
-    fn protection_args(p: &crate::ProtectionLaunch) -> Vec<String> {
-        let command = format!("\"{}\" guard", p.guard.display());
-        let settings = json!({
-            "hooks": { "PreToolUse": [{ "matcher": "Read|Bash", "hooks": [{ "type": "command", "command": command, "timeout": 5 }] }] },
-            "bashOutputMaxChars": p.rules.shell_output_chars,
-        });
-        vec!["--settings".into(), settings.to_string(), "--autocompact".into(), "100000".into()]
+    /// More tool hooks (Signet-Eval) run on every call, after the guard.
+    fn protection_args(p: Option<&crate::ProtectionLaunch>, more: &[String]) -> Vec<String> {
+        let mut pre: Vec<Value> = p.iter().map(|p| json!({ "matcher": p.rules.hook_matcher(), "hooks": [{ "type": "command", "command": format!("\"{}\" guard", p.guard.display()), "timeout": 5 }] })).collect();
+        pre.extend(more.iter().map(|c| json!({ "matcher": "", "hooks": [{ "type": "command", "command": c, "timeout": 5 }] })));
+        if pre.is_empty() {
+            return vec![];
+        }
+        let mut settings = json!({ "hooks": { "PreToolUse": pre } });
+        let mut out = vec![];
+        if let Some(p) = p {
+            settings["bashOutputMaxChars"] = json!(p.rules.shell_output_chars);
+            out.extend(["--autocompact".to_string(), "100000".to_string()]);
+        }
+        [vec!["--settings".to_string(), settings.to_string()], out].concat()
     }
 
     /// The guard's rules, in the environment the hook inherits from the agent's process.

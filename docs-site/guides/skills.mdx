@@ -34,3 +34,14 @@ An agent on a computer whose runner predates skills runs without them, and its p
 </Steps>
 
 At its next start the agent gets Kindex's tools next to Sculptured's, and its briefing says what Kindex is for. The runner finds `kin-mcp` on that computer itself; Sculptured never sends it a command to run. If Kindex is not installed there, the agent starts anyway and its page says how to install it. Kindex's own question and learning features call a model and cost usage; its search and storage do not.
+
+## Signet-Eval
+
+[Signet-Eval](https://github.com/wandercom/signet-eval) checks every tool call against a policy, with no model and in milliseconds. Sculptured's own [safety rules](/guides/budgets#safety-rules) use its rule format; give an agent the full tool when you also want its vault, spending limits and locked self-protection rules.
+
+<Steps>
+  <Step title="Install it on the agent's computer">Run `cargo install signet-eval` there.</Step>
+  <Step title="Turn it on for the agent">In the agent's **Advanced** settings, tick **Signet-Eval policy checks**. Kindex comes with it.</Step>
+</Steps>
+
+The runner adds `signet-eval` as a second hook after Sculptured's guard, with the team's safety rules as its rules; its own system policy (`~/.signet/policy.yaml`, or its built-in one) still applies. Its built-in locked rules refuse edits until the agent has used Kindex and refuse Claude's task-list tools, which is why Kindex comes with it. Claude Code agents only: Codex runs hooks only after you trust them on each computer.

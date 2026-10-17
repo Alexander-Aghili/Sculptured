@@ -601,6 +601,13 @@
             "type": "string"
           }
         },
+        "shared": {
+          "description": "Values other agents rely on, each with the file that holds it (an idea from Constrain's\nboundary register). Every start checks the file still contains it.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SharedValue"
+          }
+        },
         "side_effects": {
           "description": "Effects beyond its files, in plain words.",
           "type": "array",
@@ -2230,6 +2237,11 @@
           "description": "Kindex (github.com/wandercom/kindex): a knowledge graph that persists across sessions and teams.",
           "type": "string",
           "const": "kindex"
+        },
+        {
+          "description": "Signet-Eval (github.com/wandercom/signet-eval): deterministic policy checks on every tool call,\nrun as a second hook with the team's safety rules. Claude agents only. Its own locked rules\nexpect Kindex, so it comes with Kindex.",
+          "type": "string",
+          "const": "signet"
         }
       ]
     },
@@ -2605,6 +2617,19 @@
         "checkpoint-only"
       ]
     },
+    "ReviewPersona": {
+      "description": "An angle a review-panel reviewer takes, so a panel covers what one reviewer would miss.",
+      "type": "string",
+      "enum": [
+        "red-team",
+        "adversarial",
+        "simplifier",
+        "user",
+        "expert",
+        "good-friend",
+        "ownership"
+      ]
+    },
     "RiskFlag": {
       "description": "A consequence worth a person's attention, in plain words. Never blocks anything.",
       "type": "object",
@@ -2665,6 +2690,37 @@
           ]
         }
       }
+    },
+    "SafetyRule": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "All must hold, such as `contains(parameters, 'rm -rf')` or `matches(file_path, '\\\\.env$')`.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "description": "What the agent is told when the rule refuses its call.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tool_pattern": {
+          "description": "A regular expression over the tool's name (`Bash`, `Write`, `mcp__…`). Default: every tool.",
+          "type": "string",
+          "default": ".*"
+        }
+      },
+      "required": [
+        "name"
+      ]
     },
     "Schedule": {
       "description": "A message sent to `agent` every `every_minutes` while the team runs; skipped when the agent is busy.",
@@ -2829,6 +2885,26 @@
           "type": "string",
           "const": "fork"
         }
+      ]
+    },
+    "SharedValue": {
+      "description": "A value at a boundary between agents, such as a port, an endpoint or a field name, and the file\n(relative to the agent's folder) that must contain it exactly.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "file"
       ]
     },
     "Skill": {
@@ -3045,6 +3121,13 @@
           "type": "integer",
           "format": "uint64",
           "minimum": 0
+        },
+        "safety": {
+          "description": "The team's safety rules (Advanced → Protections): tool calls they match are refused.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SafetyRule"
+          }
         },
         "schedules": {
           "description": "Messages sent to an agent every N minutes while the team runs (Advanced).",
@@ -3425,6 +3508,13 @@
             "string",
             "null"
           ]
+        },
+        "personas": {
+          "description": "The angle each panel reviewer takes, by agent id (ideas from Advocate). None: its own judgement.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ReviewPersona"
+          }
         },
         "position": {
           "description": "Board placement of the stage's own box (check, person, merge, review panel); none places it\nautomatically. Changing it does not alter workflow execution.",

@@ -70,7 +70,12 @@ pub enum LocalOp {
     /// run's links (a filtered `sculptured.session/v1`); answers a `mais.report/v1` report.
     AnalyzeRun { sessions: Vec<analyze::RunSession>, export: String },
     /// The project map of a folder (`map`), also written to its `.sculptured/map.md`.
-    ProjectMap { path: String },
+    ProjectMap {
+        path: String,
+        /// Values the team's contracts say these files hold; each is checked. Absent from an older server.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        shared: Vec<model::SharedValue>,
+    },
     /// Keeps a confirmed lesson in the folder's `.sculptured/lessons.md`.
     KeepLesson { path: String, text: String },
 }
@@ -152,7 +157,7 @@ pub async fn execute(cx: &Context, op: LocalOp) -> Result<serde_json::Value, Loc
         LocalOp::PlanUsage => blocking(move || Ok(json(plan::codex_files(&cx.codex_home)))).await,
         LocalOp::Generate { cli, model, prompt, schema } => generate::run(&cx, &cli, model.as_deref(), &prompt, &schema).await,
         LocalOp::AnalyzeRun { sessions, export } => blocking(move || analyze::run(&cx, &sessions, &export)).await,
-        LocalOp::ProjectMap { path } => blocking(move || Ok(json(map::build(Path::new(&path))?))).await,
+        LocalOp::ProjectMap { path, shared } => blocking(move || Ok(json(map::build_checked(Path::new(&path), &shared)?))).await,
         LocalOp::KeepLesson { path, text } => blocking(move || Ok(serde_json::json!({ "kept": map::keep_lesson(Path::new(&path), &text)? }))).await,
     }
 }

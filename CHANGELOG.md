@@ -5,6 +5,13 @@ All notable changes to Sculptured are listed here. The format follows [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- Safety rules (`TeamDraft.safety`, `model::SafetyRule`, Signet-Eval's rule format): checked first by `sculptured guard` for every Claude agent with protections on, with presets (`web/src/structure/safety-presets.json`, shared with the Rust side) and `safety-rule-invalid` draft checks; a rule that cannot be read never matches. Integration `signet`: the runner finds `signet-eval`, writes the team's rules as its `--rules-path`, and adds it as a second PreToolUse hook (`LaunchSpec.tool_hooks`); it brings `kindex`, whose engagement its locked rules require.
+- Review panels: `WorkflowStage.personas` gives each reviewer an angle (`ReviewPersona`), told in its assignment; a split vote starts the panel's result with who voted what (`engine::split_note`). Ideas from Advocate.
+- Shared values in contracts (`DataAccess.shared`, `name = value @ file`): checked in their files by the project-map op at every start (`ProjectMap.shared`, found with line / missing / no-file), told to agents, shown in Knowledge. An idea from Constrain's boundary register.
+- Claim checks (`claims.rs`): at each completed turn, a claimed file change without a captured edit, or "tests pass" with no command run, is logged as a heuristic `claim-check` entry. An idea from Arbiter.
+
+### Fixed
+- Contract write limits were never enforced: the guard hook matched only `Read|Bash`. The matcher now includes the edit tools when a contract limits writes, and every tool when safety rules exist (`GuardRules::hook_matcher`).
 - Agent skills (MADL MEP 0004): `AgentAdvanced.skills` (`model::Skill { name, description, body }`, Agent Skills format, checked as `skill-invalid`), edited on the agent panel (full-size editor, Load from file for a `SKILL.md`). Sent as `LaunchParams.skills` (runner feature `skills`): Claude Code gets a per-agent plugin folder in the runner's data dir via `--plugin-dir`; other CLIs get the list in their briefing and a `read_skill` agent tool. MADL embeds them; named-only skills are reported as not imported.
 - Integrations: `AgentAdvanced.integrations` (`kindex`), sent as `LaunchParams.integrations` (runner feature `integrations`). The runner finds `kin-mcp` itself and adds it as an MCP server (Claude `--mcp-config`, Codex `mcp_servers.kindex.*`); missing, the agent starts without it and a `features-dropped` note says how to install it.
 - Constraints and lessons kept with the project: `record_lesson { kind: constraint }` (source `constraint`, first in briefings); confirming a lesson or constraint keeps it in each team folder's `.sculptured/lessons.md` (`LocalOp::KeepLesson`), and `ProjectMap.kept` brings those lines into later teams' briefings.

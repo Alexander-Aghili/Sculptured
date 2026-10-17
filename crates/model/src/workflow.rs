@@ -52,6 +52,49 @@ pub struct BoardPosition { pub x: i32, pub y: i32 }
 
 pub const DEFAULT_CHECK_TIMEOUT_S: u32 = 600;
 
+/// An angle a review-panel reviewer takes, so a panel covers what one reviewer would miss.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum ReviewPersona {
+    RedTeam,
+    Adversarial,
+    Simplifier,
+    User,
+    Expert,
+    GoodFriend,
+    Ownership,
+}
+
+impl ReviewPersona {
+    pub const ALL: [ReviewPersona; 7] = [Self::RedTeam, Self::Adversarial, Self::Simplifier, Self::User, Self::Expert, Self::GoodFriend, Self::Ownership];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::RedTeam => "Red team",
+            Self::Adversarial => "Adversary",
+            Self::Simplifier => "Simplifier",
+            Self::User => "User",
+            Self::Expert => "Domain expert",
+            Self::GoodFriend => "Honest friend",
+            Self::Ownership => "Ownership",
+        }
+    }
+
+    /// What the reviewer looks for, and when the work passes from its angle.
+    pub fn brief(self) -> &'static str {
+        match self {
+            Self::RedTeam => "Look for ways to break it: untrusted input, injection, data loss, races, anything an attacker or an accident could exploit. It passes when it holds up under attack.",
+            Self::Adversarial => "Assume it is wrong and look for why: false assumptions, missed edge cases, failure modes, broken compatibility. It passes when its reasoning survives a direct challenge.",
+            Self::Simplifier => "Look for needless complexity: parts that could go, concepts that could merge, changes with a wider reach than needed. It passes when a smart newcomer could explain it simply.",
+            Self::User => "Look at it as someone who has never seen it: confusing steps, unclear names, errors that do not say what to do. It passes when they could use it without a guide.",
+            Self::Expert => "Review it as a peer in its field would: domain errors, wrong conventions, claims a specialist would question. It passes when such a peer would sign off.",
+            Self::GoodFriend => "Say what others will not: the cost, the risk at 3 a.m., the thing that will hurt later. It passes when there is nothing you would rather they heard now than later.",
+            Self::Ownership => "Look at who owns each fact and decision: data with two owners, guesses with no way back, parts that disagree about the same value. It passes when every fact has one owner and every guess can be undone.",
+        }
+    }
+}
+
 /// After `after_rounds` rounds at a stage, its items go to `agent` (typically a stronger model's agent).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, TS)]
 #[ts(export)]
@@ -159,6 +202,10 @@ pub struct WorkflowStage {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<String>>", optional)]
     pub reviewers: Vec<String>,
+    /// The angle each panel reviewer takes, by agent id (ideas from Advocate). None: its own judgement.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    #[ts(as = "Option<std::collections::BTreeMap<String, ReviewPersona>>", optional)]
+    pub personas: std::collections::BTreeMap<String, ReviewPersona>,
     #[serde(default, skip_serializing_if = "Join::is_all")]
     #[ts(as = "Option<Join>", optional)]
     pub join: Join,

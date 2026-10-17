@@ -59,6 +59,11 @@ Both are seat tools, served by controld through the runner's seat-tools socket (
 - **Constraints** (source `constraint`) are rules; `briefing_lines` lists them first, as "follow them", then lessons.
 - **Kept with the project.** `POST …/confirm` on a lesson or constraint runs `keep_in_project`: a `keep-lesson` op per team folder appends `- <text>` (constraints prefixed `[constraint]`) to `<folder>/.sculptured/lessons.md`, once. `localops::map::build` reads that file back into `ProjectMap.kept` (at most 30 lines), and the briefing lists kept lines this team does not already have under "Kept with this project from earlier work". The file is plain text the person can edit. A runner without `keep-lesson` answers `unknown_op` and the lesson stays with the team.
 
+## 4b. Shared values and claim checks
+
+- **Shared values** (`DataAccess.shared`, from Constrain's boundary register): `knowledge::refresh` sends the shared values of the agents in each folder with its `project-map` op; `localops::map::build_checked` looks each one up in its file (paths that leave the folder are not read) and returns `ProjectMap.shared` with `found` and the first line, `missing`, or `no-file`. `briefing_lines` lists them as values to use exactly, with NOT FOUND ones flagged. They are observed, not reported.
+- **Claim checks** (`claims.rs`, from Arbiter): on each completed turn, the turn's last text is compared with its captured `Write`/`Edit` paths and shell commands. "Changed `<file>`" with no edit to it and no command naming it, or "tests pass" with no command run, becomes a `team_decisions` entry with source `claim-check`, shown in Knowledge as a heuristic. Agents are not told and never interrupted.
+
 ## 5. The Knowledge view
 
 On the Run board, **More → Knowledge** opens `KnowledgeView`. It shows "Lessons and decisions" (with **Confirm** and **Hide**) and "Project map" (each folder's areas, sections and workers).

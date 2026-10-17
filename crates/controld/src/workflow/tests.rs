@@ -1130,3 +1130,20 @@ async fn a_logged_decision_stays_within_the_entry_limit() {
     routes::decide_task(&st, "book", "item-0", "ship", &"x".repeat(4096), start, true).unwrap();
     assert!(st.store.lock().unwrap().decisions("book", None, 1, false).unwrap()[0].text.len() <= 4096);
 }
+
+#[tokio::test]
+async fn a_panel_reviewer_is_told_its_angle_and_a_split_vote_is_named() {
+    let mut d = panel_fixture();
+    let reviewers = d.workflow.as_ref().unwrap().stages[1].reviewers.clone();
+    d.workflow.as_mut().unwrap().stages[1].personas.insert(reviewers[0].clone(), ReviewPersona::RedTeam);
+    let st = setup_draft(Store::open_in_memory().unwrap(), d.clone()); dispatch(&st, 1).unwrap();
+    finish(&st, 0, "ready").await; scheduler::process(&st, "book").await.unwrap();
+    let run = current(&st);
+    let text = |agent: &str| assignment::text(&d, &run, &run.tasks[0], "a", agent);
+    assert!(text(&reviewers[0]).contains("Review as the red team: Look for ways to break it"), "{}", text(&reviewers[0]));
+    assert!(!text(&reviewers[1]).contains("Review as the"), "the other reviewer keeps its own judgement");
+    vote(&st, &reviewers[0], "changes").await.unwrap();
+    vote(&st, &reviewers[1], "approved").await.unwrap();
+    let step = current(&st).tasks[0].history.last().unwrap().clone();
+    assert!(step.result.starts_with(&format!("Reviewers disagree: {} voted approved; {} (red team) voted changes.", reviewers[1], reviewers[0])), "{}", step.result);
+}

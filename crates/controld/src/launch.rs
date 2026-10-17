@@ -174,7 +174,15 @@ fn agent_extras(st: &AppState, rig: &str, seat: &CompiledSeat) -> (Vec<model::Sk
     }
     let draft = st.store.lock().unwrap().draft(rig).ok().flatten();
     let Some(a) = draft.as_ref().and_then(|d| d.agent_for_seat(&seat.id)) else { return (vec![], vec![]) };
-    (a.advanced.skills.clone(), a.advanced.integrations.iter().map(|i| i.name().to_string()).collect())
+    let mut names: Vec<String> = a.advanced.integrations.iter()
+        // Signet runs as a Claude Code hook; Codex runs hooks only after the person trusts them.
+        .filter(|i| **i != model::Integration::Signet || seat.runtime == Runtime::ClaudeCode)
+        .map(|i| i.name().to_string()).collect();
+    // Signet's own locked rules refuse edits until the agent has used Kindex.
+    if names.iter().any(|n| n == "signet") && !names.iter().any(|n| n == "kindex") {
+        names.insert(0, "kindex".into());
+    }
+    (a.advanced.skills.clone(), names)
 }
 
 /// Claude agents only: the part of the person's own Claude Code setup the team allows (None when all of
@@ -186,6 +194,7 @@ fn claude_settings(st: &AppState, rig: &str, seat: &CompiledSeat) -> (Option<mod
     let draft = st.store.lock().unwrap().draft(rig).ok().flatten();
     let setup = draft.as_ref().map(|d| d.claude_setup).unwrap_or_default();
     let protection = draft.as_ref().map(|d| d.protection).unwrap_or_default().guard_rules()
-        .map(|rules| with_contract(rules, draft.as_ref().and_then(|d| d.agent_for_seat(&seat.id))));
+        .map(|rules| with_contract(rules, draft.as_ref().and_then(|d| d.agent_for_seat(&seat.id))))
+        .map(|mut rules| { rules.safety = draft.as_ref().map(|d| d.safety.clone()).unwrap_or_default(); rules });
     ((!(setup.global && setup.project)).then_some(setup), protection)
 }

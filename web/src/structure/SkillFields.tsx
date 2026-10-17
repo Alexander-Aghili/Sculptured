@@ -97,18 +97,26 @@ export function SkillFields({ agent, edit, locked }: { agent: DraftAgent; edit: 
   );
 }
 
-/** Tools on the agent's computer it is also given (Advanced). */
+const TOOLS: { id: Integration; label: string; hint: string }[] = [
+  { id: 'kindex', label: 'Kindex memory', hint: "A knowledge graph on its computer that outlasts this team. Install it there first: pip install 'kindex[mcp]'." },
+  { id: 'signet', label: 'Signet-Eval policy checks', hint: "Claude agents: Signet-Eval checks every tool call with the team's safety rules and its own built-in ones, which expect Kindex, so Kindex comes too. Install it there first: cargo install signet-eval." },
+];
+
+/** Tools on the agent's computer it is also given (Advanced). Without one installed there, the agent starts anyway and its page says so. */
 export function IntegrationFields({ agent, edit, locked }: { agent: DraftAgent; edit: Edit; locked: boolean }) {
-  const on = (agent.advanced.integrations ?? []).includes('kindex');
-  const toggle = (checked: boolean) => edit((d: TeamDraft) => {
-    const rest = (agent.advanced.integrations ?? []).filter((i: Integration) => i !== 'kindex');
-    const next: Integration[] = checked ? [...rest, 'kindex'] : rest;
+  const have = agent.advanced.integrations ?? [];
+  const toggle = (id: Integration, checked: boolean) => edit((d: TeamDraft) => {
+    let next = have.filter((i) => i !== id);
+    if (checked) next = [...next, id];
+    // Signet's own locked rules refuse edits until the agent has used Kindex.
+    if (checked && id === 'signet' && !next.includes('kindex')) next = ['kindex', ...next];
+    if (!checked && id === 'kindex') next = next.filter((i) => i !== 'signet');
     return setAdvanced(d, agent.id, { integrations: next.length ? next : undefined });
   }, `integrations:${agent.id}`);
-  return (
-    <label className="fld fld-check">
-      <span><input type="checkbox" checked={on} disabled={locked} onChange={(e) => toggle(e.target.checked)} /> Kindex memory</span>
-      <span className="fld-hint muted">Gives this agent Kindex, a knowledge graph on its computer that outlasts this team. Install it there first: <code>pip install 'kindex[mcp]'</code>. Without it the agent starts anyway and its page says so.</span>
+  return <>{TOOLS.map((t) => (
+    <label key={t.id} className="fld fld-check">
+      <span><input type="checkbox" checked={have.includes(t.id)} disabled={locked} onChange={(e) => toggle(t.id, e.target.checked)} /> {t.label}</span>
+      <span className="fld-hint muted">{t.hint}</span>
     </label>
-  );
+  ))}</>;
 }

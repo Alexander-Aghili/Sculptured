@@ -72,6 +72,22 @@ pub struct GuardRules {
     pub reads: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub writes: Vec<String>,
+    /// The team's safety rules, checked first on every tool call.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub safety: Vec<crate::SafetyRule>,
+}
+
+impl GuardRules {
+    /// The tools the hook must see: every tool with safety rules, edits too with a write contract.
+    pub fn hook_matcher(&self) -> &'static str {
+        if !self.safety.is_empty() {
+            ""
+        } else if !self.writes.is_empty() {
+            "Read|Bash|Write|Edit|MultiEdit|NotebookEdit"
+        } else {
+            "Read|Bash"
+        }
+    }
 }
 
 /// Files read as a whole by nature (an image cannot be read in pieces): never refused.
@@ -84,6 +100,9 @@ const PRINTERS: &[&str] = &["cat", "tac", "nl", "less", "more", "bat", "batcat",
 /// `size` gives a file's size in bytes (None if it cannot be read).
 pub fn decide(rules: &GuardRules, hook: &Value, size: &dyn Fn(&Path) -> Option<u64>) -> Option<String> {
     let input = hook.get("tool_input")?;
+    if let Some(refusal) = crate::safety::check(&rules.safety, hook.get("tool_name")?.as_str()?, input) {
+        return Some(format!("{MARK} {refusal}"));
+    }
     let cwd = hook.get("cwd").and_then(Value::as_str).map(PathBuf::from);
     let big = |file: &str| -> Option<u64> {
         let p = Path::new(file);
@@ -256,5 +275,13 @@ mod tests {
         assert_eq!(call("Write", json!({ "file_path": "/work/big.csv" })), None);
         assert_eq!(decide(&rules(), &json!({}), &sizes), None);
         assert!(!Protection { on: false, ..Protection::default() }.guard_rules().is_some());
+    }
+
+    #[test]
+    fn a_safety_rule_refuses_first_with_the_protection_mark() {
+        let rules = GuardRules { max_read_bytes: 1 << 30, safety: crate::safety::presets(), ..Default::default() };
+        let r = decide(&rules, &json!({ "tool_name": "Bash", "tool_input": { "command": "rm -rf target" }, "cwd": "/w" }), &|_| None).expect("refused");
+        assert!(r.starts_with(MARK) && r.contains("no-recursive-delete"), "{r}");
+        assert!(decide(&rules, &json!({ "tool_name": "Bash", "tool_input": { "command": "cargo test" }, "cwd": "/w" }), &|_| None).is_none());
     }
 }

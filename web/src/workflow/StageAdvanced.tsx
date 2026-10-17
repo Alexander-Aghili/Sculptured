@@ -3,6 +3,26 @@ import type { TeamDraft } from '../generated/TeamDraft';
 import type { Workflow } from '../generated/Workflow';
 import type { WorkflowStage } from '../generated/WorkflowStage';
 import { STAGE_TYPES, addStageAfter, asKind, typeOf, type StageType } from './stageKinds';
+import type { ReviewPersona } from '../generated/ReviewPersona';
+
+/** Angles a panel reviewer can take (the brief each is given lives in the server). */
+const PERSONAS: { id: ReviewPersona; label: string }[] = [
+  { id: 'red-team', label: 'Red team: ways to break it' }, { id: 'adversarial', label: 'Adversary: why it is wrong' },
+  { id: 'simplifier', label: 'Simplifier: needless complexity' }, { id: 'user', label: 'User: confusion and friction' },
+  { id: 'expert', label: 'Domain expert: peer review' }, { id: 'good-friend', label: 'Honest friend: the harsh truth' },
+  { id: 'ownership', label: 'Ownership: who owns each fact' },
+];
+
+/** Each panel reviewer's angle (ideas from Advocate). */
+function ReviewerAngles({ draft, stage, update }: { draft: TeamDraft; stage: WorkflowStage; update: (s: WorkflowStage) => void }) {
+  return <>
+        {(stage.reviewers ?? []).map((id) => <label key={`p-${id}`}>{draft.agents.find((a) => a.id === id)?.name ?? id} reviews as <select aria-label={`How ${draft.agents.find((a) => a.id === id)?.name ?? id} reviews`} value={stage.personas?.[id] ?? ''}
+          onChange={(e) => { const rest = Object.fromEntries(Object.entries(stage.personas ?? {}).filter(([k]) => k !== id)); const next = e.target.value ? { ...rest, [id]: e.target.value as ReviewPersona } : rest; update({ ...stage, personas: Object.keys(next).length ? next : undefined }); }}>
+          <option value="">its own judgement</option>{PERSONAS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select></label>)}
+        <p className="muted">Giving reviewers different angles covers what one would miss. When their votes split, the result says who voted what.</p>
+  </>;
+}
 
 /** Pipeline options for one stage, closed by default: its type and that type's fields, a review panel, a round limit. */
 export function StageAdvanced({ draft, stage: s, locked, update, change }: { draft: TeamDraft; stage: WorkflowStage; locked: boolean; update: (s: WorkflowStage) => void; change: (w: Workflow) => void }) {
@@ -26,6 +46,7 @@ export function StageAdvanced({ draft, stage: s, locked, update, change }: { dra
       {type === 'panel' && <fieldset><legend>Reviewers (2–6)</legend>
         {eligible.map((a) => <label key={a.id}><input type="checkbox" checked={!!s.reviewers?.includes(a.id)} disabled={s.reviewers?.includes(a.id) ? (s.reviewers?.length ?? 0) <= 2 : (s.reviewers?.length ?? 0) >= 6}
           onChange={(e) => update({ ...s, reviewers: e.target.checked ? [...(s.reviewers ?? []), a.id] : (s.reviewers ?? []).filter((id) => id !== a.id) })} />{a.name}</label>)}
+        <ReviewerAngles draft={draft} stage={s} update={update} />
         <label>Decide when <select value={s.join ?? 'all'} onChange={(e) => update({ ...s, join: e.target.value === 'any' ? 'any' : undefined })}>
           <option value="all">every reviewer approves</option><option value="any">the first reviewer approves</option>
         </select></label>

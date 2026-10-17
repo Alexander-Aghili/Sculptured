@@ -3,7 +3,7 @@
 //! as Kindex) found here, never named by the server.
 use super::Supervisor;
 use drivers::McpServer;
-use model::{EventBody, Skill};
+use model::{EventBody, SafetyRule, Skill};
 use std::path::{Path, PathBuf};
 
 /// The plugin that carries one agent's skills; Claude names them `sculptured:<skill>`.
@@ -20,30 +20,44 @@ impl Supervisor {
         Ok(Some(dir))
     }
 
-    /// The integrations found on this computer; each one missing is told on the agent, and the
-    /// agent starts without it.
-    pub(super) fn integrations(&self, seat: &str, names: &[String]) -> Vec<McpServer> {
-        let mut out = Vec::new();
+    /// The integrations found on this computer, as MCP servers and tool hooks; each one missing is told
+    /// on the agent, and the agent starts without it. `safety`: the team's rules, which Signet-Eval
+    /// enforces too.
+    pub(super) fn integrations(&self, seat: &str, names: &[String], safety: &[SafetyRule]) -> (Vec<McpServer>, Vec<String>) {
+        let (mut servers, mut hooks) = (Vec::new(), Vec::new());
         for name in names {
             let found = match name.as_str() {
-                "kindex" => find_program("kin-mcp").map(|program| McpServer { name: "kindex".into(), program, args: vec![] }),
+                "kindex" => find_program("kin-mcp").map(|program| servers.push(McpServer { name: "kindex".into(), program, args: vec![] })),
+                "signet" => find_program("signet-eval").and_then(|program| self.signet_hook(seat, &program, safety).map(|h| hooks.push(h))),
                 _ => None,
             };
-            match found {
-                Some(s) => out.push(s),
-                None => self.emit_system(seat, EventBody::FeaturesDropped {
-                    features: vec![name.clone()],
-                    note: missing_note(name),
-                }),
+            if found.is_none() {
+                self.emit_system(seat, EventBody::FeaturesDropped { features: vec![name.clone()], note: missing_note(name) });
             }
         }
-        out
+        (servers, hooks)
+    }
+
+    /// Signet-Eval as a hook command, with the team's safety rules as its user rules (its own system
+    /// policy, `~/.signet/policy.yaml` or its built-in one, still applies).
+    fn signet_hook(&self, seat: &str, program: &Path, safety: &[SafetyRule]) -> Option<String> {
+        let host = self.inner.seat_tools.as_ref()?;
+        let dir = host.socket.parent().unwrap_or_else(|| Path::new(".")).join("signet").join(seat.replace(|c: char| !(c.is_ascii_alphanumeric() || "@.-_".contains(c)), "_"));
+        let rules: Vec<serde_json::Value> = safety.iter().map(|r| serde_json::json!({
+            "name": r.name, "tool_pattern": r.tool_pattern, "conditions": r.conditions, "action": "DENY",
+            "reason": r.reason.clone().unwrap_or_else(|| "Not allowed in this team.".into()),
+        })).collect();
+        // YAML reads JSON, so the rules file is written as JSON.
+        let file = dir.join("rules.yaml");
+        std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&file, serde_json::to_string_pretty(&rules).unwrap_or_default())).ok()?;
+        Some(format!("\"{}\" --rules-path \"{}\"", program.display(), file.display()))
     }
 }
 
 fn missing_note(name: &str) -> String {
     match name {
         "kindex" => "This agent runs without Kindex: `kin-mcp` is not installed on its computer. Install it there with `pip install 'kindex[mcp]'` (or `uv tool install 'kindex[mcp]'`), then restart the agent.".into(),
+        "signet" => "This agent runs without Signet-Eval: `signet-eval` is not installed on its computer. Install it there with `cargo install signet-eval`, then restart the agent. Sculptured's own safety rules still apply.".into(),
         other => format!("This agent runs without {other}: this computer's runner does not know it. Reinstall the runner from Computers."),
     }
 }

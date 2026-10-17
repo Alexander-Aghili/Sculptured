@@ -19,7 +19,9 @@ async fn a_start_maps_the_folder_and_agents_get_the_map_lessons_and_a_history_se
     let (status, rec) = call(&s.router, "POST", "/api/teams", json!({ "request_id": rid(), "template": "blank", "name": "Know" })).await;
     assert_eq!(status, StatusCode::OK, "{rec}");
     let mut draft = rec["draft"].clone();
-    draft["agents"] = json!([{ "id": "a", "group_id": null, "name": "Builder", "kind": "claude", "job": "hello", "folder": dir.path().display().to_string(), "x": 40, "y": 40 }]);
+    draft["agents"] = json!([{ "id": "a", "group_id": null, "name": "Builder", "kind": "claude", "job": "hello", "folder": dir.path().display().to_string(), "x": 40, "y": 40,
+        "advanced": { "permission": "unrestricted", "resume": "resume-if-possible", "data_access": { "shared": [
+            { "name": "send", "value": "fn send()", "file": "messaging/bus.rs" }, { "name": "port", "value": "8080", "file": "messaging/bus.rs" } ] } } }]);
     let id = draft["id"].as_str().unwrap().to_string();
     let (status, body) = call(&s.router, "PUT", &format!("/api/teams/{id}"), json!({ "request_id": rid(), "revision": draft["revision"], "draft": draft })).await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -31,6 +33,7 @@ async fn a_start_maps_the_folder_and_agents_get_the_map_lessons_and_a_history_se
     let text = first().unwrap();
     assert!(text.contains("Project map, generated at this start") && text.contains("- messaging (2 files") && text.contains("Messaging primitives"), "{text}");
     assert!(text.contains("Reuse the message bus; do not build a second one. (Builder)") && text.contains("search_history"), "{text}");
+    assert!(text.contains("- send = fn send() (messaging/bus.rs line 1)") && text.contains("NOT FOUND: port = 8080 should be in messaging/bus.rs"), "shared values are checked in their files: {text}");
     assert!(dir.path().join(".sculptured/map.md").exists(), "the full map is in the folder");
     // The agent's job reply ("fake: …") is in the history the team can search, once that turn is past.
     wait_for("the reply is recorded", || events(&s.st, &a).iter().any(|e| matches!(&e.body, model::EventBody::AgentText { .. }))).await;

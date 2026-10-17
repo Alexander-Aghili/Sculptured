@@ -200,7 +200,7 @@ mod tests {
         let mut d = rigspec::templates::template("builder-reviewer", "project", "My project", false).unwrap();
         let (builder, reviewer) = (d.agents[0].id.clone(), d.agents[1].id.clone());
         d.agents[0].advanced.authority = Some(model::Authority { domains: vec!["wing geometry".into()], scope: Some("system".into()), rationale: None });
-        d.agents[0].advanced.data_access = Some(model::DataAccess { reads: vec!["manuals/".into()], writes: vec!["cad/wings/".into()], side_effects: vec!["none".into()], rationale: None });
+        d.agents[0].advanced.data_access = Some(model::DataAccess { reads: vec!["manuals/".into()], writes: vec!["cad/wings/".into()], side_effects: vec!["none".into()], rationale: None, shared: vec![] });
         let to_reviewer = briefing(&d, &d.seat_id(&reviewer).unwrap()).unwrap();
         assert!(to_reviewer.contains("Who decides what: wing geometry: Builder [builder]."), "{to_reviewer}");
         assert!(to_reviewer.contains("Builder [builder] owns decisions whose consequences reach across the whole team"), "{to_reviewer}");

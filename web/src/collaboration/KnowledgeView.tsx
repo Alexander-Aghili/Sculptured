@@ -12,11 +12,12 @@ const when = (ms: number) => new Date(ms).toLocaleString();
 function Entry({ e, onConfirm, onHide }: { e: DecisionEntry; onConfirm: () => void; onHide: () => void }) {
   const lesson = isLearned(e);
   const kind = e.source === 'constraint' ? 'Constraint' : 'Lesson';
+  const by = e.source === 'claim-check' ? 'Claim check by Sculptured (heuristic: what the agent said against the tool calls captured)' : lesson ? `${kind} from ${e.author}` : `Decision by ${e.author}`;
   return (
     <li className="kn-entry">
       <p>{e.text}</p>
       <p className="muted">
-        {lesson ? `${kind} from ${e.author}` : `Decision by ${e.author}`} · {when(e.at_ms)}
+        {by} · {when(e.at_ms)}
         {e.confirmed_ms ? ' · confirmed by you, kept with the project' : lesson ? ' · reported, not yet confirmed' : ''}
       </p>
       <div className="kn-actions">
@@ -66,6 +67,9 @@ function Maps({ k }: { k: Knowledge }) {
       {k.maps.length === 0 ? <p className="muted">No map yet: one is made when the team next starts (the agents’ computer needs a current runner).</p> : k.maps.map((m) => (
         <div key={m.folder} className="kn-map">
           <p><code>{m.folder}</code> · {m.map.files} files{m.map.truncated ? ' (the first of many)' : ''} · made {when(m.at_ms)}{m.map.kept?.length ? ` · ${m.map.kept.length} kept with the project` : ''}</p>
+          {!!m.map.shared?.length && <ul className="kn-shared" aria-label="Shared values, checked at the last start">{m.map.shared.map((c) => (
+            <li key={`${c.name}-${c.file}`}>{c.status === 'found' ? '✓' : '✗'} <code>{c.name} = {c.value}</code> in <code>{c.file}</code>{c.status === 'found' ? ` line ${c.line} (found)` : c.status === 'missing' ? ' — not in the file' : ' — no such file'}</li>
+          ))}</ul>}
           <ul className="kn-areas">{m.map.areas.map((a) => <Area key={a.path} a={a} who={m.workers[a.path]} />)}</ul>
         </div>
       ))}

@@ -83,11 +83,13 @@ Shell commands are not checked against the contract.
 
 - A runner without the `protection` feature gets the launch without `protection`. `drop_features` records a `FeaturesDropped` event telling the person to reinstall the runner.
 - **Codex agents get the context ceiling only.** The ceiling works from `context-reported` events, which Codex sends too. The guard and the output cap are not sent: `claude_settings` returns none for Codex. `decide` already understands Codex's tool names (`shell`, `exec_command`), but Codex runs hooks only after the person trusts them on each computer. *Deferred.*
-- **Safety rules:** *none yet*. The layer carries only the efficiency rules above.
+- **Safety rules** (`model::safety`): the team's `TeamDraft.safety`, sent in `GuardRules.safety` and checked first in `decide`. The format is Signet-Eval's (`name`, `tool_pattern` regex, `conditions` all holding, `reason`); the guard evaluates `contains`, `any_of`, `matches`, `param_contains`, `param_eq`, `param_ne`, `not`, `or`, `true`, `false`. A condition that does not parse makes its rule never match, and `SafetyRule::problems` reports it as `safety-rule-invalid`. Presets live in `web/src/structure/safety-presets.json`, read by both sides.
+- **Hook matcher** (`GuardRules::hook_matcher`): `Read|Bash`; plus the edit tools when the contract limits writes; every tool (`""`) when there are safety rules.
+- **Signet-Eval** (integration `signet`, Claude only): the runner finds `signet-eval`, writes the team's safety rules as its user rules (`<runner data>/signet/<seat>/rules.yaml`, JSON, which YAML reads) and the driver adds `"signet-eval" --rules-path …` as a second PreToolUse hook (`LaunchSpec.tool_hooks`), even with protections off. Its built-in locked rules always apply (Signet overlays them on any policy file), including refusing edits until Kindex was used and refusing Claude's task tools, so `agent_extras` adds `kindex` with it.
 
 ## Architecture invariants
 
-- A protection never blocks a call it cannot judge; unparsable input passes.
+- A protection never blocks a call it cannot judge; unparsable input and unreadable safety rules pass.
 - The guard reads file sizes, never file contents.
 - The ceiling acts only between turns and only above twice the conversation's starting size.
 - The guard and output cap apply to Claude agents only, and only on a runner that advertises `protection`. The ceiling applies to every agent that reports its context.
@@ -109,3 +111,6 @@ Shell commands are not checked against the contract.
 | A conversation that starts above the ceiling but does not grow is left alone | `controld/tests/run_budget.rs::a_conversation_that_starts_above_the_ceiling_but_does_not_grow_is_left_alone` |
 | Agents learn who decides what and their own contract | `controld/src/team_context.rs::agents_learn_who_decides_what_and_their_own_data_contract` |
 | Contracts and protections round-trip through MADL | `controld/tests/madl.rs::contracts_and_protections_round_trip_through_madl` |
+| Safety presets refuse what they name and pass the rest; broken rules never block | `model/src/safety.rs` tests |
+| A safety rule refuses first, with the protection mark | `model/src/protection.rs::a_safety_rule_refuses_first_with_the_protection_mark` |
+| The hook sees edits with a write contract and every tool with safety rules; Signet runs after the guard | `drivers/tests/claude_args.rs::safety_rules_widen_the_hook_to_every_tool_and_signet_runs_after_the_guard` |

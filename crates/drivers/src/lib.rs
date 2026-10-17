@@ -67,6 +67,8 @@ pub struct LaunchSpec {
     pub plugin_dirs: Vec<PathBuf>,
     /// More MCP servers on this computer the agent is given (integrations such as Kindex).
     pub mcp_servers: Vec<McpServer>,
+    /// Claude: more PreToolUse hook commands on every tool call (Signet-Eval), after Sculptured's guard.
+    pub tool_hooks: Vec<String>,
 }
 
 /// A local MCP server started over stdio for one agent.
@@ -103,6 +105,7 @@ impl LaunchSpec {
             protection: None,
             plugin_dirs: vec![],
             mcp_servers: vec![],
+            tool_hooks: vec![],
         }
     }
 }

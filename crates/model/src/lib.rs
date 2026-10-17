@@ -7,8 +7,10 @@ mod budget;
 pub mod protection;
 pub mod contract;
 pub mod skill;
+pub mod safety;
+pub use safety::SafetyRule;
 pub use skill::Skill;
-pub use contract::{Authority, DataAccess};
+pub use contract::{Authority, DataAccess, SharedValue};
 pub use protection::{GuardRules, Protection};
 pub use budget::{ClaudeSetup, ContinueMode, PlanBudget, PlanPause, RunBudget, SoftHard, SOFT_SHARE};
 mod draft;
@@ -21,7 +23,7 @@ mod status;
 mod workflow;
 pub mod pricing;
 pub use pricing::{Cost, CostSource};
-pub use workflow::{Escalation, Guard, GuardState, TaskStatus, ASSEMBLY, BoardPosition, CopiesMode, DispatchTask, Join, Review, StageKind, StepBy, TopicMode, Waiting, Workflow, WorkflowRun, WorkflowStage, WorkflowStep, WorkflowTask, DEFAULT_CHECK_TIMEOUT_S};
+pub use workflow::{ReviewPersona, Escalation, Guard, GuardState, TaskStatus, ASSEMBLY, BoardPosition, CopiesMode, DispatchTask, Join, Review, StageKind, StepBy, TopicMode, Waiting, Workflow, WorkflowRun, WorkflowStage, WorkflowStep, WorkflowTask, DEFAULT_CHECK_TIMEOUT_S};
 
 pub use action::{ActionClass, RiskFlag};
 pub use question::{

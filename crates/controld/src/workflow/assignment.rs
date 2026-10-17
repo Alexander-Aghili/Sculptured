@@ -9,7 +9,7 @@ const EVIDENCE_IN_MESSAGE: usize = 1500;
 
 pub fn text(d: &TeamDraft, run: &WorkflowRun, task: &WorkflowTask, id: &str, agent: &str) -> String {
     let job = d.agent(agent).map(|a| a.job.as_str()).unwrap_or_default();
-    let (folder, panel) = (folder_note(task), panel_note(run, task));
+    let (folder, panel) = (folder_note(task), panel_note(run, task, agent));
     let panel = match super::engine::escalation_due(&run.config, task).filter(|e| e.agent == agent) {
         Some(e) => format!("{panel}\nEscalated: this item has been through {} rounds at this stage; you are taking over.", e.after_rounds),
         None => panel,
@@ -72,7 +72,12 @@ fn folder_note(task: &WorkflowTask) -> String {
     task.copy.as_ref().map(|c| format!("\nItem folder: {c} — work only there; it is this item's own branch.")).unwrap_or_default()
 }
 
-fn panel_note(run: &WorkflowRun, task: &WorkflowTask) -> String {
+fn panel_note(run: &WorkflowRun, task: &WorkflowTask, agent: &str) -> String {
     stage(&run.config, &task.stage).filter(|s| !s.reviewers.is_empty())
-        .map(|s| format!("\nYou are one of {} reviewers of this item; give your own vote.", s.reviewers.len())).unwrap_or_default()
+        .map(|s| format!("\nYou are one of {} reviewers of this item; give your own vote.{}", s.reviewers.len(), persona_note(s, agent))).unwrap_or_default()
+}
+
+/// The angle this reviewer was given, if any; the other reviewers cover the rest.
+fn persona_note(s: &model::WorkflowStage, agent: &str) -> String {
+    s.personas.get(agent).map(|p| format!(" Review as the {}: {} Leave other angles to the other reviewers.", p.label().to_lowercase(), p.brief())).unwrap_or_default()
 }

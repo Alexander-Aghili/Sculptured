@@ -1,6 +1,7 @@
 import type { Protection } from '../generated/Protection';
 import type { TeamDraft } from '../generated/TeamDraft';
 import type { Edit } from './Panels';
+import { SafetyFields } from './SafetyFields';
 
 export const DEFAULT_PROTECTION: Protection = { on: true, read_kb: 100, shell_chars: 8000, context_tokens: 60000 };
 
@@ -40,6 +41,7 @@ export function ProtectionFields({ draft, edit, locked }: { draft: TeamDraft; ed
         </label>
       ))}
       <p className="fld-meta">Claude agents: all three. Codex agents: the context limit only. An agent on a computer whose runner predates protections runs without them, and its page says so. Takes effect the next time an agent starts.</p>
+      {p.on && <SafetyFields draft={draft} edit={edit} locked={locked} />}
     </fieldset>
   );
 }

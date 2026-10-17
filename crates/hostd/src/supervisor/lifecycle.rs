@@ -134,7 +134,8 @@ impl Supervisor {
                 t.env.push((host_proto::seat_tools::SKILLS_ENV.to_string(), "1".to_string()));
             }
         }
-        spec.mcp_servers = self.integrations(&req.seat, &p.integrations);
+        let safety = p.protection.as_ref().map(|r| r.safety.as_slice()).unwrap_or_default();
+        (spec.mcp_servers, spec.tool_hooks) = self.integrations(&req.seat, &p.integrations, safety);
         Ok(spec)
     }
 

@@ -86,12 +86,17 @@ pub struct AgentAdvanced {
 pub enum Integration {
     /// Kindex (github.com/wandercom/kindex): a knowledge graph that persists across sessions and teams.
     Kindex,
+    /// Signet-Eval (github.com/wandercom/signet-eval): deterministic policy checks on every tool call,
+    /// run as a second hook with the team's safety rules. Claude agents only. Its own locked rules
+    /// expect Kindex, so it comes with Kindex.
+    Signet,
 }
 
 impl Integration {
     pub fn name(self) -> &'static str {
         match self {
             Integration::Kindex => "kindex",
+            Integration::Signet => "signet",
         }
     }
 }
@@ -308,6 +313,10 @@ pub struct TeamDraft {
     #[serde(default, skip_serializing_if = "crate::Protection::is_default")]
     #[ts(as = "Option<crate::Protection>", optional)]
     pub protection: crate::Protection,
+    /// The team's safety rules (Advanced → Protections): tool calls they match are refused.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::SafetyRule>>", optional)]
+    pub safety: Vec<crate::SafetyRule>,
     /// What one run may use (Advanced). Absent = no budget.
     #[serde(default, skip_serializing_if = "crate::RunBudget::is_empty")]
     #[ts(as = "Option<crate::RunBudget>", optional)]

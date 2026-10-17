@@ -66,6 +66,7 @@ impl Cx<'_> {
             check: a.checks.first().map(|c| c.command.clone()),
             data_access: a.data_access.as_ref().map(|d| model::DataAccess {
                 reads: d.reads.clone(), writes: d.writes.clone(), side_effects: d.side_effects.clone(), rationale: d.rationale.clone(),
+                shared: ext.get("shared_values").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default(),
             }),
             authority: a.authority.as_ref().map(|x| model::Authority { domains: x.domains.clone(), scope: x.scope.clone(), rationale: x.rationale.clone() }),
             skills: self.skills(at, a),

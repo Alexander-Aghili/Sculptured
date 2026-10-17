@@ -6,6 +6,7 @@ import type { DraftGroup } from "./DraftGroup";
 import type { ModelDefaults } from "./ModelDefaults";
 import type { Protection } from "./Protection";
 import type { RunBudget } from "./RunBudget";
+import type { SafetyRule } from "./SafetyRule";
 import type { Schedule } from "./Schedule";
 import type { TeamInput } from "./TeamInput";
 import type { TeamLimits } from "./TeamLimits";
@@ -40,6 +41,10 @@ claude_setup?: ClaudeSetup,
  * Rules between this team's agents and their tools (Advanced). On by default.
  */
 protection?: Protection, 
+/**
+ * The team's safety rules (Advanced → Protections): tool calls they match are refused.
+ */
+safety?: Array<SafetyRule>, 
 /**
  * What one run may use (Advanced). Absent = no budget.
  */

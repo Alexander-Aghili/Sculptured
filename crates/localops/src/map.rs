@@ -30,6 +30,40 @@ pub struct ProjectMap {
     /// Lessons people confirmed in earlier teams, kept in `.sculptured/lessons.md` in this folder.
     #[serde(default)]
     pub kept: Vec<String>,
+    /// The contracts' shared values, as found in their files at this start.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shared: Vec<SharedCheck>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SharedCheck {
+    pub name: String,
+    pub value: String,
+    pub file: String,
+    /// `found` (with its first line), `missing` (the file does not contain the value) or `no-file`.
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+}
+
+/// Each shared value looked up in its file: observed, not reported. Paths that leave the folder are
+/// not read.
+fn check_shared(root: &Path, shared: &[model::SharedValue]) -> Vec<SharedCheck> {
+    shared.iter().map(|v| {
+        let rel = Path::new(&v.file);
+        let inside = !rel.is_absolute() && !rel.components().any(|c| matches!(c, std::path::Component::ParentDir));
+        let text = inside.then(|| std::fs::read_to_string(root.join(rel)).ok()).flatten();
+        let line = text.as_ref().and_then(|t| t.lines().position(|l| l.contains(&v.value)).map(|i| i as u32 + 1));
+        let status = match (&text, line) { (None, _) => "no-file", (Some(_), None) => "missing", (Some(_), Some(_)) => "found" };
+        SharedCheck { name: v.name.clone(), value: v.value.clone(), file: v.file.clone(), status: status.into(), line }
+    }).collect()
+}
+
+/// The map of `root` with the team's shared values checked in it.
+pub fn build_checked(root: &Path, shared: &[model::SharedValue]) -> Result<ProjectMap, LocalError> {
+    let mut map = build(root)?;
+    map.shared = check_shared(root, shared);
+    Ok(map)
 }
 
 /// Confirmed lessons kept with the project, one `- ` line each, so later teams start knowing them.
@@ -164,7 +198,7 @@ pub fn build(root: &Path) -> Result<ProjectMap, LocalError> {
     }
     let mut docs_left = MAX_DOCS;
     let areas: Vec<Area> = by_area.into_iter().take(MAX_AREAS).map(|(path, fs)| area(root, path, &fs, &mut docs_left)).collect();
-    let map = ProjectMap { root: root.display().to_string(), files: files.len() as u32, areas, truncated: truncated || files.len() > MAX_FILES, file: ".sculptured/map.md".into(), kept: kept(root) };
+    let map = ProjectMap { root: root.display().to_string(), files: files.len() as u32, areas, truncated: truncated || files.len() > MAX_FILES, file: ".sculptured/map.md".into(), kept: kept(root), shared: vec![] };
     let dir = root.join(".sculptured");
     std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(dir.join("map.md"), markdown(&map)))
         .map_err(|e| LocalError::conflict("map_not_written", format!("could not write the project map: {e}")))?;
@@ -238,6 +272,16 @@ mod tests {
         assert_eq!(titles, [("Wing parts", 1, 4), ("Spar", 5, 11), ("Rib", 12, 13)]);
         let written = std::fs::read_to_string(root.join(".sculptured/map.md")).unwrap();
         assert!(written.contains("## cad/wings") && written.contains("Spar (lines 5–11)"), "{written}");
+    }
+
+    #[test]
+    fn shared_values_are_found_with_their_line_or_named_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("config.py"), "HOST = 'x'\nPORT = 8080\n").unwrap();
+        let v = |value: &str, file: &str| model::SharedValue { name: "port".into(), value: value.into(), file: file.into() };
+        let m = build_checked(dir.path(), &[v("8080", "config.py"), v("9090", "config.py"), v("8080", "gone.py"), v("x", "../outside.py")]).unwrap();
+        let got: Vec<(&str, Option<u32>)> = m.shared.iter().map(|c| (c.status.as_str(), c.line)).collect();
+        assert_eq!(got, [("found", Some(2)), ("missing", None), ("no-file", None), ("no-file", None)]);
     }
 
     #[test]

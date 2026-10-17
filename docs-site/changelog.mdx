@@ -7,6 +7,14 @@ Changes you can see or use, by date. The open-source core's full history is on [
 
 ## 17 October 2026
 
+### Safety rules, review angles, claim checks
+
+- **Safety rules** under the team's Protections refuse tool calls you name, in Signet-Eval's rule format, with ready-made ones for recursive deletes, secret files, force-push, piped downloads and disk formatting. **Signet-Eval** itself can run for any Claude agent too. See [Safety rules](/guides/budgets#safety-rules).
+- **Review panels give each reviewer an angle** (red team, adversary, simplifier, user, domain expert, honest friend, ownership), and a split vote says who voted what. Ideas from Advocate.
+- **Values agents share** (`name = value @ file`) are checked in their files at every start, and agents are told what was found. An idea from Constrain.
+- **Claim checks**: when an agent says it changed a file or that tests pass without a captured edit or command, the Knowledge view says so. An idea from Arbiter.
+- Fixed: contract write limits were not checked, because the guard hook did not see edits.
+
 ### Skills and Kindex
 
 - **Give agents skills** on their panel: instructions they load only when they need them, written in a full-size editor or loaded from a `SKILL.md`. Claude Code loads them natively; Codex reads them with `read_skill`. Team and MADL files carry them. See [Skills](/guides/skills).

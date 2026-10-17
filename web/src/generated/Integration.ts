@@ -3,4 +3,4 @@
 /**
  * A tool on the agent's computer that Sculptured can give an agent. The runner finds it there.
  */
-export type Integration = "kindex";
+export type Integration = "kindex" | "signet";

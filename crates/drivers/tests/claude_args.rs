@@ -125,3 +125,21 @@ fn skills_load_as_a_plugin_folder_and_integrations_as_an_mcp_server() {
     let extra: Value = serde_json::from_str(configs[1]).unwrap();
     assert_eq!(extra["mcpServers"]["kindex"]["command"], "/home/u/.local/bin/kin-mcp");
 }
+
+#[test]
+fn safety_rules_widen_the_hook_to_every_tool_and_signet_runs_after_the_guard() {
+    let mut s = spec();
+    let mut rules = model::GuardRules { max_read_bytes: 102_400, shell_output_chars: 8000, ..Default::default() };
+    rules.writes = vec!["src/".into()];
+    s.protection = Some(drivers::ProtectionLaunch { rules: rules.clone(), guard: "/opt/sculptured".into() });
+    let hooks = |s: &LaunchSpec| -> Value { serde_json::from_str::<Value>(after(&ClaudeStreamDriver::args(s, None, "s1"), "--settings").unwrap()).unwrap()["hooks"]["PreToolUse"].clone() };
+    assert_eq!(hooks(&s)[0]["matcher"], "Read|Bash|Write|Edit|MultiEdit|NotebookEdit", "a write contract needs the edit tools");
+    rules.safety = model::safety::presets();
+    s.protection = Some(drivers::ProtectionLaunch { rules, guard: "/opt/sculptured".into() });
+    s.tool_hooks = vec![r#""/home/u/.cargo/bin/signet-eval" --rules-path "/data/signet/rules.yaml""#.into()];
+    let h = hooks(&s);
+    assert_eq!((h[0]["matcher"].as_str(), h[1]["matcher"].as_str()), (Some(""), Some("")), "safety rules see every tool");
+    assert!(h[1]["hooks"][0]["command"].as_str().unwrap().contains("signet-eval"));
+    s.protection = None;
+    assert_eq!(hooks(&s).as_array().unwrap().len(), 1, "Signet runs even with protections off");
+}

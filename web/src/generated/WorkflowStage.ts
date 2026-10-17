@@ -2,6 +2,7 @@
 import type { BoardPosition } from "./BoardPosition";
 import type { Escalation } from "./Escalation";
 import type { Join } from "./Join";
+import type { ReviewPersona } from "./ReviewPersona";
 import type { StageKind } from "./StageKind";
 
 export type WorkflowStage = { id: string, name: string, 
@@ -40,7 +41,11 @@ on_limit?: string,
 /**
  * A review panel: 2–6 agents who all take the same item (instead of `agent`/`workers`).
  */
-reviewers?: Array<string>, join?: Join, 
+reviewers?: Array<string>, 
+/**
+ * The angle each panel reviewer takes, by agent id (ideas from Advocate). None: its own judgement.
+ */
+personas?: { [key in string]: ReviewPersona }, join?: Join, 
 /**
  * Panel outcome order, worst first (default: blocked, then any non-"approved", then "approved").
  */

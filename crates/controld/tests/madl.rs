@@ -134,7 +134,7 @@ fn contracts_and_protections_round_trip_through_madl() {
     file.team.revision = 0;
     file.team.protection = model::Protection { on: true, read_kb: 200, shell_chars: 4000, context_tokens: 80_000 };
     let a = &mut file.team.agents[0].advanced;
-    a.data_access = Some(model::DataAccess { reads: vec!["manuals/".into()], writes: vec!["cad/wings/".into()], side_effects: vec!["none".into()], rationale: Some("Only the wing team changes wing geometry.".into()) });
+    a.data_access = Some(model::DataAccess { reads: vec!["manuals/".into()], writes: vec!["cad/wings/".into()], side_effects: vec!["none".into()], rationale: Some("Only the wing team changes wing geometry.".into()), shared: vec![model::SharedValue { name: "spar count".into(), value: "SPARS = 2".into(), file: "cad/wings/params.py".into() }] });
     a.authority = Some(model::Authority { domains: vec!["wing geometry".into()], scope: Some("system".into()), rationale: None });
     round_trip(&file);
     let yaml = serde_yaml_ng::to_string(&to_madl(&file)).unwrap();
